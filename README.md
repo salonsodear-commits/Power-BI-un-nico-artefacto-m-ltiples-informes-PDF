@@ -51,9 +51,9 @@ npm run prueba                               # que esto pase ANTES de seguir
 npm run dev                                  # o npm start, sin recarga
 ```
 
-Después abrí `http://localhost:3000/informes-powerbi.html`: el artefacto queda
-servido desde el mismo origen que la API, así que **Actualizar datos** consulta
-Power BI de verdad.
+Después abrí `http://localhost:3000/`: el artefacto queda servido desde el mismo
+origen que la API, así que **Actualizar datos** consulta Power BI de verdad.
+En Codespaces, abrí el puerto 3000 reenviado y ya caés en el artefacto.
 
 Sin `.env` el servidor arranca igual y sirve el artefacto: podés trabajar con
 **Datos de ejemplo** y **Pegar JSON**. Sólo *Actualizar datos* necesita

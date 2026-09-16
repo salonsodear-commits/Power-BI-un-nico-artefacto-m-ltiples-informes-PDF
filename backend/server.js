@@ -33,8 +33,12 @@ app.use((req, res, next) => {
   next();
 });
 
-// el artefacto, servido desde el mismo origen: así "Actualizar datos" funciona
-app.use(express.static(path.join(__dirname, "..", "artefacto")));
+// El artefacto, servido desde el mismo origen: así "Actualizar datos" funciona.
+// `index` hace que la raíz abra el artefacto — es lo que abre un puerto
+// reenviado de Codespaces, y lo que uno espera al entrar a localhost:3000.
+app.use(express.static(path.join(__dirname, "..", "artefacto"), {
+  index: "informes-powerbi.html"
+}));
 
 app.get("/api/informes", (_req, res) => {
   res.json(Object.entries(INFORMES).map(([clave, i]) => ({ clave, ...i.meta })));
@@ -92,10 +96,17 @@ app.post("/api/informe", async (req, res) => {
   }
 });
 
+app.use((req, res) => {
+  res.status(404).json({
+    error: "No existe " + req.method + " " + req.path,
+    rutas: ["GET /", "GET /informes-powerbi.html", "GET /api/informes", "POST /api/informe"]
+  });
+});
+
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
   console.log("Backend de informes escuchando en http://localhost:" + PORT);
-  console.log("Artefacto:  http://localhost:" + PORT + "/informes-powerbi.html");
+  console.log("Artefacto:  http://localhost:" + PORT + "/");
   console.log("Informes:   " + Object.keys(INFORMES).join(", "));
 
   // Sin credenciales el servidor igual sirve el artefacto: se puede trabajar
