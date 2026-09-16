@@ -32,7 +32,30 @@ const ALCANCE_DELEGADO = [
 
 const modo = () =>
   process.env.AUTH_MODO || (process.env.CLIENT_SECRET ? "servicio" : "delegado");
-const inquilino = () => process.env.TENANT_ID || "organizations";
+
+/**
+ * Siempre el tenant explícito. El comodín "organizations" sólo funciona con
+ * apps multiinquilino; contra una de inquilino único —la que conviene
+ * registrar— Microsoft responde AADSTS50059 porque no puede deducir el
+ * directorio. Es más simple exigir el GUID que explicar cuándo alcanza.
+ */
+function inquilino() {
+  const t = process.env.TENANT_ID;
+  if (!t) {
+    throw new Error(
+      "Falta TENANT_ID en backend/.env. Está en Entra, en la misma pantalla " +
+      "que el client id: «Id. de directorio (inquilino)».");
+  }
+  return t;
+}
+
+/** Lo que falte configurar para el modo activo. */
+function faltantes() {
+  const base = modo() === "servicio"
+    ? ["TENANT_ID", "CLIENT_ID", "CLIENT_SECRET"]
+    : ["TENANT_ID", "CLIENT_ID"];
+  return base.filter((k) => !process.env[k]);
+}
 
 /* ═══ modo servicio ═══════════════════════════════════════════════════ */
 let cacheServicio = { token: null, vence: 0 };
@@ -67,8 +90,13 @@ function borrarSesion() {
 
 /** Arranca el flujo: devuelve el código que el usuario tipea en Microsoft. */
 async function iniciarIngreso() {
+  const faltan = faltantes();
+  if (faltan.length) {
+    throw new Error("Falta " + faltan.join(" y ") + " en backend/.env. " +
+      (faltan.length > 1 ? "Los dos están" : "Está") +
+      " en Entra → tu app → Información general.");
+  }
   const CLIENT_ID = process.env.CLIENT_ID;
-  if (!CLIENT_ID) throw new Error("Falta CLIENT_ID en backend/.env");
 
   const r = await fetch(`${AUTORIDAD}/${inquilino()}/oauth2/v2.0/devicecode`, {
     method: "POST",
@@ -177,6 +205,9 @@ const PISTAS = [
   [/AADSTS50020|AADSTS50034|does not exist in tenant/i,
    "Esa cuenta no pertenece al directorio de la app. Entrá con tu cuenta corporativa, " +
    "no con una personal."],
+  [/AADSTS50059|No tenant-identifying information/i,
+   "Falta TENANT_ID en backend/.env. Copialo de Entra → tu app → Información general → " +
+   "«Id. de directorio (inquilino)», que está justo debajo del Id. de aplicación."],
   [/AADSTS900023|tenant.*not found/i,
    "TENANT_ID no es válido. Quitalo de .env: sin él usa «organizations», que sirve " +
    "para cuentas corporativas."]
@@ -223,8 +254,8 @@ async function obtenerToken() {
 
 function estado() {
   const m = modo();
+  const faltan = faltantes();
   if (m === "servicio") {
-    const faltan = ["TENANT_ID", "CLIENT_ID", "CLIENT_SECRET"].filter((k) => !process.env[k]);
     return { modo: m, conectado: faltan.length === 0, faltan };
   }
   const s = cargarSesion();
@@ -233,7 +264,7 @@ function estado() {
     modo: m,
     conectado: !!s,
     usuario: s ? s.usuario : null,
-    faltan: process.env.CLIENT_ID ? [] : ["CLIENT_ID"],
+    faltan,
     ingreso: enCurso && enCurso.estado === "esperando"
       ? { userCode: enCurso.user_code, url: enCurso.verification_uri }
       : null,

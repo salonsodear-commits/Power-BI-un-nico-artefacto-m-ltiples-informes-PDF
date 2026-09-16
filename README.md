@@ -44,8 +44,8 @@ permisos `0600`; sobreviven a un reinicio y se descartan a los 30 días sin uso.
 Si en cambio cada persona levanta su propio backend, funciona igual: el
 `CLIENT_ID` no es secreto y se puede compartir.
 
-**Lo único que necesitás:** un `CLIENT_ID` de una app registrada en Microsoft
-Entra como **cliente público** (sin secreto). En la mayoría de las
+**Lo único que necesitás:** el `CLIENT_ID` y el `TENANT_ID` de una app
+registrada en Microsoft Entra como **cliente público** (sin secreto). En la mayoría de las
 organizaciones, registrar una app no requiere administrador: el ajuste *Users
 can register applications* viene habilitado por defecto en Entra.
 
@@ -58,7 +58,7 @@ aparecen con el portal en español; entre paréntesis, en inglés.
 |---|---|---|
 | 1 | **Identidad** (*Identity*) → **Aplicaciones** (*Applications*) → **Registros de aplicaciones** (*App registrations*) | Clic en **+ Nuevo registro** (*New registration*) |
 | 2 | Formulario | **Nombre**: `Informes Power BI`. En **Tipos de cuenta admitidos** (*Supported account types*) dejá la **primera** opción. Dejá vacío **URI de redirección**. **Registrar** (*Register*) |
-| 3 | **Información general** (*Overview*) | Copiá el **Id. de aplicación (cliente)** (*Application (client) ID*) |
+| 3 | **Información general** (*Overview*) | Copiá **los dos**, uno debajo del otro: **Id. de aplicación (cliente)** (*Application (client) ID*) y **Id. de directorio (inquilino)** (*Directory (tenant) ID*) |
 | 4 | Menú de la app → **Autenticación** (*Authentication*) | Bajá hasta **Configuración avanzada** (*Advanced settings*) → **Permitir flujos de cliente público** (*Allow public client flows*) → poné **Sí** → **Guardar** |
 
 El paso 4 es el que habilita el flujo de código de dispositivo; sin eso el
@@ -81,8 +81,13 @@ No el ajuste de Service Principals a nivel de toda la empresa.
 Después, en `backend/.env`:
 
 ```
-CLIENT_ID=el-id-que-copiaste-en-el-paso-3
+CLIENT_ID=el-id-de-aplicacion
+TENANT_ID=el-id-de-directorio
 ```
+
+Los **dos** hacen falta. Con una app de inquilino único no se puede usar el
+comodín `organizations`: Microsoft responde `AADSTS50059` porque no sabe contra
+qué organización autenticar.
 
 ## La idea en una línea
 
