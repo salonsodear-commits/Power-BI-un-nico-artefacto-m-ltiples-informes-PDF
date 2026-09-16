@@ -297,6 +297,8 @@ dialog::backdrop{background:rgba(10,16,20,.58)}
 .d-pie{display:flex;gap:8px;align-items:center;padding:12px 18px;
   border-top:1px solid var(--linea-suave);background:var(--papel-2);flex-wrap:wrap}
 .d-pie .aclara{font-size:11.5px;color:var(--tinta-3);margin-right:auto;line-height:1.45}
+.d-pie .aclara.ok{color:var(--ok);font-weight:600}
+.d-pie .aclara.mal{color:var(--mal);font-weight:600}
 .d-cuerpo p{margin:0;font-size:13px;line-height:1.6;color:var(--tinta-2)}
 .d-cuerpo p b{color:var(--tinta)}
 .d-cuerpo textarea{width:100%;min-height:210px;font-family:var(--mono);font-size:12px;
@@ -614,8 +616,8 @@ pre.cod b{color:var(--acento);font-weight:600}
     </section>
   </div>
   <div class="d-pie">
-    <span class="aclara" id="pieConectar">El mapeo se guarda en el backend, en
-      <b>backend/modelo.json</b>.</span>
+    <span class="aclara" id="pieConectar" role="status" aria-live="polite">El mapeo se
+      guarda en el backend, en <b>backend/modelo.json</b>.</span>
     <button class="bd" data-cerrar="dlgConectar">Cerrar</button>
     <button class="bd primario" id="btnGuardarMapeo">Guardar mapeo</button>
   </div>
@@ -1839,13 +1841,48 @@ async function verificarMapeo() {
   } catch (e) { aviso("avisoMapeo", "mal", esc(e.message)); }
 }
 
+/**
+ * El botón vive en el pie, a la vista desde las tres pestañas, así que la
+ * respuesta tiene que verse ahí y no dentro del panel de Mapeo: si no, desde
+ * «Tablero» parece que el botón no hace nada.
+ */
+function pie(clase, html) {
+  const p = $("pieConectar");
+  p.className = "aclara" + (clase ? " " + clase : "");
+  p.innerHTML = html;
+}
+const PIE_NEUTRO = "El mapeo se guarda en el backend, en <b>backend/modelo.json</b>.";
+
+function verMapeo() {
+  $("tabsConectar").querySelectorAll("button").forEach((x) => {
+    const suyo = x.dataset.panel === "pMapeo";
+    x.setAttribute("aria-pressed", String(suyo));
+    $(x.dataset.panel).hidden = !suyo;
+  });
+}
+
 async function guardarMapeo() {
-  if (!CAMPOS) { aviso("avisoMapeo", "mal", "Todavía no se cargó el mapeo."); return; }
+  if (!CAMPOS) {
+    pie("mal", "Todavía no se cargó el mapeo. Abrí la pestaña <b>Mapeo del modelo</b>.");
+    verMapeo();
+    return;
+  }
+  const b = $("btnGuardarMapeo");
+  b.disabled = true;
+  pie("", "Guardando…");
   try {
     const j = await API.pedir("/api/modelo", { method: "PUT", body: JSON.stringify(leerMapeo()) });
     MAPEO = j.modelo;
-    aviso("avisoMapeo", "ok", "Mapeo guardado. Ya podés <b>Actualizar datos</b>.");
-  } catch (e) { aviso("avisoMapeo", "mal", esc(e.message)); }
+    pie("ok", "Mapeo guardado. Ya podés <b>Actualizar datos</b>.");
+    aviso("avisoMapeo", "ok", "Mapeo guardado.");
+    setTimeout(() => { if ($("pieConectar").classList.contains("ok")) pie("", PIE_NEUTRO); }, 6000);
+  } catch (e) {
+    pie("mal", esc(e.message));
+    aviso("avisoMapeo", "mal", esc(e.message));
+    verMapeo();   // el error casi siempre es un campo: que se vea cuál
+  } finally {
+    b.disabled = false;
+  }
 }
 
 /* ── consola DAX ──────────────────────────────────────────────────── */
@@ -1878,6 +1915,7 @@ async function correrDax(consulta) {
 function iniciarConectar() {
   $("btnConectar").addEventListener("click", async () => {
     abrir("dlgConectar");
+    pie("", PIE_NEUTRO);
     await verSesion();
     cargarWorkspaces();
     cargarMapeo();
