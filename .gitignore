@@ -8,4 +8,5 @@ npm-debug.log*
 .DS_Store
 
 # Sesión delegada: guarda un refresh token. Nunca al repositorio.
-backend/.sesion.json
+backend/.sesiones.json
+backend/.sesiones.json.tmp

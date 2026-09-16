@@ -1432,7 +1432,10 @@ const API = {
   },
   url(ruta) { return this.base() + ruta; },
   async pedir(ruta, opciones) {
+    // `credentials` manda la cookie de sesión también cuando el backend
+    // está en otro origen: sin eso, cada llamada parecería de alguien nuevo.
     const r = await fetch(this.url(ruta), Object.assign({
+      credentials: "include",
       headers: { "Content-Type": "application/json", "Accept": "application/json" }
     }, opciones || {}));
     const texto = await r.text();

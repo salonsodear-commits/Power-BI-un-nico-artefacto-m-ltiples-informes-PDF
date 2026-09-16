@@ -32,8 +32,17 @@ si no, delegado. `AUTH_MODO=delegado` lo fuerza.
 
 En modo delegado el backend usa el **flujo de código de dispositivo**: muestra un
 código de 8 caracteres, lo escribís en `microsoft.com/devicelogin` con tu cuenta
-de siempre, y listo. El token se guarda en `backend/.sesion.json`, que está en
-`.gitignore` y se escribe con permisos de sólo dueño.
+de siempre, y listo.
+
+**Una sesión por persona, no una por servidor.** Cada navegador recibe una cookie
+con un identificador al azar y su token se guarda contra ese identificador, así
+que varios compañeros pueden usar el mismo backend y cada uno consulta Power BI
+con **sus** permisos — que es lo que hace que el RLS del modelo siga aplicándose.
+Los tokens van a `backend/.sesiones.json`, ignorado por git y escrito con
+permisos `0600`; sobreviven a un reinicio y se descartan a los 30 días sin uso.
+
+Si en cambio cada persona levanta su propio backend, funciona igual: el
+`CLIENT_ID` no es secreto y se puede compartir.
 
 **Lo único que necesitás:** un `CLIENT_ID` de una app registrada en Microsoft
 Entra como **cliente público** (sin secreto). En la mayoría de las
@@ -48,12 +57,17 @@ aparecen con el portal en español; entre paréntesis, en inglés.
 | Paso | Dónde | Qué hacer |
 |---|---|---|
 | 1 | **Identidad** (*Identity*) → **Aplicaciones** (*Applications*) → **Registros de aplicaciones** (*App registrations*) | Clic en **+ Nuevo registro** (*New registration*) |
-| 2 | Formulario | **Nombre**: `Informes Power BI`. En **Tipos de cuenta admitidos** (*Supported account types*) dejá la **primera** opción, la de sólo tu organización. **Registrar** (*Register*) |
+| 2 | Formulario | **Nombre**: `Informes Power BI`. En **Tipos de cuenta admitidos** (*Supported account types*) dejá la **primera** opción. Dejá vacío **URI de redirección**. **Registrar** (*Register*) |
 | 3 | **Información general** (*Overview*) | Copiá el **Id. de aplicación (cliente)** (*Application (client) ID*) |
 | 4 | Menú de la app → **Autenticación** (*Authentication*) | Bajá hasta **Configuración avanzada** (*Advanced settings*) → **Permitir flujos de cliente público** (*Allow public client flows*) → poné **Sí** → **Guardar** |
 
 El paso 4 es el que habilita el flujo de código de dispositivo; sin eso el
 ingreso falla con `invalid_client`.
+
+**Sobre el paso 2:** «inquilino único» no quiere decir «sólo vos». Quiere decir
+*todas las cuentas de tu organización*, así que tus compañeros entran con la
+misma app sin tocar nada. La opción multiinquilino habilitaría a gente de otras
+empresas, que no es lo que querés.
 
 No hace falta crear ningún secreto, ni tocar **Permisos de API** (*API
 permissions*): los permisos delegados de Power BI se piden en el momento del

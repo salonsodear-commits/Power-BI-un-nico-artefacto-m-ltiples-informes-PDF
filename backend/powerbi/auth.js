@@ -18,8 +18,7 @@
  * El modo se elige solo: si hay CLIENT_SECRET es «servicio», si no «delegado».
  * AUTH_MODO lo fuerza.
  */
-const fs = require("fs");
-const path = require("path");
+const SESIONES = require("../sesiones");
 
 const AUTORIDAD = "https://login.microsoftonline.com";
 const RECURSO = "https://analysis.windows.net/powerbi/api";
@@ -30,8 +29,6 @@ const ALCANCE_DELEGADO = [
   RECURSO + "/Report.Read.All",
   "openid", "profile", "offline_access"
 ].join(" ");
-
-const ARCHIVO_SESION = path.join(__dirname, "..", ".sesion.json");
 
 const modo = () =>
   process.env.AUTH_MODO || (process.env.CLIENT_SECRET ? "servicio" : "delegado");
@@ -58,23 +55,14 @@ async function tokenServicio() {
 }
 
 /* ═══ modo delegado: código de dispositivo ════════════════════════════ */
-let sesion = null;          // { access_token, refresh_token, vence, usuario }
-let enCurso = null;         // { user_code, verification_uri, vence, estado, error }
+/** Ingresos a medio completar, uno por persona: sid → { user_code, ... } */
+const ingresos = new Map();
 
-function cargarSesion() {
-  if (sesion) return sesion;
-  try { sesion = JSON.parse(fs.readFileSync(ARCHIVO_SESION, "utf8")); }
-  catch (e) { sesion = null; }
-  return sesion;
-}
-function guardarSesion(s) {
-  sesion = s;
-  // el refresh token es tan sensible como un secreto: permisos de sólo dueño
-  fs.writeFileSync(ARCHIVO_SESION, JSON.stringify(s, null, 2), { mode: 0o600 });
-}
+const cargarSesion = () => SESIONES.obtener();
+const guardarSesion = (s) => SESIONES.guardar(s);
 function borrarSesion() {
-  sesion = null; enCurso = null;
-  try { fs.unlinkSync(ARCHIVO_SESION); } catch (e) { /* ya no estaba */ }
+  ingresos.delete(SESIONES.sid());
+  SESIONES.borrar();
 }
 
 /** Arranca el flujo: devuelve el código que el usuario tipea en Microsoft. */
@@ -92,19 +80,24 @@ async function iniciarIngreso() {
     throw new Error(conPista(j.error_description || j.error || "No se pudo iniciar el ingreso"));
   }
 
-  enCurso = {
+  const mio = SESIONES.sid();
+  ingresos.set(mio, {
     user_code: j.user_code,
     verification_uri: j.verification_uri,
     vence: Date.now() + (j.expires_in || 900) * 1000,
     estado: "esperando"
-  };
-  sondear(CLIENT_ID, j.device_code, (j.interval || 5) * 1000);
+  });
+  sondear(mio, CLIENT_ID, j.device_code, (j.interval || 5) * 1000);
   return { userCode: j.user_code, url: j.verification_uri, expiraEn: j.expires_in || 900 };
 }
 
-/** Pregunta a Microsoft cada pocos segundos si el usuario ya entró. */
-function sondear(clientId, deviceCode, intervalo) {
+/**
+ * Pregunta a Microsoft cada pocos segundos si esa persona ya entró.
+ * Corre fuera del pedido HTTP, así que el sid va explícito.
+ */
+function sondear(mio, clientId, deviceCode, intervalo) {
   const paso = async () => {
+    const enCurso = ingresos.get(mio);
     if (!enCurso || enCurso.estado !== "esperando") return;
     if (Date.now() > enCurso.vence) {
       enCurso.estado = "error";
@@ -117,7 +110,7 @@ function sondear(clientId, deviceCode, intervalo) {
         client_id: clientId,
         device_code: deviceCode
       });
-      guardarSesion({
+      SESIONES.guardarEn(mio, {
         access_token: j.access_token,
         refresh_token: j.refresh_token,
         vence: Date.now() + (j.expires_in - 60) * 1000,
@@ -150,13 +143,12 @@ async function tokenDelegado() {
       refresh_token: s.refresh_token,
       scope: ALCANCE_DELEGADO
     });
-    guardarSesion({
+    return guardarSesion({
       access_token: j.access_token,
       refresh_token: j.refresh_token || s.refresh_token,
       vence: Date.now() + (j.expires_in - 60) * 1000,
       usuario: s.usuario
-    });
-    return sesion.access_token;
+    }).access_token;
   } catch (e) {
     borrarSesion();
     const err = new Error("La sesión venció. Volvé a entrar con tu cuenta.");
@@ -236,6 +228,7 @@ function estado() {
     return { modo: m, conectado: faltan.length === 0, faltan };
   }
   const s = cargarSesion();
+  const enCurso = ingresos.get(SESIONES.sid());
   return {
     modo: m,
     conectado: !!s,
@@ -244,7 +237,8 @@ function estado() {
     ingreso: enCurso && enCurso.estado === "esperando"
       ? { userCode: enCurso.user_code, url: enCurso.verification_uri }
       : null,
-    error: enCurso && enCurso.estado === "error" ? enCurso.error : null
+    error: enCurso && enCurso.estado === "error" ? enCurso.error : null,
+    sesionesAbiertas: SESIONES.cuantas()
   };
 }
 

@@ -13,11 +13,16 @@ const INFORMES = require("./informes");
 const { consultar, GUID } = require("./powerbi/client");
 const DESCUBRIR = require("./powerbi/descubrir");
 const AUTH = require("./powerbi/auth");
+const SESIONES = require("./sesiones");
 const MODELO = require("./modelo");
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", true);   // para saber si la conexión llegó por https
 app.use(express.json({ limit: "32kb" }));
+// Cada navegador, su propia sesión: sin esto, dos personas en el mismo backend
+// compartirían el token y el RLS del modelo dejaría de aplicarse.
+app.use(SESIONES.middleware);
 
 // Si servís el artefacto desde acá no hace falta CORS. Si lo abrís desde otro
 // origen, listá ese origen en ORIGENES_PERMITIDOS: nunca "*" para un backend
@@ -30,7 +35,8 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origen);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-    res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
@@ -227,15 +233,19 @@ app.listen(PORT, () => {
   console.log("Artefacto:  http://localhost:" + PORT + "/");
   console.log("Informes:   " + Object.keys(INFORMES).join(", "));
 
+  // Fuera de un pedido no hay persona: en modo delegado se informa el conjunto.
   const a = AUTH.estado();
-  console.log("Sesión:     modo " + a.modo + (a.conectado
-    ? " · conectado" + (a.usuario ? " como " + a.usuario : "")
-    : " · sin conectar"));
+  if (a.modo === "delegado") {
+    console.log("Sesiones:   " + a.sesionesAbiertas + " abierta(s) · cada quien entra con su cuenta");
+  } else {
+    console.log("Sesión:     Service Principal" + (a.conectado ? " · configurado" : " · incompleto"));
+  }
   if (a.faltan && a.faltan.length) {
     console.log("\nFalta " + a.faltan.join(", ") + " en backend/.env");
     console.log("  cp backend/.env.example backend/.env   y completalo");
-  } else if (!a.conectado && a.modo === "delegado") {
-    console.log("\nEntrá con tu cuenta desde Conectar → Sesión (no hace falta un administrador).");
+  } else if (a.modo === "delegado") {
+    console.log("\nCada persona entra desde Conectar → Entrar con mi cuenta.");
+    console.log("No hace falta un administrador: la API los ve con sus propios permisos.");
   }
-  console.log("Sin conectar, el artefacto igual funciona con Datos de ejemplo y Pegar JSON.");
+  console.log("Sin entrar, el artefacto igual funciona con Datos de ejemplo y Pegar JSON.");
 });
