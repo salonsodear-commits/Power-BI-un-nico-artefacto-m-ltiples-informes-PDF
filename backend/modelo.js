@@ -13,6 +13,9 @@ const fs = require("fs");
 const path = require("path");
 
 const ARCHIVO = path.join(__dirname, "modelo.json");
+// La semilla sí va al repositorio; el archivo en uso no, para que guardar el
+// mapeo nunca choque con un git pull.
+const SEMILLA = path.join(__dirname, "modelo.ejemplo.json");
 
 /** Campos que los informes saben usar. `req` marca los imprescindibles. */
 const CAMPOS = {
@@ -150,16 +153,29 @@ function normalizar(entrada) {
 }
 
 let cache = null;
+let origen = null;   // de dónde salió lo que está en memoria
 
 function leer() {
   if (cache) return cache;
-  try {
-    cache = normalizar(JSON.parse(fs.readFileSync(ARCHIVO, "utf8")));
-  } catch (e) {
-    if (e.code !== "ENOENT") console.warn("[modelo] modelo.json ignorado:", e.message);
-    cache = normalizar(POR_DEFECTO);
+  for (const [ruta, de] of [[ARCHIVO, "modelo.json"], [SEMILLA, "modelo.ejemplo.json"]]) {
+    try {
+      cache = normalizar(JSON.parse(fs.readFileSync(ruta, "utf8")));
+      origen = de;
+      return cache;
+    } catch (e) {
+      if (e.code !== "ENOENT") console.warn("[modelo] " + de + " ignorado:", e.message);
+    }
   }
+  cache = normalizar(POR_DEFECTO);
+  origen = "plantilla interna";
   return cache;
+}
+
+/** Para el arranque: qué mapeo se está usando y cuánto tiene puesto. */
+function resumen() {
+  const m = leer();
+  const cuenta = (o) => Object.values(o).filter(Boolean).length;
+  return { origen, medidas: cuenta(m.medidas), columnas: cuenta(m.columnas) };
 }
 
 function guardar(entrada) {
@@ -172,4 +188,5 @@ function guardar(entrada) {
 /** ¿Está mapeado este campo? Los informes saltean lo que no lo está. */
 const tiene = (grupo, clave) => !!leer()[grupo][clave];
 
-module.exports = { CAMPOS, POR_DEFECTO, leer, guardar, normalizar, tablaDe, tiene, ARCHIVO };
+module.exports = { CAMPOS, POR_DEFECTO, leer, guardar, normalizar, tablaDe, tiene,
+                   resumen, ARCHIVO, SEMILLA };

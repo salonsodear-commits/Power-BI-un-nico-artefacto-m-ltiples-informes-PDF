@@ -256,6 +256,9 @@ app.listen(PORT, () => {
   console.log("Backend de informes escuchando en http://localhost:" + PORT);
   console.log("Artefacto:  http://localhost:" + PORT + "/");
   console.log("Informes:   " + Object.keys(INFORMES).join(", "));
+  const mp = MODELO.resumen();
+  console.log("Mapeo:      " + mp.medidas + " medidas y " + mp.columnas +
+    " columnas · de " + mp.origen);
 
   // Fuera de un pedido no hay persona: en modo delegado se informa el conjunto.
   const a = AUTH.estado();

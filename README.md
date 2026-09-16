@@ -187,9 +187,14 @@ código. Tiene tres pestañas:
 3. **Consola DAX** — ejecuta cualquier consulta de lectura contra el modelo. Es
    la forma de descubrir como se llaman tus medidas antes de mapearlas.
 
-El mapeo se guarda en `backend/modelo.json`. No tiene secretos: podes
-commitearlo para que lo comparta el equipo. **Ya viene con el workspace y el
-modelo de este proyecto cargados**; falta completar los nombres de las medidas.
+El mapeo en uso vive en `backend/modelo.json`, que **no** va al repositorio:
+si lo versionáramos, cada vez que guardaras el mapeo se bloquearía el próximo
+`git pull`. Lo que sí va versionado es la semilla, `backend/modelo.ejemplo.json`,
+y el archivo en uso se crea a partir de ella la primera vez.
+
+La semilla ya viene con el mapeo completo del tablero de Deuda de este
+proyecto: 14 medidas y 9 columnas, verificadas contra el modelo. Para empezar
+de cero con otro tablero, borrá `backend/modelo.json` y volvé a arrancar.
 
 > **Descubrimiento de medidas.** El boton *Traer medidas del modelo* intenta
 > `INFO.VIEW.MEASURES()`, pero el endpoint clasico `executeQueries` **no admite

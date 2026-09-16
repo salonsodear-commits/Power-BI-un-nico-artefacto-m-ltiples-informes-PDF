@@ -10,3 +10,7 @@ npm-debug.log*
 # Sesión delegada: guarda un refresh token. Nunca al repositorio.
 backend/.sesiones.json
 backend/.sesiones.json.tmp
+
+# El mapeo en uso es local: se siembra de modelo.ejemplo.json en el
+# primer arranque. Versionarlo bloquearía el git pull al guardar cambios.
+backend/modelo.json
