@@ -1,7 +1,7 @@
 {
   "medidas": {
-    "real": "[Facturación Neta]",
-    "bo": "[Presupuesto]",
+    "real": "[Real]",
+    "bo": "[BO]",
     "variacion": "",
     "variacionPct": "",
     "ebitda": "",
@@ -19,7 +19,7 @@
     "clientesActivos": ""
   },
   "columnas": {
-    "periodo": "'Dim Calendario'[AnioMes]",
+    "periodo": "Calendario[ClaveMes]",
     "sociedad": "",
     "vertical": "Dim_UN[Descripcion]",
     "gastoCategoria": "",
