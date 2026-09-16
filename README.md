@@ -40,6 +40,36 @@ Entra como **cliente público** (sin secreto). En la mayoría de las
 organizaciones, registrar una app no requiere administrador: el ajuste *Users
 can register applications* viene habilitado por defecto en Entra.
 
+### Registrar la app en Entra (una vez, ~3 minutos)
+
+En [entra.microsoft.com](https://entra.microsoft.com). Los nombres van como
+aparecen con el portal en español; entre paréntesis, en inglés.
+
+| Paso | Dónde | Qué hacer |
+|---|---|---|
+| 1 | **Identidad** (*Identity*) → **Aplicaciones** (*Applications*) → **Registros de aplicaciones** (*App registrations*) | Clic en **+ Nuevo registro** (*New registration*) |
+| 2 | Formulario | **Nombre**: `Informes Power BI`. En **Tipos de cuenta admitidos** (*Supported account types*) dejá la **primera** opción, la de sólo tu organización. **Registrar** (*Register*) |
+| 3 | **Información general** (*Overview*) | Copiá el **Id. de aplicación (cliente)** (*Application (client) ID*) |
+| 4 | Menú de la app → **Autenticación** (*Authentication*) | Bajá hasta **Configuración avanzada** (*Advanced settings*) → **Permitir flujos de cliente público** (*Allow public client flows*) → poné **Sí** → **Guardar** |
+
+El paso 4 es el que habilita el flujo de código de dispositivo; sin eso el
+ingreso falla con `invalid_client`.
+
+No hace falta crear ningún secreto, ni tocar **Permisos de API** (*API
+permissions*): los permisos delegados de Power BI se piden en el momento del
+ingreso y los aprobás vos mismo en la pantalla de Microsoft.
+
+Si el botón **Nuevo registro** aparece deshabilitado, tu organización desactivó
+el registro de aplicaciones y ahí sí hay que pedirle a IT — pero es un pedido
+chico: *registrar una app como cliente público, sólo lectura sobre Power BI*.
+No el ajuste de Service Principals a nivel de toda la empresa.
+
+Después, en `backend/.env`:
+
+```
+CLIENT_ID=el-id-que-copiaste-en-el-paso-3
+```
+
 ## La idea en una línea
 
 El formato vive en el código del artefacto; los datos de Power BI sólo rellenan
