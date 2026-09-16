@@ -1,0 +1,145 @@
+"use strict";
+/**
+ * Mapeo entre los campos lógicos de los informes y los nombres reales del
+ * modelo semántico.
+ *
+ * Es la pieza que hace que el generador sirva para CUALQUIER tablero: los
+ * informes piden "real" o "vertical", y acá se traduce a `[Facturación Neta]`
+ * o `Dim_Vertical[Descripcion]`, que es como se llaman en tu modelo.
+ *
+ * Se edita desde el artefacto (Conectar → Mapeo) y se guarda en modelo.json.
+ */
+const fs = require("fs");
+const path = require("path");
+
+const ARCHIVO = path.join(__dirname, "modelo.json");
+
+/** Campos que los informes saben usar. `req` marca los imprescindibles. */
+const CAMPOS = {
+  medidas: [
+    { clave: "real",              rotulo: "Real / Facturación",        req: true },
+    { clave: "bo",                rotulo: "BO / Objetivo",             req: true },
+    { clave: "variacion",         rotulo: "Variación (Real − BO)" },
+    { clave: "variacionPct",      rotulo: "Variación %" },
+    { clave: "ebitda",            rotulo: "EBITDA" },
+    { clave: "margenEbitda",      rotulo: "Margen EBITDA %" },
+    { clave: "opex",              rotulo: "OPEX" },
+    { clave: "opexBo",            rotulo: "OPEX objetivo" },
+    { clave: "provisiones",       rotulo: "Provisiones" },
+    { clave: "pendienteFacturar", rotulo: "Pendiente de facturar" },
+    { clave: "dso",               rotulo: "DSO" },
+    { clave: "saldoCxC",          rotulo: "Saldo cuentas por cobrar" },
+    { clave: "facturacion",       rotulo: "Facturación por cliente" },
+    { clave: "costos",            rotulo: "Costos" },
+    { clave: "margen",            rotulo: "Margen" },
+    { clave: "margenPct",         rotulo: "Margen %" },
+    { clave: "clientesActivos",   rotulo: "Clientes activos" }
+  ],
+  columnas: [
+    { clave: "periodo",       rotulo: "Período del calendario", req: true,
+      ayuda: "Columna con el entero AAAAMM (202607). DAX no agrupa por expresiones, " +
+             "así que una columna de fecha no sirve para las series: si no la tenés, " +
+             "agregá al modelo una columna calculada YEAR([Fecha])*100+MONTH([Fecha])" },
+    { clave: "sociedad",      rotulo: "Sociedad" },
+    { clave: "vertical",      rotulo: "Vertical / unidad de negocio" },
+    { clave: "gastoCategoria",rotulo: "Categoría de gasto (OPEX)" },
+    { clave: "agingTramo",    rotulo: "Tramo de aging" },
+    { clave: "clienteNombre", rotulo: "Cliente" },
+    { clave: "clienteKam",    rotulo: "KAM responsable" }
+  ]
+};
+
+/** Modelo de ejemplo del manual: sirve de plantilla, no de verdad. */
+const POR_DEFECTO = {
+  medidas: {
+    real: "[Real]", bo: "[BO]", variacion: "[Variación]", variacionPct: "[Variación %]",
+    ebitda: "[EBITDA]", margenEbitda: "[Margen EBITDA %]",
+    opex: "[OPEX]", opexBo: "[OPEX BO]", provisiones: "[Provisiones]",
+    pendienteFacturar: "[Pendiente de facturar]", dso: "[DSO]", saldoCxC: "[Saldo CxC]",
+    facturacion: "[Facturación]", costos: "[Costos]", margen: "[Margen]",
+    margenPct: "[Margen %]", clientesActivos: "[Clientes activos]"
+  },
+  columnas: {
+    periodo: "Calendario[ClaveMes]", sociedad: "Sociedad[Nombre]",
+    vertical: "Vertical[Nombre]", gastoCategoria: "Gastos[Categoria]",
+    agingTramo: "Aging[Tramo]", clienteNombre: "Cliente[Nombre]",
+    clienteKam: "Cliente[KAM]"
+  },
+  organizacion: "",
+  workspaceId: "",
+  datasetId: ""
+};
+
+/* ── validación ──────────────────────────────────────────────────────
+   Todo lo que se escribe acá termina interpolado en una consulta DAX, así
+   que sólo se aceptan referencias con la forma exacta `[Medida]` o
+   `Tabla[Columna]`. Nada de paréntesis, comas ni comillas. */
+const REF_MEDIDA = /^\[[^\[\]"']{1,100}\]$/;
+const REF_COLUMNA = /^(?:'[^'\r\n]{1,100}'|[A-Za-zÀ-ÿ_][\wÀ-ÿ .-]{0,99})\[[^\[\]"']{1,100}\]$/;
+
+function validarRef(valor, tipo) {
+  const s = String(valor || "").trim();
+  if (!s) return "";
+  const ok = tipo === "medida" ? REF_MEDIDA.test(s) : REF_COLUMNA.test(s);
+  if (!ok) {
+    throw new Error(
+      tipo === "medida"
+        ? `"${s}" no es una medida válida. Se espera [Nombre de la medida].`
+        : `"${s}" no es una columna válida. Se espera Tabla[Columna] o 'Mi Tabla'[Columna].`
+    );
+  }
+  return s;
+}
+
+/** `Ventas[Monto]` → `Ventas` · `'Mi Tabla'[X]` → `'Mi Tabla'` */
+function tablaDe(ref) {
+  const i = String(ref).indexOf("[");
+  return i > 0 ? ref.slice(0, i) : "";
+}
+
+function normalizar(entrada) {
+  const e = entrada && typeof entrada === "object" ? entrada : {};
+  const salida = {
+    medidas: {}, columnas: {},
+    organizacion: String(e.organizacion || "").slice(0, 80),
+    workspaceId: String(e.workspaceId || "").trim(),
+    datasetId: String(e.datasetId || "").trim()
+  };
+  for (const c of CAMPOS.medidas) {
+    salida.medidas[c.clave] = validarRef((e.medidas || {})[c.clave], "medida");
+  }
+  for (const c of CAMPOS.columnas) {
+    salida.columnas[c.clave] = validarRef((e.columnas || {})[c.clave], "columna");
+  }
+  const faltan = [...CAMPOS.medidas, ...CAMPOS.columnas]
+    .filter((c) => c.req)
+    .filter((c) => !(salida.medidas[c.clave] || salida.columnas[c.clave]))
+    .map((c) => c.rotulo);
+  if (faltan.length) throw new Error("Falta mapear: " + faltan.join(", "));
+  return salida;
+}
+
+let cache = null;
+
+function leer() {
+  if (cache) return cache;
+  try {
+    cache = normalizar(JSON.parse(fs.readFileSync(ARCHIVO, "utf8")));
+  } catch (e) {
+    if (e.code !== "ENOENT") console.warn("[modelo] modelo.json ignorado:", e.message);
+    cache = normalizar(POR_DEFECTO);
+  }
+  return cache;
+}
+
+function guardar(entrada) {
+  const m = normalizar(entrada);
+  fs.writeFileSync(ARCHIVO, JSON.stringify(m, null, 2) + "\n");
+  cache = m;
+  return m;
+}
+
+/** ¿Está mapeado este campo? Los informes saltean lo que no lo está. */
+const tiene = (grupo, clave) => !!leer()[grupo][clave];
+
+module.exports = { CAMPOS, POR_DEFECTO, leer, guardar, normalizar, tablaDe, tiene, ARCHIVO };

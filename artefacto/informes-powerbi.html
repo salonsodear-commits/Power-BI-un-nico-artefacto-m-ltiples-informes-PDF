@@ -320,6 +320,48 @@ pre.cod b{color:var(--acento);font-weight:600}
   color:var(--tinta-3);cursor:pointer}
 .tabs button[aria-pressed="true"]{background:var(--acento);border-color:var(--acento);color:#fff}
 
+/* ── conectar: listas, mapeo y consola ────────────────────────────── */
+.lista{display:flex;flex-direction:column;gap:4px;max-height:230px;overflow:auto;
+  border:1px solid var(--linea);border-radius:var(--r);padding:5px}
+.lista button{display:flex;align-items:center;gap:9px;width:100%;text-align:left;
+  background:none;border:0;border-radius:var(--r-chico);padding:7px 9px;cursor:pointer;
+  color:var(--tinta);font-size:13px;line-height:1.3}
+.lista button:hover{background:var(--papel-2)}
+.lista button[aria-pressed="true"]{background:var(--acento-suave);
+  box-shadow:inset 3px 0 0 var(--acento);font-weight:600}
+.lista button .nom{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lista button .det{margin-left:auto;font-family:var(--mono);font-size:10.5px;
+  color:var(--tinta-3);white-space:nowrap;flex:none}
+.mapeo{display:grid;gap:5px 10px;grid-template-columns:minmax(0,1fr)}
+.mapeo-fila{display:grid;grid-template-columns:minmax(120px,1.1fr) minmax(0,1.6fr) 84px;
+  gap:9px;align-items:center;padding:4px 0;border-bottom:1px dotted var(--linea-suave)}
+.mapeo-fila:last-child{border-bottom:0}
+.mapeo-fila > .et{font-size:12px;color:var(--tinta-2);line-height:1.25;min-width:0}
+.mapeo-fila > .et b{display:block;font-family:var(--display);font-weight:600;font-size:12px;
+  color:var(--tinta)}
+.mapeo-fila > .et em{font-style:normal;font-size:10px;color:var(--tinta-3);display:block;
+  line-height:1.35;margin-top:1px}
+.mapeo-fila input{font-family:var(--mono);font-size:12px;background:var(--papel-2);
+  color:var(--tinta);border:1px solid var(--linea);border-radius:var(--r-chico);
+  padding:5px 8px;width:100%;min-width:0}
+.mapeo-fila input:focus-visible{outline:2px solid var(--acento);outline-offset:-1px}
+.mapeo-fila input.vacio{border-style:dashed;color:var(--tinta-3)}
+.pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--display);font-size:9.5px;
+  font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
+  border-radius:100px;border:1px solid;white-space:nowrap;justify-self:start}
+.pill.ok{color:var(--ok);border-color:var(--ok-linea);background:var(--ok-suave)}
+.pill.mal{color:var(--mal);border-color:var(--mal-linea);background:var(--mal-suave)}
+.pill.neutra{color:var(--tinta-3);border-color:var(--linea);background:var(--papel-2)}
+.aviso-d{display:flex;gap:9px;padding:9px 12px;border-radius:var(--r);font-size:12.5px;
+  line-height:1.5;border:1px solid;align-items:flex-start}
+.aviso-d.info{background:var(--papel-2);border-color:var(--linea);color:var(--tinta-2)}
+.aviso-d.mal{background:var(--mal-suave);border-color:var(--mal-linea);color:var(--mal)}
+.aviso-d.ok{background:var(--ok-suave);border-color:var(--ok-linea);color:var(--ok)}
+.aviso-d b{font-weight:600}
+.panel-t[hidden]{display:none}
+#daxSalida{max-height:260px;overflow:auto}
+.cargando{font-family:var(--mono);font-size:12px;color:var(--tinta-3);padding:12px 2px}
+
 /* ── pantallas angostas ────────────────────────────────────────────── */
 /* Estos dos viven fuera de la grilla: ocultos por defecto, fijos cuando se
    muestran, para que nunca ocupen una celda junto a la consola y la mesa. */
@@ -387,8 +429,8 @@ pre.cod b{color:var(--acento);font-weight:600}
       <section class="grupo">
         <span class="rotulo">Tablero de origen</span>
         <div class="campo">
-          <label for="fBackend">Backend de informes</label>
-          <input id="fBackend" type="url" inputmode="url" placeholder="https://backend/api/informe"
+          <label for="fBackend">Backend</label>
+          <input id="fBackend" type="text" inputmode="url" placeholder="mismo origen"
                  autocomplete="off" spellcheck="false">
         </div>
         <div class="campo">
@@ -401,9 +443,10 @@ pre.cod b{color:var(--acento);font-weight:600}
           <input id="fDataset" placeholder="00000000-0000-0000-0000-000000000000"
                  autocomplete="off" spellcheck="false">
         </div>
-        <p class="nota">Los IDs salen de la URL del reporte en Power BI Service.
-          Se guardan sólo en este navegador. <b>Nunca pegues acá el Client Secret</b> —
-          vive en el backend.</p>
+        <button class="b ancho" id="btnConectar" style="margin-top:2px">Conectar a Power BI…</button>
+        <p class="nota">Dejá <em>Backend</em> vacío si abrís el artefacto servido desde
+          el backend. Los IDs salen de la URL del reporte, o los elegís en Conectar.
+          <b>Nunca pegues acá el Client Secret</b> — vive en el backend.</p>
       </section>
 
       <section class="grupo">
@@ -483,6 +526,61 @@ pre.cod b{color:var(--acento);font-weight:600}
     <span class="aclara">¿No sabés qué forma tiene? Abrí <b>Contrato y DAX</b>.</span>
     <button class="bd" data-cerrar="dlgJson">Cancelar</button>
     <button class="bd primario" id="btnAplicarJson">Renderizar informe</button>
+  </div>
+</dialog>
+
+<!-- ══ DIÁLOGO: conectar con Power BI ══════════════════════════════ -->
+<dialog id="dlgConectar" aria-labelledby="dlgConectarT">
+  <div class="d-tapa">
+    <h2 id="dlgConectarT">Conectar a Power BI</h2>
+    <button class="x" data-cerrar="dlgConectar" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="d-cuerpo">
+    <div class="tabs" id="tabsConectar">
+      <button type="button" data-panel="pTablero" aria-pressed="true">Tablero</button>
+      <button type="button" data-panel="pMapeo" aria-pressed="false">Mapeo del modelo</button>
+      <button type="button" data-panel="pDax" aria-pressed="false">Consola DAX</button>
+    </div>
+
+    <section class="panel-t" id="pTablero">
+      <p>El backend pregunta a Power BI qué ve esta identidad. Elegí el workspace y el
+        modelo semántico que alimenta tu tablero.</p>
+      <div id="avisoTablero"></div>
+      <h3>Workspaces</h3>
+      <div class="lista" id="listaWs"><p class="cargando">Sin cargar.</p></div>
+      <h3>Modelos semánticos</h3>
+      <div class="lista" id="listaDs"><p class="cargando">Elegí un workspace.</p></div>
+    </section>
+
+    <section class="panel-t" id="pMapeo" hidden>
+      <p>Los informes piden campos lógicos; acá se traducen a los nombres de <b>tu</b>
+        modelo. Lo que dejes vacío, el informe lo saltea.</p>
+      <div id="avisoMapeo"></div>
+      <div class="fila-controles" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="bd" id="btnMedidas">Traer medidas del modelo</button>
+        <button class="bd" id="btnVerificar">Verificar contra el modelo</button>
+      </div>
+      <datalist id="listaMedidas"></datalist>
+      <div id="formMapeo"><p class="cargando">Sin cargar.</p></div>
+    </section>
+
+    <section class="panel-t" id="pDax" hidden>
+      <p>Probá una consulta contra el modelo. Sirve para descubrir cómo se llaman tus
+        medidas antes de mapearlas. Es de sólo lectura.</p>
+      <textarea id="areaDax" spellcheck="false" style="min-height:120px"
+        aria-label="Consulta DAX">EVALUATE ROW("Prueba", 1)</textarea>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="bd primario" id="btnDax">Ejecutar</button>
+        <button class="bd" id="btnDaxMedidas">Listar medidas (INFO)</button>
+      </div>
+      <div id="daxSalida"></div>
+    </section>
+  </div>
+  <div class="d-pie">
+    <span class="aclara" id="pieConectar">El mapeo se guarda en el backend, en
+      <b>backend/modelo.json</b>.</span>
+    <button class="bd" data-cerrar="dlgConectar">Cerrar</button>
+    <button class="bd primario" id="btnGuardarMapeo">Guardar mapeo</button>
   </div>
 </dialog>
 
@@ -1177,14 +1275,7 @@ function filtrosActuales() {
 }
 
 async function actualizar() {
-  const url = $("fBackend").value.trim();
   const tipo = $("fTipo").value;
-  if (!url) {
-    estado("error", "Falta el backend",
-      "Cargá la URL del backend que consulta Power BI. Mientras tanto podés usar " +
-      "<b>Pegar JSON</b> o <b>Datos de ejemplo</b>.");
-    return;
-  }
   const cuerpo = {
     reportType: tipo,
     workspaceId: $("fWorkspace").value.trim(),
@@ -1195,19 +1286,14 @@ async function actualizar() {
   $("btnActualizar").disabled = true;
   estado("", "Consultando Power BI…", "El backend está ejecutando las consultas DAX del informe.");
   try {
-    const r = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(cuerpo)
-    });
-    if (!r.ok) throw new Error("El backend respondió " + r.status + " " + r.statusText);
-    aplicar(await r.json());
+    aplicar(await API.pedir("/api/informe", { method: "POST", body: JSON.stringify(cuerpo) }));
   } catch (e) {
     estado("error", "No se pudo consultar",
       `<span class="mono">${esc(e.message)}</span><br><br>` +
-      "Publicado en claude.ai, el navegador bloquea las llamadas de la página a otros " +
-      "servidores. Para automatizar, serví este mismo archivo desde tu backend " +
-      "(<b>Descargar HTML</b>). Acá y ahora, usá <b>Pegar JSON</b>.");
+      "Si el modelo no tiene esas medidas, mapealas en <b>Conectar → Mapeo</b>. " +
+      "Si el backend no responde, revisá que esté levantado; publicado en claude.ai " +
+      "el navegador bloquea las llamadas a otros servidores y hay que usar " +
+      "<b>Pegar JSON</b>.");
   } finally {
     $("btnActualizar").disabled = false;
   }
@@ -1293,6 +1379,267 @@ formato: moneda · monto · pesos · pct · pp · dias · veces · entero · dec
     <pre class="cod">POST https://api.powerbi.com/v1.0/myorg/groups/<b>{workspaceId}</b>/datasets/<b>{datasetId}</b>/executeQueries</pre>`;
   c.querySelectorAll("#tabsInforme button").forEach((b) =>
     b.addEventListener("click", () => { $("fTipo").value = b.dataset.tipo; pintarContrato(); }));
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   6b · CONECTAR CON POWER BI
+   Todo pasa por el backend: el artefacto nunca ve credenciales. Acá sólo
+   se elige el tablero, se mapea el modelo y se prueban consultas.
+   ═══════════════════════════════════════════════════════════════════════ */
+const API = {
+  /** Base del backend. Vacío = mismo origen, que es el caso servido. */
+  base() {
+    const v = $("fBackend").value.trim().replace(/\/+$/, "");
+    // tolera que alguien pegue el endpoint entero en vez de la base
+    return v.replace(/\/api\/informe$/, "");
+  },
+  url(ruta) { return this.base() + ruta; },
+  async pedir(ruta, opciones) {
+    const r = await fetch(this.url(ruta), Object.assign({
+      headers: { "Content-Type": "application/json", "Accept": "application/json" }
+    }, opciones || {}));
+    const texto = await r.text();
+    let j = null;
+    try { j = texto ? JSON.parse(texto) : null; } catch (e) { /* no era JSON */ }
+    if (!r.ok) throw new Error((j && (j.error || j.sugerencia)) || ("HTTP " + r.status));
+    return j;
+  }
+};
+
+const SIN_BACKEND =
+  "No se pudo hablar con el backend. Publicado en claude.ai el navegador bloquea " +
+  "las llamadas de la página a otros servidores: abrí el artefacto servido desde " +
+  "tu backend (<code>npm run dev</code> → localhost:3000) y volvé a intentar.";
+
+let CAMPOS = null, MAPEO = null, MEDIDAS = [];
+
+function aviso(destino, clase, html) {
+  const d = $(destino);
+  d.innerHTML = html ? `<div class="aviso-d ${clase}">${html}</div>` : "";
+}
+
+/* ── tablero: workspaces y modelos ────────────────────────────────── */
+async function cargarWorkspaces() {
+  const l = $("listaWs");
+  l.innerHTML = '<p class="cargando">Consultando Power BI…</p>';
+  aviso("avisoTablero", "", "");
+  try {
+    const j = await API.pedir("/api/powerbi/workspaces");
+    const ws = j.workspaces || [];
+    if (!ws.length) {
+      l.innerHTML = '<p class="cargando">Ningún workspace visible.</p>';
+      aviso("avisoTablero", "info", esc(j.nota || ""));
+      return;
+    }
+    l.innerHTML = "";
+    ws.forEach((w) => {
+      const b = el(`<button type="button" aria-pressed="${w.id === $("fWorkspace").value}">
+        <span class="nom">${esc(w.nombre)}</span>
+        <span class="det">${w.capacidad ? "capacidad · " : ""}${esc(w.id.slice(0, 8))}…</span></button>`);
+      b.addEventListener("click", () => {
+        l.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+        b.setAttribute("aria-pressed", "true");
+        $("fWorkspace").value = w.id;
+        guardarPrefs();
+        cargarModelos(w.id);
+      });
+      l.appendChild(b);
+    });
+    if (j.nota) aviso("avisoTablero", "info", esc(j.nota));
+    if ($("fWorkspace").value) cargarModelos($("fWorkspace").value);
+  } catch (e) {
+    l.innerHTML = '<p class="cargando">—</p>';
+    aviso("avisoTablero", "mal", esc(e.message) + "<br><br>" + SIN_BACKEND);
+  }
+}
+
+async function cargarModelos(ws) {
+  const l = $("listaDs");
+  l.innerHTML = '<p class="cargando">Consultando modelos…</p>';
+  try {
+    const j = await API.pedir(`/api/powerbi/workspaces/${encodeURIComponent(ws)}/modelos`);
+    const ms = j.modelos || [];
+    if (!ms.length) { l.innerHTML = '<p class="cargando">Este workspace no tiene modelos visibles.</p>'; return; }
+    l.innerHTML = "";
+    ms.forEach((d) => {
+      const usa = d.reportes && d.reportes.length
+        ? d.reportes.slice(0, 2).join(", ") + (d.reportes.length > 2 ? "…" : "")
+        : "sin reportes";
+      const b = el(`<button type="button" aria-pressed="${d.id === $("fDataset").value}">
+        <span class="nom">${esc(d.nombre)}</span>
+        <span class="det">${esc(usa)}</span></button>`);
+      b.addEventListener("click", () => {
+        l.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", "false"));
+        b.setAttribute("aria-pressed", "true");
+        $("fDataset").value = d.id;
+        guardarPrefs();
+      });
+      l.appendChild(b);
+    });
+  } catch (e) { l.innerHTML = `<p class="cargando">${esc(e.message)}</p>`; }
+}
+
+/* ── mapeo ────────────────────────────────────────────────────────── */
+async function cargarMapeo() {
+  const f = $("formMapeo");
+  f.innerHTML = '<p class="cargando">Cargando el mapeo…</p>';
+  try {
+    const j = await API.pedir("/api/modelo");
+    CAMPOS = j.campos; MAPEO = j.modelo;
+    pintarMapeo();
+  } catch (e) {
+    f.innerHTML = "";
+    aviso("avisoMapeo", "mal", esc(e.message) + "<br><br>" + SIN_BACKEND);
+  }
+}
+
+function pintarMapeo() {
+  const f = $("formMapeo");
+  f.innerHTML = "";
+  for (const grupo of ["medidas", "columnas"]) {
+    f.appendChild(el(`<h3>${grupo === "medidas" ? "Medidas" : "Columnas"}</h3>`));
+    const caja = el('<div class="mapeo"></div>');
+    CAMPOS[grupo].forEach((c) => {
+      const valor = MAPEO[grupo][c.clave] || "";
+      const fila = el(`<div class="mapeo-fila">
+        <span class="et"><b>${esc(c.rotulo)}${c.req ? " *" : ""}</b>
+          ${c.ayuda ? `<em>${esc(c.ayuda)}</em>` : ""}</span>
+        <input id="map-${grupo}-${c.clave}" value="${esc(valor)}"
+          list="${grupo === "medidas" ? "listaMedidas" : ""}"
+          placeholder="${grupo === "medidas" ? "[Nombre de la medida]" : "Tabla[Columna]"}"
+          aria-label="${esc(c.rotulo)}">
+        <span class="pill neutra" id="est-${grupo}-${c.clave}">sin probar</span>
+      </div>`);
+      const inp = fila.querySelector("input");
+      if (!valor) inp.classList.add("vacio");
+      inp.addEventListener("input", () => {
+        inp.classList.toggle("vacio", !inp.value.trim());
+        const p = $(`est-${grupo}-${c.clave}`);
+        p.className = "pill neutra"; p.textContent = "sin probar";
+      });
+      caja.appendChild(fila);
+    });
+    f.appendChild(caja);
+  }
+  f.appendChild(el(`<p class="cargando">* obligatorio. Referencias con la forma
+    <code>[Medida]</code> y <code>Tabla[Columna]</code>.</p>`));
+}
+
+function leerMapeo() {
+  const m = { medidas: {}, columnas: {},
+    organizacion: MAPEO.organizacion, workspaceId: $("fWorkspace").value.trim(),
+    datasetId: $("fDataset").value.trim() };
+  for (const grupo of ["medidas", "columnas"]) {
+    CAMPOS[grupo].forEach((c) => {
+      const i = $(`map-${grupo}-${c.clave}`);
+      if (i) m[grupo][c.clave] = i.value.trim();
+    });
+  }
+  return m;
+}
+
+async function traerMedidas() {
+  if (!$("fWorkspace").value || !$("fDataset").value) {
+    aviso("avisoMapeo", "info", "Elegí antes el workspace y el modelo en <b>Tablero</b>.");
+    return;
+  }
+  aviso("avisoMapeo", "info", "Preguntando al modelo…");
+  try {
+    const j = await API.pedir(
+      `/api/powerbi/modelos/${encodeURIComponent($("fWorkspace").value)}/${encodeURIComponent($("fDataset").value)}/medidas`);
+    if (!j.soportado) {
+      MEDIDAS = [];
+      aviso("avisoMapeo", "info", esc(j.motivo || "") +
+        " Es lo habitual: el <code>executeQueries</code> clásico no admite funciones INFO.");
+      return;
+    }
+    MEDIDAS = j.medidas || [];
+    $("listaMedidas").innerHTML = MEDIDAS
+      .map((m) => `<option value="[${esc(m.nombre)}]">${esc(m.tabla || "")}</option>`).join("");
+    aviso("avisoMapeo", "ok", `${MEDIDAS.length} medidas encontradas: ya autocompletan los campos.`);
+  } catch (e) { aviso("avisoMapeo", "mal", esc(e.message)); }
+}
+
+async function verificarMapeo() {
+  aviso("avisoMapeo", "info", "Probando cada referencia contra el modelo…");
+  try {
+    const j = await API.pedir("/api/modelo/verificar", {
+      method: "POST",
+      body: JSON.stringify({ modelo: leerMapeo(),
+        workspaceId: $("fWorkspace").value.trim(), datasetId: $("fDataset").value.trim() })
+    });
+    for (const [clave, r] of Object.entries(j.resultado || {})) {
+      const p = $("est-" + clave.replace(".", "-"));
+      if (!p) continue;
+      p.className = "pill " + (r.estado === "ok" ? "ok" : r.estado === "error" ? "mal" : "neutra");
+      p.textContent = r.estado === "ok" ? "✓ existe" : r.estado === "error" ? "✗ no existe" : "sin mapear";
+      if (r.mensaje) p.title = r.mensaje;
+    }
+    aviso("avisoMapeo", j.ok ? "ok" : "mal", j.ok
+      ? "Todo lo mapeado existe en el modelo."
+      : `${j.conError} referencia(s) no existen. Pasá el puntero por la marca roja para ver el error.`);
+  } catch (e) { aviso("avisoMapeo", "mal", esc(e.message)); }
+}
+
+async function guardarMapeo() {
+  if (!CAMPOS) { aviso("avisoMapeo", "mal", "Todavía no se cargó el mapeo."); return; }
+  try {
+    const j = await API.pedir("/api/modelo", { method: "PUT", body: JSON.stringify(leerMapeo()) });
+    MAPEO = j.modelo;
+    aviso("avisoMapeo", "ok", "Mapeo guardado. Ya podés <b>Actualizar datos</b>.");
+  } catch (e) { aviso("avisoMapeo", "mal", esc(e.message)); }
+}
+
+/* ── consola DAX ──────────────────────────────────────────────────── */
+async function correrDax(consulta) {
+  const salida = $("daxSalida");
+  salida.innerHTML = '<p class="cargando">Ejecutando…</p>';
+  try {
+    const j = await API.pedir("/api/powerbi/dax", {
+      method: "POST",
+      body: JSON.stringify({
+        workspaceId: $("fWorkspace").value.trim(), datasetId: $("fDataset").value.trim(),
+        dax: consulta !== undefined ? consulta : $("areaDax").value
+      })
+    });
+    if (!j.filas.length) { salida.innerHTML = '<p class="cargando">Sin filas.</p>'; return; }
+    salida.innerHTML = "";
+    salida.appendChild(el(`<div class="marco"><table class="datos">
+      <thead><tr>${j.columnas.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead>
+      <tbody>${j.filas.slice(0, 60).map((f) => `<tr>${j.columnas
+        .map((c) => `<td class="${typeof f[c] === "number" ? "n" : ""}">${esc(f[c])}</td>`)
+        .join("")}</tr>`).join("")}</tbody></table></div>`));
+    salida.appendChild(el(`<p class="cargando">${j.total} fila(s)${
+      j.total > 60 ? ", se muestran las primeras 60" : ""}.</p>`));
+  } catch (e) {
+    salida.innerHTML = "";
+    salida.appendChild(el(`<div class="aviso-d mal">${esc(e.message)}</div>`));
+  }
+}
+
+function iniciarConectar() {
+  $("btnConectar").addEventListener("click", () => {
+    abrir("dlgConectar");
+    cargarWorkspaces();
+    cargarMapeo();
+  });
+  $("tabsConectar").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button[data-panel]");
+    if (!b) return;
+    $("tabsConectar").querySelectorAll("button").forEach((x) => {
+      x.setAttribute("aria-pressed", String(x === b));
+      $(x.dataset.panel).hidden = x !== b;
+    });
+  });
+  $("btnMedidas").addEventListener("click", traerMedidas);
+  $("btnVerificar").addEventListener("click", verificarMapeo);
+  $("btnGuardarMapeo").addEventListener("click", guardarMapeo);
+  $("btnDax").addEventListener("click", () => correrDax());
+  $("btnDaxMedidas").addEventListener("click", () => {
+    $("areaDax").value = "EVALUATE INFO.VIEW.MEASURES()";
+    correrDax();
+  });
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -1597,6 +1944,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
       setTimeout(() => (ev.target.textContent = "Copiar ejemplo"), 1600);
     } catch (e) { ev.target.textContent = "No se pudo copiar"; }
   });
+  iniciarConectar();
   $("btnPdf").addEventListener("click", exportarPdf);
   $("btnHtml").addEventListener("click", descargarHtml);
 

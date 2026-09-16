@@ -1,7 +1,9 @@
 "use strict";
 /** Informe por Cliente (KAM) · facturación, costos y margen de la cartera. */
 const { consultarVarias } = require("../powerbi/client");
-const { claveMes, filtros } = require("../powerbi/queries");
+const Q = require("../powerbi/queries");
+const { limpiar, kpi } = require("./comun");
+const { nombreCorto, refs } = require("./ejecutivo");
 
 const meta = {
   nombre: "KAM",
@@ -10,74 +12,71 @@ const meta = {
   fuente: "Power BI — Cartera KAM"
 };
 
+const MEDIDAS_KPI = ["facturacion", "costos", "margen", "margenPct", "clientesActivos"];
+const MEDIDAS_FILA = ["facturacion", "costos", "margen", "margenPct", "variacion"];
+
 function consultas(p) {
-  return {
-    kpis: `
-EVALUATE
-  CALCULATETABLE(
-    ROW(
-      "Facturacion", [Facturación],
-      "Costos",      [Costos],
-      "Margen",      [Margen],
-      "MargenPct",   [Margen %],
-      "Clientes",    [Clientes activos]
-    ),
-${filtros(p)}
-  )`,
-    clientes: `
-EVALUATE
-  SUMMARIZECOLUMNS(
-    Cliente[Nombre],
-    Cliente[KAM],
-    FILTER(ALL(Calendario), Calendario[ClaveMes] = ${claveMes(p.periodo)}),
-    "Facturacion", [Facturación],
-    "Costos",      [Costos],
-    "Margen",      [Margen],
-    "MargenPct",   [Margen %],
-    "VsBO",        [Variación]
-  )
-  ORDER BY [Facturacion] DESC`
-  };
+  const q = {};
+  const fila = Q.filaMedidas(MEDIDAS_KPI);
+  if (fila) q.kpis = `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${Q.argsFiltro(p)}\n  )`;
+
+  const cols = Q.colsMedidas(MEDIDAS_FILA);
+  if (cols.length && Q.c("clienteNombre")) {
+    const dims = [Q.c("clienteNombre"), Q.c("clienteKam")].filter(Boolean);
+    q.clientes = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n${dims.map((x) => "    " + x).join(",\n")},\n` +
+      `${Q.argsFiltro(p)},\n${cols.join(",\n")}\n  )\n` +
+      `  ORDER BY ${Q.m("facturacion") ? "[facturacion]" : "[" + MEDIDAS_FILA.find((k) => Q.m(k)) + "]"} DESC`;
+  }
+  return q;
 }
 
 async function construir(p) {
   const d = await consultarVarias(p.workspaceId, p.datasetId, consultas(p));
-  const k = d.kpis[0] || {};
-  const cl = d.clientes || [];
+  const k = (d.kpis || [])[0] || {};
+  const colCli = nombreCorto(Q.c("clienteNombre"));
+  const colKam = Q.c("clienteKam") ? nombreCorto(Q.c("clienteKam")) : null;
+  const cl = (d.clientes || []).filter((f) => f[colCli] !== undefined);
 
-  return [
+  const columnas = [
+    { clave: "cliente", titulo: "Cliente", tipo: "texto" },
+    colKam ? { clave: "kam", titulo: "KAM", tipo: "texto" } : null,
+    Q.m("facturacion") && { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
+    Q.m("costos") && { clave: "costos", titulo: "Costos", tipo: "monto" },
+    Q.m("margen") && { clave: "margen", titulo: "Margen", tipo: "monto" },
+    Q.m("margenPct") && { clave: "margenPct", titulo: "Margen %", tipo: "pct" },
+    Q.m("variacion") && { clave: "vsBo", titulo: "vs BO", tipo: "monto", firmado: true, colorear: true }
+  ].filter(Boolean);
+
+  return limpiar([
     { tipo: "kpis", items: [
-      { etiqueta: "Facturación de cartera", valor: k.Facturacion, formato: "moneda", titular: true,
-        sentido: "positivo" },
-      { etiqueta: "Costos", valor: k.Costos, formato: "moneda", sentido: "negativo" },
-      { etiqueta: "Margen", valor: k.Margen, formato: "moneda", sentido: "positivo" },
-      { etiqueta: "Margen %", valor: k.MargenPct, formato: "pct", sentido: "positivo" },
-      { etiqueta: "Clientes activos", valor: k.Clientes, formato: "entero" }
+      kpi("facturacion", k, { etiqueta: "Facturación de cartera", formato: "moneda",
+        titular: true, sentido: "positivo" }),
+      kpi("costos", k, { etiqueta: "Costos", formato: "moneda", sentido: "negativo" }),
+      kpi("margen", k, { etiqueta: "Margen", formato: "moneda", sentido: "positivo" }),
+      kpi("margenPct", k, { etiqueta: "Margen %", formato: "pct", sentido: "positivo" }),
+      kpi("clientesActivos", k, { etiqueta: "Clientes activos", formato: "entero" })
     ]},
-    { tipo: "barrasHorizontales", titulo: "Facturación por cliente",
-      medida: "[Facturación]", formato: "moneda", ejeEtiqueta: "Cliente",
-      items: cl.slice(0, 10).map((f) => ({ etiqueta: f.Nombre, valor: f.Facturacion })) },
-    { tipo: "saltoPagina" },
-    { tipo: "tabla", titulo: "Detalle por cliente", medida: "[Facturación] · [Margen]",
-      columnas: [
-        { clave: "cliente", titulo: "Cliente", tipo: "texto" },
-        { clave: "kam", titulo: "KAM", tipo: "texto" },
-        { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
-        { clave: "costos", titulo: "Costos", tipo: "monto" },
-        { clave: "margen", titulo: "Margen", tipo: "monto" },
-        { clave: "margenPct", titulo: "Margen %", tipo: "pct" },
-        { clave: "vsBo", titulo: "vs BO", tipo: "monto", firmado: true, colorear: true }
-      ],
+    cl.length && Q.m("facturacion") ? { tipo: "barrasHorizontales",
+      titulo: "Facturación por cliente", medida: refs(["facturacion"]),
+      formato: "moneda", ejeEtiqueta: "Cliente",
+      items: cl.slice(0, 10).map((f) => ({ etiqueta: f[colCli], valor: f.facturacion }))
+    } : null,
+    cl.length ? { tipo: "saltoPagina" } : null,
+    cl.length ? { tipo: "tabla", titulo: "Detalle por cliente",
+      medida: refs(["facturacion", "margen"]), columnas,
       filas: cl.map((f) => ({
-        cliente: f.Nombre, kam: f.KAM, facturacion: f.Facturacion, costos: f.Costos,
-        margen: f.Margen, margenPct: f.MargenPct, vsBo: f.VsBO
+        cliente: f[colCli], kam: colKam ? f[colKam] : undefined,
+        facturacion: f.facturacion, costos: f.costos, margen: f.margen,
+        margenPct: f.margenPct, vsBo: f.variacion
       })),
       total: {
-        cliente: "Total cartera", kam: "", facturacion: k.Facturacion, costos: k.Costos,
-        margen: k.Margen, margenPct: k.MargenPct,
-        vsBo: cl.reduce((a, f) => a + (f.VsBO || 0), 0)
-      }}
-  ];
+        cliente: "Total cartera", kam: "", facturacion: k.facturacion, costos: k.costos,
+        margen: k.margen, margenPct: k.margenPct,
+        vsBo: Q.m("variacion") ? cl.reduce((a, f) => a + (f.variacion || 0), 0) : undefined
+      } } : null
+  ]);
 }
 
-module.exports = { meta, consultas, construir };
+const requiere = { medidas: ["facturacion", "margen"], columnas: ["clienteNombre"] };
+
+module.exports = { meta, consultas, construir, requiere };

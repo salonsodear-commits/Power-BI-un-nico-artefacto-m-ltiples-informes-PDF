@@ -1,11 +1,9 @@
 "use strict";
 /** Informe de Finanzas · Real vs BO, OPEX, provisiones, aging y DSO. */
 const { consultarVarias } = require("../powerbi/client");
-const { claveMes, filtros, filtrosSinMes, ventanaMeses } = require("../powerbi/queries");
-
-const MES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-const etiquetaMes = (c) => MES_CORTO[(c % 100) - 1] + " " + String(Math.floor(c / 100)).slice(2);
-const TRAMOS = ["0–30 días", "31–60 días", "61–90 días", "Más de 90 días"];
+const Q = require("../powerbi/queries");
+const { etiquetaMes, limpiar, variacion, kpi } = require("./comun");
+const { nombreCorto, refs } = require("./ejecutivo");
 
 const meta = {
   nombre: "Finanzas",
@@ -14,115 +12,108 @@ const meta = {
   fuente: "Power BI — Real vs BO / OPEX"
 };
 
+const MEDIDAS_KPI = ["real", "bo", "variacion", "opex", "opexBo", "provisiones",
+                     "pendienteFacturar", "dso"];
+
 function consultas(p) {
-  return {
-    kpis: `
-EVALUATE
-  CALCULATETABLE(
-    ROW(
-      "Real",        [Real],
-      "BO",          [BO],
-      "Variacion",   [Variación],
-      "OPEX",        [OPEX],
-      "OpexBO",      [OPEX BO],
-      "Provisiones", [Provisiones],
-      "PendFact",    [Pendiente de facturar],
-      "DSO",         [DSO]
-    ),
-${filtros(p)}
-  )`,
-    opex: `
-EVALUATE
-  SUMMARIZECOLUMNS(
-    Gastos[Categoria],
-    FILTER(ALL(Calendario), Calendario[ClaveMes] = ${claveMes(p.periodo)}),
-    "OPEX", [OPEX]
-  )
-  ORDER BY [OPEX] DESC`,
-    aging: `
-EVALUATE
-  SUMMARIZECOLUMNS(
-    Vertical[Nombre],
-    Aging[Tramo],
-    FILTER(ALL(Calendario), Calendario[ClaveMes] = ${claveMes(p.periodo)}),
-    "Saldo", [Saldo CxC]
-  )`,
-    dso: `
-EVALUATE
-  SUMMARIZECOLUMNS(
-    Calendario[ClaveMes],
-    FILTER(ALL(Calendario), Calendario[ClaveMes] IN {${ventanaMeses(p.periodo, 12).join(", ")}}),${filtrosSinMes(p)}
-    "DSO", [DSO]
-  )
-  ORDER BY Calendario[ClaveMes]`
-  };
+  const q = {};
+  const fila = Q.filaMedidas(MEDIDAS_KPI);
+  if (fila) q.kpis = `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${Q.argsFiltro(p)}\n  )`;
+
+  if (Q.m("opex") && Q.c("gastoCategoria")) {
+    q.opex = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("gastoCategoria")},\n` +
+      `${Q.argsFiltro(p)},\n    "opex", ${Q.m("opex")}\n  )\n  ORDER BY [opex] DESC`;
+  }
+  if (Q.m("saldoCxC") && Q.c("agingTramo")) {
+    const dims = [Q.c("vertical"), Q.c("agingTramo")].filter(Boolean);
+    q.aging = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n${dims.map((x) => "    " + x).join(",\n")},\n` +
+      `${Q.argsFiltro(p)},\n    "saldo", ${Q.m("saldoCxC")}\n  )`;
+  }
+  if (Q.m("dso") && Q.c("periodo")) {
+    q.dso = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("periodo")},\n` +
+      [Q.fVentana(p.periodo, 12), ...Q.fDimensiones(p)].map((x) => "    " + x).join(",\n") +
+      `,\n    "dso", ${Q.m("dso")}\n  )\n  ORDER BY ${Q.c("periodo")}`;
+  }
+  return q;
 }
 
 async function construir(p) {
   const d = await consultarVarias(p.workspaceId, p.datasetId, consultas(p));
-  const k = d.kpis[0] || {};
+  const k = (d.kpis || [])[0] || {};
   const dso = d.dso || [];
+  const colPer = nombreCorto(Q.c("periodo"));
+  const colVer = nombreCorto(Q.c("vertical"));
+  const colTramo = nombreCorto(Q.c("agingTramo"));
 
   // el aging viene largo (vertical × tramo) y se pivotea a una serie por tramo
-  const verticales = [...new Set((d.aging || []).map((f) => f.Nombre))];
+  const aging = d.aging || [];
+  const verticales = [...new Set(aging.map((f) => f[colVer]).filter((x) => x !== undefined))];
+  const tramos = [...new Set(aging.map((f) => f[colTramo]).filter((x) => x !== undefined))].sort(ordenTramo);
   const saldo = (v, t) => {
-    const f = (d.aging || []).find((x) => x.Nombre === v && x.Tramo === t);
-    return f ? f.Saldo : 0;
+    const f = aging.find((x) => x[colVer] === v && x[colTramo] === t);
+    return f ? (f.saldo || 0) : 0;
   };
-  const totalCartera = (d.aging || []).reduce((a, f) => a + (f.Saldo || 0), 0);
-  const total90 = (d.aging || [])
-    .filter((f) => f.Tramo === TRAMOS[3]).reduce((a, f) => a + (f.Saldo || 0), 0);
+  const totalCartera = aging.reduce((a, f) => a + (f.saldo || 0), 0);
+  const ultimoTramo = tramos[tramos.length - 1];
+  const totalUltimo = aging.filter((f) => f[colTramo] === ultimoTramo)
+    .reduce((a, f) => a + (f.saldo || 0), 0);
 
-  return [
+  return limpiar([
     { tipo: "kpis", items: [
-      { etiqueta: "Facturación real", valor: k.Real, formato: "moneda", titular: true,
-        delta: k.Variacion, deltaEtiqueta: "vs BO", sentido: "positivo" },
-      { etiqueta: "Objetivo (BO)", valor: k.BO, formato: "moneda", nota: "Presupuesto vigente" },
-      { etiqueta: "OPEX", valor: k.OPEX, formato: "moneda",
-        delta: k.OpexBO != null ? k.OPEX - k.OpexBO : undefined,
-        deltaEtiqueta: "vs BO", sentido: "negativo" },
-      { etiqueta: "Provisiones", valor: k.Provisiones, formato: "moneda", sentido: "negativo" },
-      { etiqueta: "Pendiente de facturar", valor: k.PendFact, formato: "moneda" },
-      { etiqueta: "DSO", valor: k.DSO, formato: "dias", sentido: "negativo" }
+      kpi("real", k, { etiqueta: "Facturación real", formato: "moneda", titular: true,
+        delta: variacion(k), deltaEtiqueta: "vs BO", sentido: "positivo" }),
+      kpi("bo", k, { etiqueta: "Objetivo (BO)", formato: "moneda", nota: "Presupuesto vigente" }),
+      kpi("opex", k, { etiqueta: "OPEX", formato: "moneda", sentido: "negativo",
+        delta: typeof k.opexBo === "number" && typeof k.opex === "number" ? k.opex - k.opexBo : undefined,
+        deltaEtiqueta: "vs BO" }),
+      kpi("provisiones", k, { etiqueta: "Provisiones", formato: "moneda", sentido: "negativo" }),
+      kpi("pendienteFacturar", k, { etiqueta: "Pendiente de facturar", formato: "moneda" }),
+      kpi("dso", k, { etiqueta: "DSO", formato: "dias", sentido: "negativo" })
     ]},
-    { tipo: "barrasHorizontales", titulo: "OPEX por categoría", medida: "[OPEX]",
-      formato: "moneda", ejeEtiqueta: "Categoría",
-      items: (d.opex || []).map((f) => ({ etiqueta: f.Categoria, valor: f.OPEX })) },
-    { tipo: "saltoPagina" },
-    { tipo: "barrasApiladas", titulo: "Aging de cuentas por cobrar",
-      subtitulo: "Saldo por tramo de vencimiento", medida: "[Saldo CxC]",
-      formato: "moneda", rampa: "ordinal", ejeEtiqueta: "Vertical",
+    (d.opex || []).length ? { tipo: "barrasHorizontales", titulo: "OPEX por categoría",
+      medida: refs(["opex"]), formato: "moneda", ejeEtiqueta: "Categoría",
+      items: d.opex.map((f) => ({ etiqueta: f[nombreCorto(Q.c("gastoCategoria"))], valor: f.opex }))
+    } : null,
+    verticales.length && tramos.length ? { tipo: "saltoPagina" } : null,
+    verticales.length && tramos.length ? { tipo: "barrasApiladas",
+      titulo: "Aging de cuentas por cobrar", subtitulo: "Saldo por tramo de vencimiento",
+      medida: refs(["saldoCxC"]), formato: "moneda", rampa: "ordinal", ejeEtiqueta: "Vertical",
       ejeX: verticales,
-      series: TRAMOS.map((t) => ({ nombre: t, datos: verticales.map((v) => saldo(v, t)) })),
-      nota: totalCartera
-        ? `El tramo de más de 90 días representa el ${(total90 / totalCartera * 100).toFixed(1).replace(".", ",")} % de la cartera.`
-        : undefined },
-    { tipo: "lineas", titulo: "Evolución del DSO", subtitulo: "Días de venta pendientes de cobro",
-      medida: "[DSO]", formato: "dias", formatoEje: "entero", ejeEtiqueta: "Mes",
-      ejeX: dso.map((f) => etiquetaMes(f.ClaveMes)),
-      series: [{ nombre: "DSO", datos: dso.map((f) => f.DSO) }] },
-    { tipo: "tabla", titulo: "Aging por vertical", medida: "[Saldo CxC]",
+      series: tramos.map((t) => ({ nombre: String(t), datos: verticales.map((v) => saldo(v, t)) })),
+      nota: totalCartera ? `El tramo «${ultimoTramo}» representa el ` +
+        `${(totalUltimo / totalCartera * 100).toFixed(1).replace(".", ",")} % de la cartera.` : undefined
+    } : null,
+    dso.length ? { tipo: "lineas", titulo: "Evolución del DSO",
+      subtitulo: "Días de venta pendientes de cobro", medida: refs(["dso"]),
+      formato: "dias", formatoEje: "entero", ejeEtiqueta: "Mes",
+      ejeX: dso.map((f) => etiquetaMes(f[colPer])),
+      series: [{ nombre: "DSO", datos: dso.map((f) => f.dso) }] } : null,
+    verticales.length && tramos.length ? { tipo: "tabla", titulo: "Aging por vertical",
+      medida: refs(["saldoCxC"]),
       columnas: [
         { clave: "vertical", titulo: "Vertical", tipo: "texto" },
-        { clave: "t1", titulo: "0–30", tipo: "monto" }, { clave: "t2", titulo: "31–60", tipo: "monto" },
-        { clave: "t3", titulo: "61–90", tipo: "monto" }, { clave: "t4", titulo: "+90", tipo: "monto" },
-        { clave: "total", titulo: "Total", tipo: "monto" },
-        { clave: "pct90", titulo: "% +90", tipo: "pct" }
+        ...tramos.map((t, i) => ({ clave: "t" + i, titulo: String(t), tipo: "monto" })),
+        { clave: "total", titulo: "Total", tipo: "monto" }
       ],
       filas: verticales.map((v) => {
-        const t = TRAMOS.map((x) => saldo(v, x));
-        const suma = t.reduce((a, b) => a + b, 0);
-        return { vertical: v, t1: t[0], t2: t[1], t3: t[2], t4: t[3], total: suma,
-                 pct90: suma ? (t[3] / suma) * 100 : 0 };
+        const fila = { vertical: v };
+        let suma = 0;
+        tramos.forEach((t, i) => { const x = saldo(v, t); fila["t" + i] = x; suma += x; });
+        fila.total = suma;
+        return fila;
       }),
-      total: {
-        vertical: "Total",
-        ...Object.fromEntries(TRAMOS.map((t, i) => ["t" + (i + 1),
-          verticales.reduce((a, v) => a + saldo(v, t), 0)])),
-        total: totalCartera,
-        pct90: totalCartera ? (total90 / totalCartera) * 100 : 0
-      }}
-  ];
+      total: Object.assign({ vertical: "Total", total: totalCartera },
+        ...tramos.map((t, i) => ({ ["t" + i]: verticales.reduce((a, v) => a + saldo(v, t), 0) })))
+    } : null
+  ]);
 }
 
-module.exports = { meta, consultas, construir };
+/** 0–30 antes que 31–60 antes que +90, aunque vengan desordenados. */
+function ordenTramo(a, b) {
+  const n = (x) => { const d = String(x).match(/\d+/); return d ? Number(d[0]) : 9999; };
+  return n(a) - n(b) || String(a).localeCompare(String(b), "es");
+}
+
+const requiere = { medidas: ["real", "opex", "saldoCxC", "dso"], columnas: ["periodo"] };
+
+module.exports = { meta, consultas, construir, requiere };

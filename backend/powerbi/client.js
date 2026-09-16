@@ -62,4 +62,19 @@ function consultarVarias(workspaceId, datasetId, consultas) {
     .then((res) => Object.fromEntries(claves.map((k, i) => [k, res[i]])));
 }
 
-module.exports = { consultar, consultarVarias, GUID };
+/** GET a la REST API de Power BI (metadatos: workspaces, modelos, reportes). */
+async function rest(ruta) {
+  const token = await obtenerToken();
+  const r = await fetch(BASE + ruta, { headers: { Authorization: "Bearer " + token } });
+  const texto = await r.text();
+  if (!r.ok) {
+    let detalle = texto.slice(0, 300);
+    try { detalle = (JSON.parse(texto).error || {}).message || detalle; } catch (e) { /* texto plano */ }
+    const err = new Error("Power BI respondió " + r.status + ": " + detalle);
+    err.status = r.status;
+    throw err;
+  }
+  return JSON.parse(texto);
+}
+
+module.exports = { consultar, consultarVarias, rest, GUID };

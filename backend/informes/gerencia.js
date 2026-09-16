@@ -27,4 +27,6 @@ async function construir(p) {
   return secciones;
 }
 
-module.exports = { meta, consultas, construir };
+const requiere = ejecutivo.requiere;
+
+module.exports = { meta, consultas, construir, requiere };

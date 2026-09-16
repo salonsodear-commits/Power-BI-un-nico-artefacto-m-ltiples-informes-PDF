@@ -24,7 +24,8 @@ componentes. **Cambiar de tablero cambia los números, nunca el diseño.**
 |---|---|
 | `artefacto/informes-powerbi.html` | El artefacto. Un solo archivo, sin dependencias. |
 | `backend/server.js` | El intermediario con Power BI. Acá viven las credenciales. |
-| `backend/powerbi/` | `auth.js` (token de Entra), `client.js` (Execute Queries), `queries.js` (helpers DAX). |
+| `backend/powerbi/` | `auth.js` (token de Entra), `client.js` (Execute Queries + REST), `descubrir.js` (workspaces, modelos, medidas), `queries.js` (armado de DAX). |
+| `backend/modelo.js` | El mapeo entre los campos de los informes y los nombres de tu modelo. |
 | `backend/informes/` | Un archivo por informe: sus consultas DAX y cómo se arma su JSON. |
 | `backend/prueba-api.js` | La primera prueba: token + workspace + dataset + un `EVALUATE` mínimo. |
 
@@ -65,16 +66,62 @@ credenciales.
 | `npm start` | Igual, sin recarga. |
 | `npm run prueba` | Token + workspace + dataset + un `EVALUATE` mínimo. |
 
-### De dónde salen los IDs
+### Vincular con tu modelo semántico
 
-De la URL del reporte en Power BI Service:
+Con el backend levantado, **Conectar a Power BI** hace todo el vínculo sin tocar
+código. Tiene tres pestañas:
 
-```
-.../groups/{workspaceId}/reports/{reportId}/...
-```
+1. **Tablero** — el backend llama a `GET /groups` y `GET /groups/{ws}/datasets` y
+   te muestra los workspaces y modelos que ve esta identidad, con qué reportes
+   usa cada modelo. Elegís y quedan cargados los IDs.
+2. **Mapeo del modelo** — los informes piden campos logicos (*Real*, *BO*,
+   *Vertical*...) y aca se traducen a los nombres de **tu** modelo:
+   `[Facturacion Neta]`, `'Dim Calendario'[AnioMes]`, `Dim_UN[Descripcion]`.
+   **Verificar contra el modelo** prueba cada referencia con un `EVALUATE`
+   minimo y marca si existe, una por una. Lo que dejes vacio, el informe lo
+   saltea.
+3. **Consola DAX** — ejecuta cualquier consulta de lectura contra el modelo. Es
+   la forma de descubrir como se llaman tus medidas antes de mapearlas.
 
-El **Dataset / modelo semántico ID** está en el elemento *Modelo semántico*
-asociado al reporte dentro del mismo workspace.
+El mapeo se guarda en `backend/modelo.json`. No tiene secretos: podes
+commitearlo para que lo comparta el equipo.
+
+> **Descubrimiento de medidas.** El boton *Traer medidas del modelo* intenta
+> `INFO.VIEW.MEASURES()`, pero el endpoint clasico `executeQueries` **no admite
+> funciones INFO** (si el nuevo Execute DAX Queries, que responde en Arrow). Si
+> tu modelo las rechaza, el artefacto te lo dice y seguis por la consola DAX.
+
+Tambien podes sacar los IDs a mano de la URL del reporte en Power BI Service:
+`.../groups/{workspaceId}/reports/{reportId}/...`. El **Dataset ID** esta en el
+elemento *Modelo semantico* asociado al reporte, en el mismo workspace.
+
+### Que campos entiende el mapeo
+
+| Grupo | Campos |
+|---|---|
+| Medidas | `real`*, `bo`*, `variacion`, `variacionPct`, `ebitda`, `margenEbitda`, `opex`, `opexBo`, `provisiones`, `pendienteFacturar`, `dso`, `saldoCxC`, `facturacion`, `costos`, `margen`, `margenPct`, `clientesActivos` |
+| Columnas | `periodo`*, `sociedad`, `vertical`, `gastoCategoria`, `agingTramo`, `clienteNombre`, `clienteKam` |
+
+Los marcados con `*` son obligatorios. `periodo` debe ser una columna con el
+**entero AAAAMM** (202607): DAX no agrupa por expresiones, asi que una columna
+de fecha no sirve para las series de evolucion. Si no la tenes, agrega al modelo
+una columna calculada `YEAR([Fecha])*100 + MONTH([Fecha])`.
+
+`variacion` se toma del modelo si existe; si no, el backend usa `real - bo`. Es
+la unica cuenta que hace, y solo porque una resta no es logica de negocio que
+pueda diferir del tablero.
+
+### Rutas del backend
+
+| Ruta | Para que |
+|---|---|
+| `GET /api/powerbi/workspaces` | Workspaces visibles. |
+| `GET /api/powerbi/workspaces/:ws/modelos` | Modelos semanticos y sus reportes. |
+| `GET /api/powerbi/modelos/:ws/:ds/medidas` | Medidas via INFO, si el modelo las admite. |
+| `POST /api/powerbi/dax` | Consola DAX de solo lectura. |
+| `GET` / `PUT /api/modelo` | Leer y guardar el mapeo. |
+| `POST /api/modelo/verificar` | Probar cada referencia contra el modelo. |
+| `POST /api/informe` | El informe ya normalizado. |
 
 ## El contrato de datos
 
@@ -149,7 +196,11 @@ reutiliza las secciones del ejecutivo y sólo cambia el encabezado y los KPIs.
   del tablero. Nunca un token ni un secreto.
 - El backend valida que `workspaceId` y `datasetId` sean GUID, y escapa todo
   valor de filtro antes de interpolarlo en DAX.
-- `ORIGENES_PERMITIDOS` es una lista explícita: nunca `*`.
+- `ORIGENES_PERMITIDOS` es una lista explicita: nunca `*`.
+- El mapeo solo acepta referencias con la forma exacta `[Medida]` o
+  `Tabla[Columna]`; cualquier otra cosa se rechaza antes de tocar una consulta.
+- La consola DAX es de solo lectura, pero deja leer todo el modelo: se apaga
+  sola con `NODE_ENV=production`, y se fuerza con `CONSOLA_DAX=1` o `=0`.
 - Service Principal **no es compatible** con datasets con RLS ni con SSO
   habilitado. Verificalo antes de construir (manual, paso 4).
 
