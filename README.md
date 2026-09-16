@@ -170,12 +170,20 @@ código. Tiene tres pestañas:
    | `/groups/{ws}/reports/{rep}/...` | workspace + **modelo, resuelto por API** |
    | `/groups/{ws}/lineage` | sólo el workspace |
    | `/groups/me/...` | Mi área de trabajo no tiene GUID: la API no la alcanza |
-2. **Mapeo del modelo** — los informes piden campos logicos (*Real*, *BO*,
-   *Vertical*...) y aca se traducen a los nombres de **tu** modelo:
-   `[Facturacion Neta]`, `'Dim Calendario'[AnioMes]`, `Dim_UN[Descripcion]`.
+2. **Mapeo del modelo** — **Detectar automáticamente** deduce el mapeo solo:
+   prueba nombres habituales en español e inglés contra tu modelo y completa
+   el formulario con lo que encuentra, incluido el formato del período.
    **Verificar contra el modelo** prueba cada referencia con un `EVALUATE`
-   minimo y marca si existe, una por una. Lo que dejes vacio, el informe lo
+   mínimo y marca si existe, una por una. Lo que quede vacío, el informe lo
    saltea.
+
+   Como `executeQueries` no admite funciones `INFO` ni DMV, no hay forma de
+   pedirle al modelo que se liste. Lo que sí se puede es probar:
+   `EVALUATE TOPN(1, Tabla)` acierta o falla, y cuando acierta devuelve todas
+   las columnas de esa tabla de una sola vez; con las medidas pasa lo mismo
+   con `EVALUATE ROW("v", [Medida])`. El recorrido entero cabe en el
+   presupuesto de 120 consultas por minuto de la API, y si Power BI corta por
+   frecuencia lo avisa en vez de dar por ausente algo que sí está.
 3. **Consola DAX** — ejecuta cualquier consulta de lectura contra el modelo. Es
    la forma de descubrir como se llaman tus medidas antes de mapearlas.
 
@@ -218,6 +226,7 @@ pueda diferir del tablero.
 | `GET /api/powerbi/workspaces` | Workspaces visibles. |
 | `GET /api/powerbi/workspaces/:ws/modelos` | Modelos semanticos y sus reportes. |
 | `GET /api/powerbi/workspaces/:ws/reportes/:id` | De un reporte al modelo que lo alimenta. |
+| `POST /api/powerbi/detectar` | Deduce el mapeo probando nombres habituales. |
 | `GET /api/powerbi/modelos/:ws/:ds/medidas` | Medidas via INFO, si el modelo las admite. |
 | `POST /api/powerbi/dax` | Consola DAX de solo lectura. |
 | `GET` / `PUT /api/modelo` | Leer y guardar el mapeo. |

@@ -399,6 +399,8 @@ pre.cod b{color:var(--acento);font-weight:600}
 .aviso-d.mal{background:var(--mal-suave);border-color:var(--mal-linea);color:var(--mal)}
 .aviso-d.ok{background:var(--ok-suave);border-color:var(--ok-linea);color:var(--ok)}
 .aviso-d b{font-weight:600}
+.aviso-d code{font-family:var(--mono);font-size:11.5px;background:var(--papel);
+  border:1px solid var(--linea);border-radius:3px;padding:0 4px}
 .panel-t[hidden]{display:none}
 #daxSalida{max-height:260px;overflow:auto}
 .cargando{font-family:var(--mono);font-size:12px;color:var(--tinta-3);padding:12px 2px}
@@ -607,7 +609,7 @@ pre.cod b{color:var(--acento);font-weight:600}
         modelo. Lo que dejes vacío, el informe lo saltea.</p>
       <div id="avisoMapeo"></div>
       <div class="fila-controles" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-        <button class="bd" id="btnMedidas">Traer medidas del modelo</button>
+        <button class="bd primario" id="btnDetectar">Detectar automáticamente</button>
         <button class="bd" id="btnVerificar">Verificar contra el modelo</button>
       </div>
       <datalist id="listaMedidas"></datalist>
@@ -1832,6 +1834,73 @@ function leerMapeo() {
   return m;
 }
 
+/**
+ * Prueba nombres habituales contra el modelo y completa el formulario solo.
+ * Son decenas de consultas, así que avisa mientras trabaja.
+ */
+async function detectarMapeo() {
+  if (!$("fWorkspace").value || !$("fDataset").value) {
+    aviso("avisoMapeo", "info", "Elegí antes el workspace y el modelo en <b>Tablero</b>.");
+    return;
+  }
+  const b = $("btnDetectar");
+  b.disabled = true;
+  aviso("avisoMapeo", "info",
+    '<span class="latiendo">Probando nombres habituales contra tu modelo…</span><br>' +
+    "Puede tardar medio minuto: cada nombre es una consulta.");
+  try {
+    const j = await API.pedir("/api/powerbi/detectar", {
+      method: "POST",
+      body: JSON.stringify({ workspaceId: $("fWorkspace").value.trim(),
+                             datasetId: $("fDataset").value.trim() })
+    });
+    aplicarPropuesta(j.propuesta);
+    aviso("avisoMapeo", Object.keys(j.encontrado.medidas).length ? "ok" : "info", resumenDeteccion(j));
+  } catch (e) {
+    aviso("avisoMapeo", "mal", esc(e.message));
+  } finally {
+    b.disabled = false;
+  }
+}
+
+/** Vuelca la propuesta en el formulario sin pisar lo que ya estaba puesto. */
+function aplicarPropuesta(p) {
+  for (const grupo of ["medidas", "columnas"]) {
+    for (const [clave, valor] of Object.entries(p[grupo] || {})) {
+      const i = $(`map-${grupo}-${clave}`);
+      if (!i || !valor) continue;
+      i.value = valor;
+      i.classList.remove("vacio");
+      const e = $(`est-${grupo}-${clave}`);
+      if (e) { e.className = "pill ok"; e.textContent = "✓ detectada"; }
+    }
+  }
+  const sel = $("map-periodoFormato");
+  if (sel && p.periodoFormato) sel.value = p.periodoFormato;
+}
+
+function resumenDeteccion(j) {
+  const med = Object.entries(j.encontrado.medidas);
+  const tab = Object.entries(j.encontrado.tablas);
+  if (!med.length && !tab.length) {
+    return "No reconocí ningún nombre habitual en este modelo (" + j.consultas +
+      " consultas). Usá la <b>Consola DAX</b> para ver cómo se llaman tus medidas.";
+  }
+  const linea = (t, xs) => xs.length
+    ? `<br><b>${t}:</b> ` + xs.map(([k, v]) => `${esc(k)} → <code>${esc(typeof v === "string" ? v : v.nombre)}</code>`).join(" · ")
+    : "";
+  const faltan = [...j.sinEncontrar.medidas, ...j.sinEncontrar.tablas];
+  const corte = j.frenado
+    ? "<br><br><b>Power BI cortó por frecuencia</b> (120 consultas por minuto). " +
+      "Lo que quedó sin reconocer no es concluyente: esperá un minuto y volvé a detectar."
+    : j.tope ? "<br><br>Se alcanzó el tope de consultas del recorrido." : "";
+  return `Encontré ${med.length} medida(s) y ${tab.length} tabla(s) en ${j.consultas} consultas.` +
+    linea("Medidas", med) + linea("Tablas", tab) +
+    (faltan.length ? `<br><br>Sin reconocer: ${esc(faltan.join(", "))}. ` +
+      "Si tu modelo las tiene con otro nombre, completalas abajo o mirá la <b>Consola DAX</b>." : "") +
+    corte + "<br><br>Revisá la propuesta y tocá <b>Guardar mapeo</b>.";
+}
+
 async function traerMedidas() {
   if (!$("fWorkspace").value || !$("fDataset").value) {
     aviso("avisoMapeo", "info", "Elegí antes el workspace y el modelo en <b>Tablero</b>.");
@@ -2013,7 +2082,7 @@ function iniciarConectar() {
   });
   $("btnLeerUrl").addEventListener("click", leerUrlPbi);
   $("fUrlPbi").addEventListener("keydown", (e) => { if (e.key === "Enter") leerUrlPbi(); });
-  $("btnMedidas").addEventListener("click", traerMedidas);
+  $("btnDetectar").addEventListener("click", detectarMapeo);
   $("btnVerificar").addEventListener("click", verificarMapeo);
   $("btnGuardarMapeo").addEventListener("click", guardarMapeo);
   $("btnDax").addEventListener("click", () => correrDax());

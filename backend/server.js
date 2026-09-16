@@ -12,6 +12,7 @@ const express = require("express");
 const INFORMES = require("./informes");
 const { consultar, GUID } = require("./powerbi/client");
 const DESCUBRIR = require("./powerbi/descubrir");
+const DETECTAR = require("./powerbi/detectar");
 const AUTH = require("./powerbi/auth");
 const SESIONES = require("./sesiones");
 const MODELO = require("./modelo");
@@ -119,6 +120,21 @@ app.post("/api/powerbi/dax", atajo(async (req) => {
            columnas: filas.length ? Object.keys(filas[0]) : [] };
 }));
 
+/**
+ * Deduce el mapeo probando nombres habituales contra el modelo. Tarda,
+ * porque son decenas de consultas, pero evita que alguien tenga que
+ * escribir a mano cómo se llama cada medida.
+ */
+app.post("/api/powerbi/detectar", atajo(async (req) => {
+  const guardado = MODELO.leer();
+  const ws = (req.body && req.body.workspaceId) || guardado.workspaceId || process.env.POWERBI_WORKSPACE_ID;
+  const ds = (req.body && req.body.datasetId) || guardado.datasetId || process.env.POWERBI_DATASET_ID;
+  if (!GUID.test(ws || "") || !GUID.test(ds || "")) {
+    throw Object.assign(new Error("Elegí antes el workspace y el modelo."), { status: 400 });
+  }
+  return DETECTAR.detectar(ws, ds);
+}));
+
 /* ══ mapeo del modelo ══════════════════════════════════════════════════ */
 
 app.get("/api/modelo", (_req, res) => {
@@ -224,7 +240,7 @@ app.use((req, res) => {
             "GET /api/auth", "POST /api/auth/ingresar", "POST /api/auth/salir",
             "GET /api/powerbi/workspaces", "GET /api/powerbi/workspaces/:ws/modelos",
             "GET /api/powerbi/workspaces/:ws/reportes/:id",
-            "GET /api/powerbi/modelos/:ws/:ds/medidas", "POST /api/powerbi/dax",
+            "GET /api/powerbi/modelos/:ws/:ds/medidas", "POST /api/powerbi/dax", "POST /api/powerbi/detectar",
             "GET /api/modelo", "PUT /api/modelo", "POST /api/modelo/verificar"]
   });
 });
