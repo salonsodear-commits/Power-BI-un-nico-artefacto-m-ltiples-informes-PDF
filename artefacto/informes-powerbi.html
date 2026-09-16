@@ -110,6 +110,7 @@ button,input,select,textarea{font:inherit}
 .consola select{font-family:var(--display);font-weight:600;font-size:13px}
 .consola select option{background:#fff;color:#0F1A21}
 .consola input::placeholder{color:#5C7080}
+.consola input.malo{border-color:#A9564C;background:#2B1512;color:#F0B8AF}
 .consola input:focus-visible,.consola select:focus-visible{outline-color:var(--acento-linea)}
 .nota{font-size:11px;line-height:1.5;color:var(--consola-tinta-2);margin:2px 0 0}
 .nota b{color:#E2B8B2;font-weight:600}
@@ -1283,6 +1284,10 @@ const $ = (id) => document.getElementById(id);
 const CLAVE = "tablero-a-informe/v1";
 
 function guardarPrefs() {
+  // una base evidentemente rota no se persiste: arrastraría el problema
+  // a la próxima visita, cuando ya nadie recuerda de dónde salió
+  const bk = $("fBackend").value.trim();
+  if (bk && /\s/.test(bk)) $("fBackend").value = "";
   try {
     localStorage.setItem(CLAVE, JSON.stringify({
       backend: $("fBackend").value, workspace: $("fWorkspace").value,
@@ -1426,11 +1431,25 @@ formato: moneda · monto · pesos · pct · pp · dias · veces · entero · dec
    se elige el tablero, se mapea el modelo y se prueban consultas.
    ═══════════════════════════════════════════════════════════════════════ */
 const API = {
-  /** Base del backend. Vacío = mismo origen, que es el caso servido. */
+  /**
+   * Base del backend. Vacío = mismo origen, que es el caso servido.
+   *
+   * Se valida de verdad: si alguien pega cualquier cosa acá (pasa, sobre todo
+   * un mensaje de error), sin esto cada llamada saldría contra una ruta
+   * inventada y el fallo se leería como «el backend no responde».
+   */
   base() {
-    const v = $("fBackend").value.trim().replace(/\/+$/, "");
-    // tolera que alguien pegue el endpoint entero en vez de la base
-    return v.replace(/\/api\/informe$/, "");
+    const crudo = $("fBackend").value.trim();
+    if (!crudo) return "";
+    // el navegador codifica los espacios en vez de rechazar, así que
+    // una dirección con espacios se descarta antes de parsearla
+    if (/\s/.test(crudo)) throw errorBackend();
+    const v = crudo.replace(/\/+$/, "").replace(/\/api\/informe$/, "");
+    let u;
+    try { u = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(v) ? v : "https://" + v); }
+    catch (e) { throw errorBackend(); }
+    if (!/^https?:$/.test(u.protocol) || !u.hostname) throw errorBackend();
+    return u.origin + u.pathname.replace(/\/+$/, "");
   },
   url(ruta) { return this.base() + ruta; },
   async pedir(ruta, opciones) {
@@ -1451,6 +1470,15 @@ const API = {
     return j;
   }
 };
+
+function errorBackend() {
+  $("fBackend").classList.add("malo");
+  const e = new Error(
+    "La casilla «Backend» del panel izquierdo no tiene una dirección válida. " +
+    "Si abrís el artefacto servido desde tu backend, dejala VACÍA.");
+  e.backendInvalido = true;
+  return e;
+}
 
 const SIN_BACKEND =
   "No se pudo hablar con el backend. Publicado en claude.ai el navegador bloquea " +
@@ -1531,11 +1559,22 @@ async function cargarModelos(ws) {
 let sondeoSesion = null;
 
 async function verSesion() {
-  try { pintarSesion(await API.pedir("/api/auth")); }
-  catch (e) {
-    $("barraSesion").innerHTML =
-      `<div class="sesion falta"><span class="txt"><b>Backend fuera de alcance</b>` +
-      SIN_BACKEND + `</span></div>`;
+  try {
+    $("fBackend").classList.remove("malo");
+    pintarSesion(await API.pedir("/api/auth"));
+  } catch (e) {
+    $("barraSesion").innerHTML = e.backendInvalido
+      ? `<div class="sesion falta"><span class="txt"><b>Revisá la casilla «Backend»</b>` +
+        esc(e.message) + `<br><br>Borrá lo que tenga y volvé a intentar.` +
+        `</span><button class="bd primario" id="btnLimpiarBackend">Vaciar y reintentar</button></div>`
+      : `<div class="sesion falta"><span class="txt"><b>Backend fuera de alcance</b>` +
+        SIN_BACKEND + `</span></div>`;
+    if ($("btnLimpiarBackend")) $("btnLimpiarBackend").addEventListener("click", () => {
+      $("fBackend").value = "";
+      $("fBackend").classList.remove("malo");
+      guardarPrefs();
+      verSesion(); cargarWorkspaces(); cargarMapeo();
+    });
   }
 }
 
