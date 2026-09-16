@@ -34,9 +34,7 @@ async function consultar(workspaceId, datasetId, dax) {
 
   const texto = await r.text();
   if (!r.ok) {
-    let detalle = texto.slice(0, 400);
-    try { detalle = (JSON.parse(texto).error || {}).message || detalle; } catch (e) { /* texto plano */ }
-    const err = new Error("Power BI respondió " + r.status + ": " + detalle);
+    const err = new Error("Power BI: " + mensajeDeError(texto, r.status));
     err.status = r.status;
     throw err;
   }
@@ -44,6 +42,27 @@ async function consultar(workspaceId, datasetId, dax) {
   const j = JSON.parse(texto);
   const filas = (((j.results || [])[0] || {}).tables || [])[0];
   return (filas && filas.rows ? filas.rows : []).map(normalizarClaves);
+}
+
+/**
+ * Execute Queries no devuelve el error en `error.message` sino enterrado en
+ * `error["pbi.error"].details[]`, con los nombres envueltos en <oii>. Sin
+ * desenterrarlo, al usuario le llega un JSON de cuatro renglones donde lo
+ * único que importa es «falta tal columna en tal tabla».
+ */
+function mensajeDeError(texto, status) {
+  let j;
+  try { j = JSON.parse(texto); } catch (e) { return "respondió " + status + ": " + texto.slice(0, 300); }
+  const e = j.error || {};
+  const pbi = e["pbi.error"] || {};
+  const det = (pbi.details || []).find((d) => d.code === "DetailsMessage");
+  const crudo = (det && det.detail && det.detail.value) || e.message || pbi.code || e.code;
+  if (!crudo) return "respondió " + status;
+  return String(crudo)
+    .replace(/<\/?oii>/g, "")          // marcas de "objeto identificable"
+    .replace(/^Query \((\d+), (\d+)\)\s*/, "")  // la posición no le dice nada a nadie
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizarClaves(fila) {
@@ -77,4 +96,4 @@ async function rest(ruta) {
   return JSON.parse(texto);
 }
 
-module.exports = { consultar, consultarVarias, rest, GUID };
+module.exports = { consultar, consultarVarias, rest, mensajeDeError, GUID };
