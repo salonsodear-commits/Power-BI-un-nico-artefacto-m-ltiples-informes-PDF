@@ -753,6 +753,20 @@ const REPORTES = {
        'EVALUATE\n  SUMMARIZECOLUMNS(\n    Cliente[Nombre],\n    Cliente[KAM],\n    "Facturacion",[Facturación],\n    "Costos",     [Costos],\n    "Margen",     [Margen],\n    "MargenPct",  [Margen %]\n  )\n  ORDER BY [Facturacion] DESC']
     ]
   },
+  deuda: {
+    nombre: "Deuda",
+    titulo: "Informe de Deuda y Cobranzas",
+    bajada: "Cartera por tramo de vencimiento, concentración por cliente y exposición al riesgo.",
+    fuente: "Power BI — Deuda",
+    dax: [
+      ["KPIs de cartera",
+       'EVALUATE\n  ROW(\n    "deudaTotal",       [Deuda Total],\n    "deudaCobranza",    [Deuda Cobranza],\n    "deudaFacturacion", [Deuda Facturacion],\n    "deudaVencida",     [Deuda_Cobranza_Vencida],\n    "indiceRiesgo",     [Indice_Riesgo],\n    "clientesActivos",  [Cant_Clientes]\n  )'],
+      ["Deuda por tramo de vencimiento",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    \'Aging - Actualizado\'[Rango Dias Venc. RepSaldo],\n    "deuda", [Deuda Cobranza]\n  )'],
+      ["Concentración por cliente",
+       'EVALUATE\n  TOPN(\n    15,\n    SUMMARIZECOLUMNS(\n      Clientes_y_Contratos[Cliente Fantasía],\n      "deudaTotal",   [Deuda Total],\n      "deudaVencida", [Deuda_Cobranza_Vencida]\n    ),\n    [deudaTotal], DESC\n  )']
+    ]
+  },
   gerencia: {
     nombre: "Gerencia",
     titulo: "Informe de Gerencia",
@@ -1571,6 +1585,28 @@ async function cargarModelos(ws) {
   } catch (e) { l.innerHTML = `<p class="cargando">${esc(e.message)}</p>`; }
 }
 
+/**
+ * El backend manda en qué informes existen: agregar uno allá tiene que
+ * aparecer acá sin tocar el artefacto. Lo que el artefacto ya conoce aporta
+ * los datos de ejemplo y las consultas DAX de referencia.
+ */
+async function sincronizarInformes() {
+  let lista;
+  try { lista = await API.pedir("/api/informes"); }
+  catch (e) { return; }                       // sin backend, queda el catálogo local
+  if (!Array.isArray(lista) || !lista.length) return;
+  for (const r of lista) {
+    REPORTES[r.clave] = Object.assign({ dax: [] }, REPORTES[r.clave], {
+      nombre: r.nombre, titulo: r.titulo, bajada: r.bajada, fuente: r.fuente
+    });
+  }
+  const sel = $("fTipo"), elegido = sel.value;
+  sel.innerHTML = "";
+  lista.forEach((r) => sel.appendChild(el(`<option value="${esc(r.clave)}">${esc(r.nombre)}</option>`)));
+  sel.value = lista.some((r) => r.clave === elegido) ? elegido : lista[0].clave;
+  if (sel.value !== elegido) guardarPrefs();
+}
+
 /* ── sesión ───────────────────────────────────────────────────────── */
 let sondeoSesion = null;
 
@@ -2213,6 +2249,74 @@ function ejemploJson(tipo) {
     ]
   };
 
+  if (tipo === "deuda") return {
+    meta: { ...base, titulo: "Informe de Deuda y Cobranzas", fuente: "Power BI — Deuda",
+            organizacion: "Emergencias" },
+    secciones: [
+      { tipo: "kpis", items: [
+        { etiqueta: "Deuda total", valor: 1482.0e6, formato: "moneda", titular: true,
+          nota: "Cobranza + facturación pendiente", serie: [1310,1352,1398,1421,1440,1465,1474,1482].map((v) => v * 1e6) },
+        { etiqueta: "Deuda de cobranza", valor: 1105.0e6, formato: "moneda", sentido: "negativo" },
+        { etiqueta: "Pendiente de facturar", valor: 377.0e6, formato: "moneda", sentido: "negativo" },
+        { etiqueta: "Deuda vencida", valor: 612.0e6, formato: "moneda",
+          nota: "41,3 % de la cartera" },
+        { etiqueta: "Índice de riesgo", valor: 41.3, formato: "pct", sentido: "negativo" },
+        { etiqueta: "Clientes", valor: 238, formato: "entero" }
+      ]},
+      { tipo: "resumen", titulo: "Lectura de cartera", parrafos: [
+        "La cartera cierra en **1.482,0 M$**, de los cuales **612,0 M$ están vencidos** (41,3 %). El tramo de más de 180 días concentra 148,0 M$ y es el que define el índice de riesgo.",
+        "Los diez primeros clientes explican el **57 %** de la deuda total: la exposición está concentrada y la gestión de cobranza rinde más ahí que en la cola."
+      ]},
+      { tipo: "barrasHorizontales", titulo: "Deuda por tramo de vencimiento",
+        subtitulo: "Cartera completa, sin corte de período", medida: "[Deuda Cobranza]",
+        formato: "moneda", ejeEtiqueta: "Tramo", items: [
+          { etiqueta: "No vencido", valor: 493.0e6 }, { etiqueta: "01–30", valor: 221.0e6 },
+          { etiqueta: "31–60", valor: 154.0e6 }, { etiqueta: "61–90", valor: 89.0e6 },
+          { etiqueta: "91–180", valor: 100.0e6 }, { etiqueta: "+180", valor: 148.0e6 }
+        ], nota: "El aging es una foto al momento de la última actualización del modelo." },
+      { tipo: "barrasHorizontales", titulo: "Deuda por negocio", medida: "[Deuda Total]",
+        formato: "moneda", ejeEtiqueta: "Negocio", items: [
+          { etiqueta: "Corporaciones", valor: 812.0e6 }, { etiqueta: "Petróleo", valor: 401.0e6 },
+          { etiqueta: "Minería", valor: 178.0e6 }, { etiqueta: "Individuos", valor: 91.0e6 }
+        ]},
+      { tipo: "saltoPagina" },
+      { tipo: "barrasHorizontales", titulo: "Concentración por cliente",
+        subtitulo: "Los de mayor deuda", medida: "[Deuda Total]", formato: "moneda",
+        ejeEtiqueta: "Cliente", items: [
+          { etiqueta: "YPF S.A.", valor: 214.0e6 }, { etiqueta: "Pan American Energy", valor: 168.0e6 },
+          { etiqueta: "Techint", valor: 121.0e6 }, { etiqueta: "Vista Energy", valor: 98.0e6 },
+          { etiqueta: "Tecpetrol", valor: 87.0e6 }, { etiqueta: "Aluar", valor: 74.0e6 },
+          { etiqueta: "Pluspetrol", valor: 66.0e6 }, { etiqueta: "Minera Alumbrera", valor: 58.0e6 }
+        ]},
+      { tipo: "tabla", titulo: "Detalle por cliente", medida: "[Deuda Total] · [Deuda_Cobranza_Vencida]",
+        columnas: [
+          { clave: "cliente", titulo: "Cliente", tipo: "texto" },
+          { clave: "gestor", titulo: "Gestor", tipo: "texto" },
+          { clave: "total", titulo: "Deuda total", tipo: "monto" },
+          { clave: "cobranza", titulo: "Cobranza", tipo: "monto" },
+          { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
+          { clave: "vencida", titulo: "Vencida", tipo: "monto" },
+          { clave: "pctVencida", titulo: "% vencido", tipo: "pct" }
+        ],
+        filas: [
+          { cliente: "YPF S.A.", gestor: "M. Bianchi", total: 214.0e6, cobranza: 160.0e6, facturacion: 54.0e6, vencida: 71.0e6, pctVencida: 33.2 },
+          { cliente: "Pan American Energy", gestor: "M. Bianchi", total: 168.0e6, cobranza: 129.0e6, facturacion: 39.0e6, vencida: 82.0e6, pctVencida: 48.8 },
+          { cliente: "Techint", gestor: "L. Ferreyra", total: 121.0e6, cobranza: 94.0e6, facturacion: 27.0e6, vencida: 38.0e6, pctVencida: 31.4 },
+          { cliente: "Vista Energy", gestor: "L. Ferreyra", total: 98.0e6, cobranza: 71.0e6, facturacion: 27.0e6, vencida: 21.0e6, pctVencida: 21.4 },
+          { cliente: "Tecpetrol", gestor: "S. Quiroga", total: 87.0e6, cobranza: 64.0e6, facturacion: 23.0e6, vencida: 52.0e6, pctVencida: 59.8 },
+          { cliente: "Aluar", gestor: "S. Quiroga", total: 74.0e6, cobranza: 58.0e6, facturacion: 16.0e6, vencida: 19.0e6, pctVencida: 25.7 },
+          { cliente: "Pluspetrol", gestor: "M. Bianchi", total: 66.0e6, cobranza: 49.0e6, facturacion: 17.0e6, vencida: 14.0e6, pctVencida: 21.2 },
+          { cliente: "Minera Alumbrera", gestor: "S. Quiroga", total: 58.0e6, cobranza: 44.0e6, facturacion: 14.0e6, vencida: 26.0e6, pctVencida: 44.8 }
+        ],
+        total: { cliente: "Total cartera", gestor: "", total: 1482.0e6, cobranza: 1105.0e6,
+                 facturacion: 377.0e6, vencida: 612.0e6, pctVencida: 41.3 },
+        nota: "Ordenado por deuda total. La consulta trae los 15 primeros." },
+      { tipo: "comentario", titulo: "Acción propuesta", autor: "Gestión de Cobranzas", parrafos: [
+        "Tecpetrol y Pan American concentran 134,0 M$ vencidos entre los dos. Se propone escalar ambos casos a instancia comercial antes del cierre del trimestre."
+      ]}
+    ]
+  };
+
   if (tipo === "gerencia") return {
     meta: { ...base, titulo: "Informe de Gerencia", fuente: "Power BI — Consolidado" },
     secciones: [
@@ -2413,5 +2517,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
 
   // el informe abre mostrando cómo queda: el ejemplo va marcado en cada hoja
   aplicar(ejemploJson($("fTipo").value), true);
+  // y si hay backend, el selector pasa a reflejar sus informes
+  sincronizarInformes();
 })();
 </script>

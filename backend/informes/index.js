@@ -7,5 +7,6 @@ module.exports = {
   ejecutivo: require("./ejecutivo"),
   finanzas: require("./finanzas"),
   kam: require("./kam"),
-  gerencia: require("./gerencia")
+  gerencia: require("./gerencia"),
+  deuda: require("./deuda")
 };

@@ -15,15 +15,16 @@ const TABLAS = {
     "Date", "Dates", "Dim_Date", "DimDate", "Tiempo", "Tabla de fechas"],
   sociedad: ["Sociedad", "Sociedades", "Dim_Sociedad", "Dim Sociedad",
     "Empresa", "Empresas", "Compania", "Compañia", "Compañía", "Entidad"],
-  vertical: ["Vertical", "Verticales", "Dim_Vertical", "Dim Vertical",
+  vertical: ["Vertical", "Verticales", "Negocio", "Negocios", "Dim_Vertical", "Dim Vertical",
     "Unidad de Negocio", "UnidadNegocio", "Dim_UN", "Dim UN", "UN",
     "Negocio", "Segmento", "Division", "División", "Area", "Área"],
-  cliente: ["Cliente", "Clientes", "Dim_Cliente", "Dim Cliente", "DimCliente",
-    "Customer", "Customers", "Cuenta", "Cuentas"],
+  cliente: ["Clientes_y_Contratos", "Cliente", "Clientes", "Dim_Cliente", "Dim Cliente",
+    "DimCliente", "DIM_CLIENTES", "Customer", "Customers", "Cuenta", "Cuentas"],
   gastos: ["Gastos", "Gasto", "OPEX", "Dim_Gasto", "Dim Gasto",
     "Categoria de Gasto", "Categorias", "Conceptos", "Concepto"],
-  aging: ["Aging", "Vencimientos", "Vencimiento", "Tramos", "Tramo",
-    "Antiguedad", "Antigüedad", "Dim_Aging"]
+  aging: ["Aging - Actualizado", "Aging", "Aging Actualizado", "Vencimientos",
+    "Vencimiento", "Tramos", "Tramo", "Antiguedad", "Antigüedad", "Dim_Aging",
+    "Provision", "Provisión"]
 };
 
 /**
@@ -39,7 +40,16 @@ const COLUMNAS = {
     /^name$/i, /^description$/i, /^desc$/i, /^detalle$/i],
   kam: [/^kam$/i, /responsable/i, /ejecutiv/i, /vendedor/i, /^owner$/i, /account manager/i],
   categoria: [/^categor[ií]a$/i, /^concepto$/i, /^rubro$/i, /^tipo$/i, /^category$/i],
-  tramo: [/^tramo$/i, /^rango$/i, /antig[üu]edad/i, /^bucket$/i, /^vencimiento$/i]
+  tramo: [/rango.*venc/i, /^tramo[_\s]*antig/i, /^tramo$/i, /^rango$/i, /antig[üu]edad/i,
+    /^bucket$/i, /^vencimiento$/i, /estado.*vencim/i],
+  cliente: [/cliente fantas/i, /^cliente$/i, /^nombre$/i, /^raz[oó]n social$/i,
+    /^alias cliente$/i, /^descripci[oó]n del cliente$/i, /cuenta_name/i],
+  gestor: [/gestor.*cobranz/i, /propietario.*cuenta/i, /^kam$/i, /responsable/i,
+    /ejecutiv/i, /vendedor/i],
+  negocio: [/^negocio$/i, /^vertical$/i, /unidad.*negocio/i, /^segmento$/i, /^agrupador$/i],
+  canal: [/canal.*distribuci/i, /^canal$/i, /^segmento$/i, /^categor[ií]a cliente/i],
+  riesgo: [/semaforo/i, /sem[áa]foro/i, /^riesgo$/i, /indicador.*riesgo/i],
+  sociedad: [/^sociedad$/i, /^compa[ñn][ií]a$/i, /^empresa$/i, /sociedad_name/i]
 };
 
 /** Medidas, por el papel que cumplen en los informes. */
@@ -74,19 +84,37 @@ const MEDIDAS = {
     "Margen de Contribución", "Gross Margin", "Resultado"],
   margenPct: ["Margen %", "% Margen", "Margen Bruto %", "% de Margen",
     "Margen sobre Ventas", "Gross Margin %"],
-  clientesActivos: ["Clientes activos", "Clientes Activos", "Clientes",
-    "Cantidad de Clientes", "Nro de Clientes", "Active Customers"]
+  clientesActivos: ["Cant_Clientes", "Clientes activos", "Clientes Activos", "Clientes",
+    "Cantidad de Clientes", "Nro de Clientes", "Q Clientes", "Active Customers"],
+  // ── cartera de deuda y cobranzas ────────────────────────────────────
+  deudaTotal: ["Deuda Total", "Deuda_Total", "Deuda", "Saldo Total", "Total Deuda",
+    "Cartera", "Total Adeudado"],
+  deudaVencida: ["Deuda_Cobranza_Vencida", "Deuda Vencida", "Deuda_Vencida",
+    "Saldo Vencido", "Vencido", "Deuda Cobranza Vencida"],
+  deudaNoVencida: ["Deuda_Total_No_Vencida", "Deuda No Vencida", "Deuda_No_Vencida",
+    "Saldo No Vencido", "A Vencer", "Por Vencer"],
+  deudaFacturacion: ["Deuda Facturacion", "Deuda Facturación", "Deuda_Facturacion",
+    "Pendiente Facturar", "Pendiente de Facturar"],
+  deudaCobranza: ["Deuda Cobranza", "Deuda_Cobranza", "Deuda de Cobranza",
+    "Saldo Cobranza", "Cobranza Pendiente"],
+  importeFacturado: ["Importe_Facturado", "Importe Facturado", "Facturado",
+    "Total Facturado", "Monto Facturado"],
+  indiceRiesgo: ["Indice_Riesgo", "Índice de Riesgo", "Indice de Riesgo",
+    "Riesgo", "Ratio Vencido"]
 };
 
 /** A qué tabla pertenece cada columna lógica, y qué patrón la reconoce. */
 const COLUMNA_DE = {
   periodo:        { tabla: "calendario", patron: "periodo" },
-  sociedad:       { tabla: "sociedad",   patron: "nombre" },
-  vertical:       { tabla: "vertical",   patron: "nombre" },
+  // varias viven en la tabla de aging cuando el modelo es de cobranzas
+  sociedad:       { tabla: "sociedad",   patron: "nombre",    alterna: "aging", altPatron: "sociedad" },
+  vertical:       { tabla: "vertical",   patron: "nombre",    alterna: "cliente", altPatron: "negocio" },
   gastoCategoria: { tabla: "gastos",     patron: "categoria" },
   agingTramo:     { tabla: "aging",      patron: "tramo" },
-  clienteNombre:  { tabla: "cliente",    patron: "nombre" },
-  clienteKam:     { tabla: "cliente",    patron: "kam" }
+  clienteNombre:  { tabla: "cliente",    patron: "cliente",   alterna: "aging", altPatron: "cliente" },
+  clienteKam:     { tabla: "cliente",    patron: "kam",       alterna: "aging", altPatron: "gestor" },
+  canal:          { tabla: "cliente",    patron: "canal",     alterna: "aging", altPatron: "canal" },
+  riesgo:         { tabla: "aging",      patron: "riesgo",    alterna: "cliente", altPatron: "riesgo" }
 };
 
 module.exports = { TABLAS, COLUMNAS, MEDIDAS, COLUMNA_DE };

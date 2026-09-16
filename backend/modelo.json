@@ -1,7 +1,7 @@
 {
   "medidas": {
-    "real": "[Real]",
-    "bo": "[BO]",
+    "real": "[Deuda Total]",
+    "bo": "[Deuda Cobranza]",
     "variacion": "",
     "variacionPct": "",
     "ebitda": "",
@@ -9,25 +9,35 @@
     "opex": "",
     "opexBo": "",
     "provisiones": "",
-    "pendienteFacturar": "",
+    "pendienteFacturar": "[Deuda Facturacion]",
     "dso": "",
-    "saldoCxC": "",
-    "facturacion": "",
+    "saldoCxC": "[Deuda Cobranza]",
+    "facturacion": "[Importe_Facturado]",
     "costos": "",
     "margen": "",
     "margenPct": "",
-    "clientesActivos": ""
+    "clientesActivos": "[Cant_Clientes]",
+    "deudaTotal": "[Deuda Total]",
+    "deudaVencida": "[Deuda_Cobranza_Vencida]",
+    "deudaNoVencida": "[Deuda_Total_No_Vencida]",
+    "deudaFacturacion": "[Deuda Facturacion]",
+    "deudaCobranza": "[Deuda Cobranza]",
+    "importeFacturado": "[Importe_Facturado]",
+    "indiceRiesgo": "[Indice_Riesgo]"
   },
   "columnas": {
-    "periodo": "Calendario[ClaveMes]",
-    "sociedad": "",
-    "vertical": "Dim_UN[Descripcion]",
+    "periodo": "Calendario[Periodo]",
+    "sociedad": "'Aging - Actualizado'[Sociedad]",
+    "vertical": "Clientes_y_Contratos[Negocio]",
     "gastoCategoria": "",
-    "agingTramo": "",
-    "clienteNombre": "",
-    "clienteKam": ""
+    "agingTramo": "'Aging - Actualizado'[Rango Dias Venc. RepSaldo]",
+    "clienteNombre": "Clientes_y_Contratos[Cliente Fantasía]",
+    "clienteKam": "'Aging - Actualizado'[Gestor Cobranzas]",
+    "canal": "'Aging - Actualizado'[Canal de Distribucion del Cliente]",
+    "riesgo": "'Aging - Actualizado'[Semaforo_Riesgo]"
   },
-  "organizacion": "",
+  "periodoFormato": "texto",
+  "organizacion": "Emergencias",
   "workspaceId": "8ab266c7-3a3c-4b9a-b62f-79879e6ac936",
   "datasetId": "e2132c9a-d1d2-4596-bd47-49e5fbf10e61"
 }

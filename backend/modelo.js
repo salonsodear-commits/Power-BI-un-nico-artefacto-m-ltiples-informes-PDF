@@ -33,7 +33,15 @@ const CAMPOS = {
     { clave: "costos",            rotulo: "Costos" },
     { clave: "margen",            rotulo: "Margen" },
     { clave: "margenPct",         rotulo: "Margen %" },
-    { clave: "clientesActivos",   rotulo: "Clientes activos" }
+    { clave: "clientesActivos",   rotulo: "Clientes activos" },
+    // ── cartera de deuda y cobranzas ────────────────────────────────
+    { clave: "deudaTotal",        rotulo: "Deuda total" },
+    { clave: "deudaVencida",      rotulo: "Deuda vencida" },
+    { clave: "deudaNoVencida",    rotulo: "Deuda no vencida" },
+    { clave: "deudaFacturacion",  rotulo: "Deuda de facturación" },
+    { clave: "deudaCobranza",     rotulo: "Deuda de cobranza" },
+    { clave: "importeFacturado",  rotulo: "Importe facturado" },
+    { clave: "indiceRiesgo",      rotulo: "Índice de riesgo" }
   ],
   columnas: [
     { clave: "periodo",       rotulo: "Período del calendario", req: true,
@@ -44,7 +52,9 @@ const CAMPOS = {
     { clave: "gastoCategoria",rotulo: "Categoría de gasto (OPEX)" },
     { clave: "agingTramo",    rotulo: "Tramo de aging" },
     { clave: "clienteNombre", rotulo: "Cliente" },
-    { clave: "clienteKam",    rotulo: "KAM responsable" }
+    { clave: "clienteKam",    rotulo: "KAM responsable" },
+    { clave: "canal",         rotulo: "Canal / segmento" },
+    { clave: "riesgo",        rotulo: "Semáforo de riesgo" }
   ]
 };
 
@@ -56,13 +66,15 @@ const POR_DEFECTO = {
     opex: "[OPEX]", opexBo: "[OPEX BO]", provisiones: "[Provisiones]",
     pendienteFacturar: "[Pendiente de facturar]", dso: "[DSO]", saldoCxC: "[Saldo CxC]",
     facturacion: "[Facturación]", costos: "[Costos]", margen: "[Margen]",
-    margenPct: "[Margen %]", clientesActivos: "[Clientes activos]"
+    margenPct: "[Margen %]", clientesActivos: "[Clientes activos]",
+    deudaTotal: "", deudaVencida: "", deudaNoVencida: "", deudaFacturacion: "",
+    deudaCobranza: "", importeFacturado: "", indiceRiesgo: ""
   },
   columnas: {
     periodo: "Calendario[ClaveMes]", sociedad: "Sociedad[Nombre]",
     vertical: "Vertical[Nombre]", gastoCategoria: "Gastos[Categoria]",
     agingTramo: "Aging[Tramo]", clienteNombre: "Cliente[Nombre]",
-    clienteKam: "Cliente[KAM]"
+    clienteKam: "Cliente[KAM]", canal: "", riesgo: ""
   },
   periodoFormato: "numero",
   organizacion: "",

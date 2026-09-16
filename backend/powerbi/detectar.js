@@ -137,13 +137,20 @@ async function detectar(ws, ds) {
     propuesta.medidas[papel] = hallazgos.medidas[papel] ? "[" + hallazgos.medidas[papel].nombre + "]" : "";
   }
   for (const [clave, cfg] of Object.entries(COLUMNA_DE)) {
-    const t = hallazgos.tablas[cfg.tabla];
     propuesta.columnas[clave] = "";
-    if (!t) continue;
-    const c = elegirColumna(t, cfg.patron, clave === "periodo");
-    if (!c) continue;
-    propuesta.columnas[clave] = refColumna(t.nombre, c.columna);
-    if (clave === "periodo" && c.formato) propuesta.periodoFormato = c.formato;
+    // en un modelo de cobranzas, cliente, gestor o sociedad suelen vivir en la
+    // tabla de aging y no en una dimensión propia: se prueba también ahí
+    const intentos = [[cfg.tabla, cfg.patron]];
+    if (cfg.alterna) intentos.push([cfg.alterna, cfg.altPatron || cfg.patron]);
+    for (const [papel, patron] of intentos) {
+      const t = hallazgos.tablas[papel];
+      if (!t) continue;
+      const c = elegirColumna(t, patron, clave === "periodo");
+      if (!c) continue;
+      propuesta.columnas[clave] = refColumna(t.nombre, c.columna);
+      if (clave === "periodo" && c.formato) propuesta.periodoFormato = c.formato;
+      break;
+    }
   }
 
   return {

@@ -273,14 +273,29 @@ consultas DAX de cada informe, listas para copiar.
 `formato`: `moneda` · `monto` · `pesos` · `pct` · `pp` · `dias` · `veces` ·
 `entero` · `decimal` · `texto`.
 
+### Informes incluidos
+
+| Informe | Para qué modelo | Medidas que pide |
+|---|---|---|
+| Ejecutivo · Gerencia | P&L contra presupuesto | `real`, `bo` |
+| Finanzas | P&L + OPEX, aging y DSO | `real`, `opex`, `saldoCxC`, `dso` |
+| KAM | Cartera por cliente | `facturacion`, `margen` |
+| **Deuda** | Cobranzas y aging de cartera | `deudaTotal`, `deudaCobranza` |
+
+El informe de **Deuda** trata la cartera como una **foto**, no como un
+acumulado mensual: los totales y el aging no se filtran por período, porque
+hacerlo recortaría a las facturas que vencen en ese mes, que es otra cosa. El
+corte lo dan la sociedad, el negocio y el canal.
+
 Las tablas largas se cortan solas por filas y siguen en la hoja siguiente con el
 encabezado repetido.
 
 ## Agregar un informe nuevo
 
 No se crea otro artefacto. Se agrega un archivo en `backend/informes/` con
-`{ meta, consultas, construir }` y se lo registra en `informes/index.js`; el
-selector del artefacto lo muestra solo. `gerencia.js` es el ejemplo más corto:
+`{ meta, consultas, construir, requiere }` y se lo registra en
+`informes/index.js`; **el selector del artefacto se sincroniza con
+`GET /api/informes`**, así que aparece sin tocar el frontend. `gerencia.js` es el ejemplo más corto:
 reutiliza las secciones del ejecutivo y sólo cambia el encabezado y los KPIs.
 
 ## Decisiones de diseño
