@@ -13,6 +13,33 @@ Power BI Service → modelo semántico → Execute Queries → backend seguro
    → JSON normalizado → UN ÚNICO ARTEFACTO → Ejecutivo / Finanzas / KAM / Gerencia → PDF
 ```
 
+## Cómo se autentica
+
+Hay dos modos, y el que viene por defecto **no depende de un administrador**.
+
+| | **Delegado** (por defecto) | **Service Principal** |
+|---|---|---|
+| Quién entra | Vos, con tu cuenta corporativa | Una identidad de aplicación |
+| Permisos | Los mismos que ya tenés en Power BI | Los que le den a la app |
+| Tenant setting de IT | **No hace falta** | *Allow service principals…*, sólo un admin |
+| Que te agreguen al workspace | **No hace falta**: ya tenés acceso | Un admin debe agregar la app |
+| Modelos con RLS o SSO | **Funciona** (sos vos) | No funciona |
+| Secreto en `.env` | **Ninguno** | `CLIENT_SECRET` |
+| Corre solo, sin nadie | No: hay que entrar cada tanto | Sí |
+
+El modo se elige solo: si hay `CLIENT_SECRET` en `.env` usa Service Principal;
+si no, delegado. `AUTH_MODO=delegado` lo fuerza.
+
+En modo delegado el backend usa el **flujo de código de dispositivo**: muestra un
+código de 8 caracteres, lo escribís en `microsoft.com/devicelogin` con tu cuenta
+de siempre, y listo. El token se guarda en `backend/.sesion.json`, que está en
+`.gitignore` y se escribe con permisos de sólo dueño.
+
+**Lo único que necesitás:** un `CLIENT_ID` de una app registrada en Microsoft
+Entra como **cliente público** (sin secreto). En la mayoría de las
+organizaciones, registrar una app no requiere administrador: el ajuste *Users
+can register applications* viene habilitado por defecto en Entra.
+
 ## La idea en una línea
 
 El formato vive en el código del artefacto; los datos de Power BI sólo rellenan
@@ -47,10 +74,11 @@ Desde la raíz del repositorio:
 
 ```bash
 npm install                                  # instala backend/ (workspace)
-cp backend/.env.example backend/.env         # completá credenciales e IDs
-npm run prueba                               # que esto pase ANTES de seguir
+cp backend/.env.example backend/.env         # pegá el CLIENT_ID
 npm run dev                                  # o npm start, sin recarga
 ```
+
+Después abrí `localhost:3000` → **Conectar a Power BI** → **Entrar con mi cuenta**.
 
 Después abrí `http://localhost:3000/`: el artefacto queda servido desde el mismo
 origen que la API, así que **Actualizar datos** consulta Power BI de verdad.
@@ -64,7 +92,7 @@ credenciales.
 |---|---|
 | `npm run dev` | Levanta el backend con recarga al guardar. |
 | `npm start` | Igual, sin recarga. |
-| `npm run prueba` | Token + workspace + dataset + un `EVALUATE` mínimo. |
+| `npm run prueba` | Token + workspace + dataset + un `EVALUATE` mínimo (modo Service Principal). |
 
 `prueba` toma los IDs de `backend/modelo.json` o del `.env`, y acepta otros por
 argumento sin tocar nada:
@@ -135,6 +163,9 @@ pueda diferir del tablero.
 
 | Ruta | Para que |
 |---|---|
+| `GET /api/auth` | Modo, si hay sesión y con qué cuenta. |
+| `POST /api/auth/ingresar` | Arranca el código de dispositivo. |
+| `POST /api/auth/salir` | Borra la sesión guardada. |
 | `GET /api/powerbi/workspaces` | Workspaces visibles. |
 | `GET /api/powerbi/workspaces/:ws/modelos` | Modelos semanticos y sus reportes. |
 | `GET /api/powerbi/workspaces/:ws/reportes/:id` | De un reporte al modelo que lo alimenta. |
@@ -212,7 +243,10 @@ reutiliza las secciones del ejecutivo y sólo cambia el encabezado y los KPIs.
 
 ## Seguridad
 
-- El `CLIENT_SECRET` vive sólo en `backend/.env`, que está en `.gitignore`.
+- En modo delegado **no hay secreto**: el cliente es público y el refresh token
+  queda en `backend/.sesion.json`, ignorado por git y con permisos `0600`.
+- El `CLIENT_SECRET` (sólo modo Service Principal) vive en `backend/.env`, que
+  está en `.gitignore`.
 - El artefacto guarda en el navegador únicamente la URL del backend y los IDs
   del tablero. Nunca un token ni un secreto.
 - El backend valida que `workspaceId` y `datasetId` sean GUID, y escapa todo

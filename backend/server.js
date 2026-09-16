@@ -12,6 +12,7 @@ const express = require("express");
 const INFORMES = require("./informes");
 const { consultar, GUID } = require("./powerbi/client");
 const DESCUBRIR = require("./powerbi/descubrir");
+const AUTH = require("./powerbi/auth");
 const MODELO = require("./modelo");
 
 const app = express();
@@ -51,9 +52,27 @@ const atajo = (fn) => async (req, res) => {
   catch (e) {
     console.error("[powerbi]", e.message);
     res.status(e.status && e.status >= 400 && e.status < 500 ? e.status : 502)
-       .json({ error: e.message });
+       .json({ error: e.message, necesitaIngreso: !!e.necesitaIngreso });
   }
 };
+
+/* ══ sesión ════════════════════════════════════════════════════════════
+   En modo delegado entra el usuario con su propia cuenta: la API lo ve con
+   los permisos que ya tiene en Power BI, sin depender de un administrador. */
+
+app.get("/api/auth", (_req, res) => res.json(AUTH.estado()));
+
+app.post("/api/auth/ingresar", atajo(async () => {
+  if (AUTH.modo() === "servicio") {
+    throw Object.assign(new Error(
+      "El backend está en modo Service Principal. Quitá CLIENT_SECRET de .env " +
+      "(o poné AUTH_MODO=delegado) para entrar con tu cuenta."), { status: 400 });
+  }
+  const i = await AUTH.iniciarIngreso();
+  return { ...i, estado: AUTH.estado() };
+}));
+
+app.post("/api/auth/salir", (_req, res) => { AUTH.borrarSesion(); res.json(AUTH.estado()); });
 
 app.get("/api/powerbi/workspaces", atajo(async () => ({
   workspaces: await DESCUBRIR.workspaces(),
@@ -180,7 +199,7 @@ app.post("/api/informe", async (req, res) => {
     // el mensaje de Power BI se devuelve tal cual; las credenciales nunca salen de acá
     console.error("[informe]", cuerpo.reportType, e.message);
     res.status(e.status && e.status >= 400 && e.status < 500 ? e.status : 502)
-       .json({ error: e.message });
+       .json({ error: e.message, necesitaIngreso: !!e.necesitaIngreso });
   }
 });
 
@@ -188,6 +207,7 @@ app.use((req, res) => {
   res.status(404).json({
     error: "No existe " + req.method + " " + req.path,
     rutas: ["GET /", "GET /api/informes", "POST /api/informe",
+            "GET /api/auth", "POST /api/auth/ingresar", "POST /api/auth/salir",
             "GET /api/powerbi/workspaces", "GET /api/powerbi/workspaces/:ws/modelos",
             "GET /api/powerbi/workspaces/:ws/reportes/:id",
             "GET /api/powerbi/modelos/:ws/:ds/medidas", "POST /api/powerbi/dax",
@@ -207,12 +227,15 @@ app.listen(PORT, () => {
   console.log("Artefacto:  http://localhost:" + PORT + "/");
   console.log("Informes:   " + Object.keys(INFORMES).join(", "));
 
-  // Sin credenciales el servidor igual sirve el artefacto: se puede trabajar
-  // con Datos de ejemplo o Pegar JSON. Sólo "Actualizar datos" necesita .env.
-  const faltan = ["TENANT_ID", "CLIENT_ID", "CLIENT_SECRET"].filter((k) => !process.env[k]);
-  if (faltan.length) {
-    console.log("\nFalta configurar " + faltan.join(", ") + " en backend/.env");
+  const a = AUTH.estado();
+  console.log("Sesión:     modo " + a.modo + (a.conectado
+    ? " · conectado" + (a.usuario ? " como " + a.usuario : "")
+    : " · sin conectar"));
+  if (a.faltan && a.faltan.length) {
+    console.log("\nFalta " + a.faltan.join(", ") + " en backend/.env");
     console.log("  cp backend/.env.example backend/.env   y completalo");
-    console.log("Mientras tanto el artefacto funciona con Datos de ejemplo y Pegar JSON.");
+  } else if (!a.conectado && a.modo === "delegado") {
+    console.log("\nEntrá con tu cuenta desde Conectar → Sesión (no hace falta un administrador).");
   }
+  console.log("Sin conectar, el artefacto igual funciona con Datos de ejemplo y Pegar JSON.");
 });
