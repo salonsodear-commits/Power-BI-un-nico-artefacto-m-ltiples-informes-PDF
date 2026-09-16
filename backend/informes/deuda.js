@@ -9,7 +9,7 @@
  */
 const { consultarVarias } = require("../powerbi/client");
 const Q = require("../powerbi/queries");
-const { limpiar, kpi } = require("./comun");
+const { limpiar, kpi, etiquetaMes } = require("./comun");
 const { nombreCorto, refs } = require("./ejecutivo");
 
 const meta = {
@@ -50,6 +50,15 @@ function consultas(p) {
       `,\n    "deudaTotal", ${Q.m("deudaTotal")}\n  )\n  ORDER BY [deudaTotal] DESC`;
   }
 
+  // El DSO suele vivir en su propia tabla, sin relación con el calendario: el
+  // tablero muestra el del último período, así que se agrupa y se ordena.
+  if (Q.m("dso") && Q.c("dsoPeriodo")) {
+    q.dso = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("dsoPeriodo")},\n` +
+      `    "dso", ${Q.m("dso")}\n  )\n  ORDER BY ${Q.c("dsoPeriodo")}`;
+  } else if (Q.m("dso")) {
+    q.dsoSuelto = `\nEVALUATE\n  ROW("dso", ${Q.m("dso")})`;
+  }
+
   const cols = Q.colsMedidas(MEDIDAS_CLIENTE);
   if (cols.length && Q.c("clienteNombre")) {
     const dimsCliente = [Q.c("clienteNombre"), Q.c("clienteKam")].filter(Boolean)
@@ -72,6 +81,16 @@ async function construir(p) {
 
   const vencidaPct = typeof k.deudaVencida === "number" && k.deudaTotal
     ? (k.deudaVencida / k.deudaTotal) * 100 : undefined;
+
+  // serie de DSO ordenada por período, y el último valor para la tarjeta
+  const colDso = Q.c("dsoPeriodo") ? nombreCorto(Q.c("dsoPeriodo")) : null;
+  const serieDso = (d.dso || [])
+    .filter((f) => typeof f.dso === "number" && f[colDso] !== undefined)
+    .sort((a, b) => String(a[colDso]).localeCompare(String(b[colDso])));
+  const ultimoDso = serieDso.length ? serieDso[serieDso.length - 1]
+    : ((d.dsoSuelto || [])[0] || null);
+  const dsoValor = ultimoDso ? ultimoDso.dso : undefined;
+  const dsoPeriodo = serieDso.length ? etiquetaMes(ultimoDso[colDso]) : null;
 
   const ranking = (filas, col, valor) => (filas || [])
     .map((f) => ({ etiqueta: f[nombreCorto(col)], valor: f[valor] }))
@@ -98,7 +117,10 @@ async function construir(p) {
           : new Intl.NumberFormat("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })
               .format(vencidaPct) + " % de la cartera" }),
       kpi("indiceRiesgo", k, { etiqueta: "Índice de riesgo", formato: "pct", sentido: "negativo" }),
-      kpi("clientesActivos", k, { etiqueta: "Clientes", formato: "entero" })
+      kpi("clientesActivos", k, { etiqueta: "Clientes", formato: "entero" }),
+      dsoValor === undefined ? null : { etiqueta: "DSO institucional", valor: dsoValor,
+        formato: "dias", nota: dsoPeriodo ? "Último período: " + dsoPeriodo : undefined,
+        serie: serieDso.length > 2 ? serieDso.slice(-8).map((f) => f.dso) : undefined }
     ]},
     (d.tramos || []).length ? { tipo: "barrasHorizontales",
       titulo: "Deuda por tramo de vencimiento",
@@ -113,6 +135,11 @@ async function construir(p) {
     (d.canal || []).length ? { tipo: "barrasHorizontales", titulo: "Deuda por canal",
       medida: refs(["deudaTotal"]), formato: "moneda", ejeEtiqueta: "Canal",
       items: ranking(d.canal, Q.c("canal"), "deudaTotal") } : null,
+    serieDso.length > 2 ? { tipo: "lineas", titulo: "Evolución del DSO",
+      subtitulo: "Días de venta pendientes de cobro", medida: refs(["dso"]),
+      formato: "dias", formatoEje: "entero", ejeEtiqueta: "Período",
+      ejeX: serieDso.map((f) => etiquetaMes(f[colDso])),
+      series: [{ nombre: "DSO", datos: serieDso.map((f) => f.dso) }] } : null,
     cl.length ? { tipo: "saltoPagina" } : null,
     cl.length && Q.m("deudaTotal") ? { tipo: "barrasHorizontales",
       titulo: "Concentración por cliente", subtitulo: "Los 15 de mayor deuda",

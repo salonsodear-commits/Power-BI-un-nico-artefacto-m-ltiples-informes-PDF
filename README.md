@@ -207,6 +207,15 @@ elemento *Modelo semantico* asociado al reporte, en el mismo workspace.
 | Medidas | `real`*, `bo`*, `variacion`, `variacionPct`, `ebitda`, `margenEbitda`, `opex`, `opexBo`, `provisiones`, `pendienteFacturar`, `dso`, `saldoCxC`, `facturacion`, `costos`, `margen`, `margenPct`, `clientesActivos` |
 | Columnas | `periodo`*, `sociedad`, `vertical`, `gastoCategoria`, `agingTramo`, `clienteNombre`, `clienteKam` |
 
+Una medida no tiene por qué ser una medida del modelo: donde el dato es una
+columna, vale una **agregación** — `SUM(Tabla[Columna])`, `MIN(...)`, `MAX(...)`,
+`AVERAGE(...)`, `COUNT(...)`, `DISTINCTCOUNT(...)`. La lista de funciones es
+cerrada; cualquier otra cosa se rechaza antes de tocar una consulta.
+
+Si el DSO vive en su propia tabla sin relación con el calendario —como suele
+pasar—, mapeá además **Período de la tabla de DSO** y el informe toma el valor
+del último período, igual que la card del tablero.
+
 Los marcados con `*` son obligatorios. `periodo` debe ser una columna con el
 **entero AAAAMM** (202607): DAX no agrupa por expresiones, asi que una columna
 de fecha no sirve para las series de evolucion. Si no la tenes, agrega al modelo

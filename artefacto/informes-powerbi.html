@@ -2261,7 +2261,9 @@ function ejemploJson(tipo) {
         { etiqueta: "Deuda vencida", valor: 612.0e6, formato: "moneda",
           nota: "41,3 % de la cartera" },
         { etiqueta: "Índice de riesgo", valor: 41.3, formato: "pct", sentido: "negativo" },
-        { etiqueta: "Clientes", valor: 238, formato: "entero" }
+        { etiqueta: "Clientes", valor: 238, formato: "entero" },
+        { etiqueta: "DSO institucional", valor: 51, formato: "dias",
+          nota: "Último período: Jul 26", serie: [68, 66, 63, 61, 59, 57, 54, 51] }
       ]},
       { tipo: "resumen", titulo: "Lectura de cartera", parrafos: [
         "La cartera cierra en **1.482,0 M$**, de los cuales **612,0 M$ están vencidos** (41,3 %). El tramo de más de 180 días concentra 148,0 M$ y es el que define el índice de riesgo.",
@@ -2279,6 +2281,12 @@ function ejemploJson(tipo) {
           { etiqueta: "Corporaciones", valor: 812.0e6 }, { etiqueta: "Petróleo", valor: 401.0e6 },
           { etiqueta: "Minería", valor: 178.0e6 }, { etiqueta: "Individuos", valor: 91.0e6 }
         ]},
+      { tipo: "lineas", titulo: "Evolución del DSO",
+        subtitulo: "Días de venta pendientes de cobro",
+        medida: "MIN(DSO[DSO - CORPORACIONES - PETR])", formato: "dias",
+        formatoEje: "entero", ejeEtiqueta: "Período",
+        ejeX: ["Dic 25","Ene 26","Feb 26","Mar 26","Abr 26","May 26","Jun 26","Jul 26"],
+        series: [{ nombre: "DSO", datos: [68, 66, 63, 61, 59, 57, 54, 51] }] },
       { tipo: "saltoPagina" },
       { tipo: "barrasHorizontales", titulo: "Concentración por cliente",
         subtitulo: "Los de mayor deuda", medida: "[Deuda Total]", formato: "moneda",

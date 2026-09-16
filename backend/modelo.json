@@ -10,7 +10,7 @@
     "opexBo": "",
     "provisiones": "",
     "pendienteFacturar": "[Deuda Facturacion]",
-    "dso": "",
+    "dso": "MIN(DSO[DSO - CORPORACIONES - PETR])",
     "saldoCxC": "[Deuda Cobranza]",
     "facturacion": "[Importe_Facturado]",
     "costos": "",
@@ -34,7 +34,8 @@
     "clienteNombre": "Clientes_y_Contratos[Cliente Fantasía]",
     "clienteKam": "'Aging - Actualizado'[Gestor Cobranzas]",
     "canal": "'Aging - Actualizado'[Canal de Distribucion del Cliente]",
-    "riesgo": "'Aging - Actualizado'[Semaforo_Riesgo]"
+    "riesgo": "'Aging - Actualizado'[Semaforo_Riesgo]",
+    "dsoPeriodo": "DSO[Periodo]"
   },
   "periodoFormato": "texto",
   "organizacion": "Emergencias",

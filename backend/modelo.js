@@ -27,7 +27,8 @@ const CAMPOS = {
     { clave: "opexBo",            rotulo: "OPEX objetivo" },
     { clave: "provisiones",       rotulo: "Provisiones" },
     { clave: "pendienteFacturar", rotulo: "Pendiente de facturar" },
-    { clave: "dso",               rotulo: "DSO" },
+    { clave: "dso",               rotulo: "DSO",
+      ayuda: "Si no es una medida, vale una agregación: MIN(DSO[DSO - CORP])" },
     { clave: "saldoCxC",          rotulo: "Saldo cuentas por cobrar" },
     { clave: "facturacion",       rotulo: "Facturación por cliente" },
     { clave: "costos",            rotulo: "Costos" },
@@ -54,7 +55,10 @@ const CAMPOS = {
     { clave: "clienteNombre", rotulo: "Cliente" },
     { clave: "clienteKam",    rotulo: "KAM responsable" },
     { clave: "canal",         rotulo: "Canal / segmento" },
-    { clave: "riesgo",        rotulo: "Semáforo de riesgo" }
+    { clave: "riesgo",        rotulo: "Semáforo de riesgo" },
+    { clave: "dsoPeriodo",    rotulo: "Período de la tabla de DSO",
+      ayuda: "Sólo si el DSO vive en su propia tabla sin relación con el calendario: " +
+             "se toma el valor del último período" }
   ]
 };
 
@@ -74,7 +78,7 @@ const POR_DEFECTO = {
     periodo: "Calendario[ClaveMes]", sociedad: "Sociedad[Nombre]",
     vertical: "Vertical[Nombre]", gastoCategoria: "Gastos[Categoria]",
     agingTramo: "Aging[Tramo]", clienteNombre: "Cliente[Nombre]",
-    clienteKam: "Cliente[KAM]", canal: "", riesgo: ""
+    clienteKam: "Cliente[KAM]", canal: "", riesgo: "", dsoPeriodo: ""
   },
   periodoFormato: "numero",
   organizacion: "",
@@ -87,16 +91,28 @@ const POR_DEFECTO = {
    que sólo se aceptan referencias con la forma exacta `[Medida]` o
    `Tabla[Columna]`. Nada de paréntesis, comas ni comillas. */
 const REF_MEDIDA = /^\[[^\[\]"']{1,100}\]$/;
-const REF_COLUMNA = /^(?:'[^'\r\n]{1,100}'|[A-Za-zÀ-ÿ_][\wÀ-ÿ .-]{0,99})\[[^\[\]"']{1,100}\]$/;
+const COL = "(?:'[^'\\r\\n]{1,100}'|[A-Za-zÀ-ÿ_][\\wÀ-ÿ .-]{0,99})\\[[^\\[\\]\"']{1,100}\\]";
+const REF_COLUMNA = new RegExp("^" + COL + "$");
+/**
+ * No todo modelo expone medidas: a veces el dato es una columna y hay que
+ * agregarla. Se admite una función de agregación sobre una columna, con la
+ * lista de funciones cerrada para que nada más entre en la consulta.
+ */
+const FUNCIONES = "SUM|MIN|MAX|AVERAGE|COUNT|DISTINCTCOUNT|COUNTROWS";
+const REF_AGREGADA = new RegExp("^(?:" + FUNCIONES + ")\\(\\s*" + COL + "\\s*\\)$", "i");
 
 function validarRef(valor, tipo) {
   const s = String(valor || "").trim();
   if (!s) return "";
-  const ok = tipo === "medida" ? REF_MEDIDA.test(s) : REF_COLUMNA.test(s);
+  const ok = tipo === "medida"
+    ? (REF_MEDIDA.test(s) || REF_AGREGADA.test(s))
+    : REF_COLUMNA.test(s);
   if (!ok) {
     throw new Error(
       tipo === "medida"
-        ? `"${s}" no es una medida válida. Se espera [Nombre de la medida].`
+        ? `"${s}" no es válida. Se espera [Nombre de la medida], o una agregación ` +
+          `sobre una columna: SUM(Tabla[Columna]), MIN(...), MAX(...), AVERAGE(...), ` +
+          `COUNT(...), DISTINCTCOUNT(...).`
         : `"${s}" no es una columna válida. Se espera Tabla[Columna] o 'Mi Tabla'[Columna].`
     );
   }
