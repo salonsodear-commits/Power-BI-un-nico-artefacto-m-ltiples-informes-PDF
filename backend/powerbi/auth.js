@@ -88,7 +88,9 @@ async function iniciarIngreso() {
     body: new URLSearchParams({ client_id: CLIENT_ID, scope: ALCANCE_DELEGADO })
   });
   const j = await r.json();
-  if (!r.ok) throw new Error(j.error_description || j.error || "No se pudo iniciar el ingreso");
+  if (!r.ok) {
+    throw new Error(conPista(j.error_description || j.error || "No se pudo iniciar el ingreso"));
+  }
 
   enCurso = {
     user_code: j.user_code,
@@ -163,6 +165,36 @@ async function tokenDelegado() {
   }
 }
 
+/**
+ * Los errores de Entra vienen como un párrafo largo con un código AADSTS
+ * adentro. Acá se traducen a qué hay que tocar, que es lo único accionable.
+ */
+const PISTAS = [
+  [/AADSTS7000218|invalid_client/i,
+   "La app no tiene habilitado el flujo de cliente público. En Entra: tu app → " +
+   "Autenticación → Configuración avanzada → «Permitir flujos de cliente público» → Sí → Guardar."],
+  [/AADSTS700016|unauthorized_client|application with identifier/i,
+   "El CLIENT_ID no corresponde a una app de este directorio. Revisá que copiaste el " +
+   "«Id. de aplicación (cliente)» de Información general, no otro GUID."],
+  [/AADSTS65001|consent/i,
+   "Falta aprobar los permisos. Volvé a entrar y aceptá la pantalla de consentimiento " +
+   "de Microsoft. Si dice que necesita aprobación del administrador, ese es el único " +
+   "punto donde hay que pedirle a IT: consentir permisos delegados de sólo lectura sobre Power BI."],
+  [/AADSTS50076|AADSTS50079|multi-factor|strong authentication/i,
+   "La cuenta pide segundo factor. Completá la verificación en la pantalla de Microsoft y reintentá."],
+  [/AADSTS50020|AADSTS50034|does not exist in tenant/i,
+   "Esa cuenta no pertenece al directorio de la app. Entrá con tu cuenta corporativa, " +
+   "no con una personal."],
+  [/AADSTS900023|tenant.*not found/i,
+   "TENANT_ID no es válido. Quitalo de .env: sin él usa «organizations», que sirve " +
+   "para cuentas corporativas."]
+];
+
+function conPista(mensaje) {
+  const p = PISTAS.find(([re]) => re.test(mensaje));
+  return p ? p[1] : mensaje;
+}
+
 /* ═══ común ═══════════════════════════════════════════════════════════ */
 async function postToken(tenant, cuerpo) {
   const r = await fetch(`${AUTORIDAD}/${tenant}/oauth2/v2.0/token`, {
@@ -173,10 +205,12 @@ async function postToken(tenant, cuerpo) {
   const j = await r.json().catch(() => ({}));
   if (!r.ok) {
     // el cuerpo de Entra puede traer datos del tenant: sólo se propaga lo útil
-    const e = new Error(j.error_description
+    const crudo = j.error_description
       ? String(j.error_description).split("\n")[0]
-      : "Microsoft respondió " + r.status);
+      : "Microsoft respondió " + r.status;
+    const e = new Error(conPista(crudo));
     e.codigo = j.error;
+    e.crudo = crudo;
     throw e;
   }
   return j;
