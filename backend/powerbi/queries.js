@@ -45,18 +45,31 @@ function ventanaMeses(periodo, n) {
   return claves;
 }
 
+/**
+ * El valor con el que se compara la columna de período, en su propio tipo.
+ * Un modelo guarda el mes como entero 202607 o como texto "2026-07"; los dos
+ * son igual de comunes y el literal DAX es distinto.
+ */
+function valorPeriodo(clave) {
+  const s = String(clave);
+  return MODELO.leer().periodoFormato === "texto"
+    ? lit(s.slice(0, 4) + "-" + s.slice(4))
+    : s;
+}
+
 /** Filtro del mes pedido. */
 function fPeriodo(periodo) {
   const col = c("periodo");
   if (!col) throw new Error("Falta mapear la columna de período del calendario");
-  return `FILTER(ALL(${tablaDe(col)}), ${col} = ${claveMes(periodo)})`;
+  return `FILTER(ALL(${tablaDe(col)}), ${col} = ${valorPeriodo(claveMes(periodo))})`;
 }
 
 /** Filtro de la ventana de n meses que termina en `periodo`. */
 function fVentana(periodo, n) {
   const col = c("periodo");
   if (!col) throw new Error("Falta mapear la columna de período del calendario");
-  return `FILTER(ALL(${tablaDe(col)}), ${col} IN {${ventanaMeses(periodo, n).join(", ")}})`;
+  const vals = ventanaMeses(periodo, n).map(valorPeriodo).join(", ");
+  return `FILTER(ALL(${tablaDe(col)}), ${col} IN {${vals}})`;
 }
 
 /** Filtros de sociedad y vertical, sólo los que estén mapeados y pedidos. */
@@ -92,6 +105,6 @@ function colsMedidas(claves) {
 }
 
 module.exports = {
-  m, c, tablaDe, lit, claveMes, ventanaMeses,
+  m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
   fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas
 };

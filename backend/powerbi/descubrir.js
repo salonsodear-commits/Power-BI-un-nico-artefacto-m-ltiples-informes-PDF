@@ -110,4 +110,24 @@ async function verificar(workspaceId, datasetId, refs) {
 
 const recortar = (m) => String(m).replace(/\s+/g, " ").slice(0, 200);
 
-module.exports = { workspaces, modelos, reporte, medidas, verificar };
+/**
+ * Mira un valor real de la columna de período para decidir si el modelo la
+ * guarda como entero 202607 o como texto "2026-07". Es la diferencia entre
+ * una consulta que corre y una que falla por comparar tipos distintos.
+ */
+async function formatoPeriodo(workspaceId, datasetId, ref) {
+  if (!ref) return null;
+  try {
+    const filas = await consultar(workspaceId, datasetId,
+      `EVALUATE TOPN(1, SUMMARIZECOLUMNS(${ref}))`);
+    if (!filas.length) return null;
+    const v = Object.values(filas[0])[0];
+    if (typeof v === "number") return { formato: "numero", ejemplo: v };
+    const s = String(v);
+    if (/^\d{4}-\d{2}$/.test(s)) return { formato: "texto", ejemplo: s };
+    if (/^\d{6}$/.test(s)) return { formato: "numero", ejemplo: s };
+    return { formato: null, ejemplo: s };   // no parece un mes
+  } catch (e) { return null; }
+}
+
+module.exports = { workspaces, modelos, reporte, medidas, verificar, formatoPeriodo };

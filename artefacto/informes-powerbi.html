@@ -379,6 +379,9 @@ pre.cod b{color:var(--acento);font-weight:600}
   color:var(--tinta)}
 .mapeo-fila > .et em{font-style:normal;font-size:10px;color:var(--tinta-3);display:block;
   line-height:1.35;margin-top:1px}
+.mapeo-fila select{font-family:var(--cuerpo);font-size:12px;background:var(--papel-2);
+  color:var(--tinta);border:1px solid var(--linea);border-radius:var(--r-chico);
+  padding:5px 8px;width:100%;min-width:0}
 .mapeo-fila input{font-family:var(--mono);font-size:12px;background:var(--papel-2);
   color:var(--tinta);border:1px solid var(--linea);border-radius:var(--r-chico);
   padding:5px 8px;width:100%;min-width:0}
@@ -1787,6 +1790,7 @@ function pintarMapeo() {
         p.className = "pill neutra"; p.textContent = "sin probar";
       });
       caja.appendChild(fila);
+      if (grupo === "columnas" && c.clave === "periodo") caja.appendChild(filaFormatoPeriodo());
     });
     f.appendChild(caja);
   }
@@ -1794,8 +1798,29 @@ function pintarMapeo() {
     <code>[Medida]</code> y <code>Tabla[Columna]</code>.</p>`));
 }
 
+/**
+ * El mes viene como entero 202607 o como texto "2026-07" según el modelo.
+ * Verificar contra el modelo lo detecta solo; el selector queda por si el
+ * muestreo no alcanza.
+ */
+function filaFormatoPeriodo() {
+  const f = el(`<div class="mapeo-fila">
+    <span class="et"><b>· formato del período</b>
+      <em>Cómo guarda el mes esa columna.</em></span>
+    <select id="map-periodoFormato" aria-label="Formato del período">
+      <option value="numero">Número — 202607</option>
+      <option value="texto">Texto — 2026-07</option>
+    </select>
+    <span class="pill neutra" id="est-periodoFormato">sin probar</span>
+  </div>`);
+  f.querySelector("select").value = MAPEO.periodoFormato === "texto" ? "texto" : "numero";
+  return f;
+}
+
 function leerMapeo() {
+  const sel = $("map-periodoFormato");
   const m = { medidas: {}, columnas: {},
+    periodoFormato: sel ? sel.value : MAPEO.periodoFormato,
     organizacion: MAPEO.organizacion, workspaceId: $("fWorkspace").value.trim(),
     datasetId: $("fDataset").value.trim() };
   for (const grupo of ["medidas", "columnas"]) {
@@ -1844,9 +1869,28 @@ async function verificarMapeo() {
       p.textContent = r.estado === "ok" ? "✓ existe" : r.estado === "error" ? "✗ no existe" : "sin mapear";
       if (r.mensaje) p.title = r.mensaje;
     }
-    aviso("avisoMapeo", j.ok ? "ok" : "mal", j.ok
+    // el muestreo del período ajusta el selector solo
+    let extra = "";
+    const p = $("est-periodoFormato");
+    if (j.periodo && j.periodo.formato) {
+      const sel = $("map-periodoFormato");
+      if (sel && sel.value !== j.periodo.formato) {
+        sel.value = j.periodo.formato;
+        extra = ` El período resultó <b>${j.periodo.formato === "texto" ? "texto" : "número"}` +
+          `</b> (ejemplo: ${esc(j.periodo.ejemplo)}); ya lo ajusté.`;
+      } else {
+        extra = ` Período: ${esc(j.periodo.ejemplo)}.`;
+      }
+      if (p) { p.className = "pill ok"; p.textContent = "✓ " + j.periodo.formato; }
+    } else if (j.periodo && p) {
+      p.className = "pill mal";
+      p.textContent = "✗ no es un mes";
+      p.title = "Valor de ejemplo: " + j.periodo.ejemplo;
+      extra = ` Ojo: esa columna devolvió «${esc(j.periodo.ejemplo)}», que no parece un mes.`;
+    }
+    aviso("avisoMapeo", j.ok ? "ok" : "mal", (j.ok
       ? "Todo lo mapeado existe en el modelo."
-      : `${j.conError} referencia(s) no existen. Pasá el puntero por la marca roja para ver el error.`);
+      : `${j.conError} referencia(s) no existen. Pasá el puntero por la marca roja para ver el error.`) + extra);
   } catch (e) { aviso("avisoMapeo", "mal", esc(e.message)); }
 }
 

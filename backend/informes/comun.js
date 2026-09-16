@@ -10,11 +10,14 @@ const { m } = require("../powerbi/queries");
 
 const MES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-/** 202607 → "Jul 26" */
+/** 202607 o "2026-07" → "Jul 26" */
 function etiquetaMes(clave) {
-  const k = Number(clave);
-  if (!k || k < 100001) return String(clave);
-  return MES_CORTO[(k % 100) - 1] + " " + String(Math.floor(k / 100)).slice(2);
+  const s = String(clave == null ? "" : clave).trim();
+  const m = s.match(/^(\d{4})-?(\d{2})$/);
+  if (!m) return s;
+  const mes = Number(m[2]);
+  if (mes < 1 || mes > 12) return s;
+  return MES_CORTO[mes - 1] + " " + m[1].slice(2);
 }
 
 /** Descarta las tarjetas cuyo valor no vino y los gráficos sin datos. */

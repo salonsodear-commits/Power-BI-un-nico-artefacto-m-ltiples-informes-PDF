@@ -139,7 +139,11 @@ app.post("/api/modelo/verificar", atajo(async (req) => {
   for (const [k, v] of Object.entries(m.columnas)) if (v) refs["columnas." + k] = v;
   const r = await DESCUBRIR.verificar(ws, ds, refs);
   const malas = Object.values(r).filter((x) => x.estado === "error").length;
-  return { resultado: r, ok: malas === 0, conError: malas };
+  // si la columna de período existe, de paso se averigua de qué tipo es
+  const periodo = r["columnas.periodo"] && r["columnas.periodo"].estado === "ok"
+    ? await DESCUBRIR.formatoPeriodo(ws, ds, m.columnas.periodo)
+    : null;
+  return { resultado: r, ok: malas === 0, conError: malas, periodo };
 }));
 
 app.get("/api/informes", (_req, res) => {

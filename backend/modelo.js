@@ -37,9 +37,8 @@ const CAMPOS = {
   ],
   columnas: [
     { clave: "periodo",       rotulo: "Período del calendario", req: true,
-      ayuda: "Columna con el entero AAAAMM (202607). DAX no agrupa por expresiones, " +
-             "así que una columna de fecha no sirve para las series: si no la tenés, " +
-             "agregá al modelo una columna calculada YEAR([Fecha])*100+MONTH([Fecha])" },
+      ayuda: "Una columna a nivel MES: el número 202607 o el texto 2026-07. " +
+             "Una columna de fecha no sirve, porque DAX no agrupa por expresiones." },
     { clave: "sociedad",      rotulo: "Sociedad" },
     { clave: "vertical",      rotulo: "Vertical / unidad de negocio" },
     { clave: "gastoCategoria",rotulo: "Categoría de gasto (OPEX)" },
@@ -65,6 +64,7 @@ const POR_DEFECTO = {
     agingTramo: "Aging[Tramo]", clienteNombre: "Cliente[Nombre]",
     clienteKam: "Cliente[KAM]"
   },
+  periodoFormato: "numero",
   organizacion: "",
   workspaceId: "",
   datasetId: ""
@@ -101,6 +101,8 @@ function normalizar(entrada) {
   const e = entrada && typeof entrada === "object" ? entrada : {};
   const salida = {
     medidas: {}, columnas: {},
+    // "numero" → 202607 · "texto" → "2026-07"
+    periodoFormato: e.periodoFormato === "texto" ? "texto" : "numero",
     organizacion: String(e.organizacion || "").slice(0, 80),
     workspaceId: String(e.workspaceId || "").trim(),
     datasetId: String(e.datasetId || "").trim()
