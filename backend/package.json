@@ -1,0 +1,17 @@
+{
+  "name": "powerbi-backend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Intermediario seguro entre Power BI (Execute Queries) y el artefacto de informes",
+  "main": "server.js",
+  "type": "commonjs",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js",
+    "prueba": "node prueba-api.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  }
+}

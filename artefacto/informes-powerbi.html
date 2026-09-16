@@ -1,0 +1,1622 @@
+<title>Tablero a Informe</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════
+   TABLERO A INFORME · sistema de diseño
+   El formato vive acá. Los datos de Power BI sólo rellenan estos
+   componentes, así que actualizar datos nunca cambia el diseño.
+   (Manual, paso 16.)
+   ═══════════════════════════════════════════════════════════════════════ */
+:root{
+  /* superficies */
+  --mesa:#E7ECF0; --papel:#FFFFFF; --papel-2:#F6F8FA; --papel-3:#EDF2F6;
+  --linea:#D5DEE5; --linea-suave:#E9EEF2;
+  /* tinta */
+  --tinta:#0F1A21; --tinta-2:#44555F; --tinta-3:#71838F;
+  /* acento de la casa */
+  --acento:#0B6870; --acento-suave:#DEEDEF; --acento-linea:#89C3C8;
+  /* estado — nunca se usan como color de serie */
+  --ok:#186340; --ok-suave:#E3F1E9; --ok-linea:#9DCBB3;
+  --mal:#A02017; --mal-suave:#FBE9E7; --mal-linea:#E0AAA3;
+  --avi:#835C00; --avi-suave:#FBF2DE; --avi-linea:#DCC694;
+  /* series categóricas — orden fijo, nunca cíclico (validado ΔE) */
+  --s1:#00909B; --s2:#C75300; --s3:#6B3FA0; --s4:#B0116B;
+  /* rampa ordinal (tramos de aging) — un solo tono, claro→oscuro */
+  --o1:#6BC0C9; --o2:#2FA3AE; --o3:#00808B; --o4:#0A5660;
+  /* cromo de gráfico */
+  --grilla:#E4EAEF; --eje:#C7D2DA;
+  /* consola: el riel oscuro es lo que separa la herramienta del documento */
+  --consola:#14212B; --consola-2:#1D2E3A; --consola-3:#273B49;
+  --consola-tinta:#C8D6DF; --consola-tinta-2:#8AA0AE;
+  --sombra-hoja:0 1px 2px rgba(15,26,33,.10), 0 8px 24px rgba(15,26,33,.09);
+  --r:6px; --r-chico:4px;
+  --display:"Archivo","Helvetica Neue",Arial,sans-serif;
+  --cuerpo:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){ :root:not([data-theme="light"]){
+  --mesa:#0A1016; --papel:#131C23; --papel-2:#18222A; --papel-3:#1F2B34;
+  --linea:#2A363F; --linea-suave:#202A32;
+  --tinta:#E6EDF2; --tinta-2:#A3B2BD; --tinta-3:#778794;
+  --acento:#45B5BE; --acento-suave:#0E2F33; --acento-linea:#2A686E;
+  --ok:#63C08D; --ok-suave:#122B1D; --ok-linea:#2A583C;
+  --mal:#EE8B80; --mal-suave:#331A17; --mal-linea:#6B322B;
+  --avi:#DFB055; --avi-suave:#2C2412; --avi-linea:#5B491E;
+  --s1:#1E9AA6; --s2:#C96422; --s3:#8C72CF; --s4:#CC4A8D;
+  --o1:#0F5C65; --o2:#15818C; --o3:#28A3AE; --o4:#6FCAD2;
+  --grilla:#243039; --eje:#33424D;
+  --consola:#080E13; --consola-2:#111C24; --consola-3:#1A2831;
+  --consola-tinta:#C2D1DB; --consola-tinta-2:#7E94A2;
+  --sombra-hoja:0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.45);
+}}
+:root[data-theme="dark"]{
+  --mesa:#0A1016; --papel:#131C23; --papel-2:#18222A; --papel-3:#1F2B34;
+  --linea:#2A363F; --linea-suave:#202A32;
+  --tinta:#E6EDF2; --tinta-2:#A3B2BD; --tinta-3:#778794;
+  --acento:#45B5BE; --acento-suave:#0E2F33; --acento-linea:#2A686E;
+  --ok:#63C08D; --ok-suave:#122B1D; --ok-linea:#2A583C;
+  --mal:#EE8B80; --mal-suave:#331A17; --mal-linea:#6B322B;
+  --avi:#DFB055; --avi-suave:#2C2412; --avi-linea:#5B491E;
+  --s1:#1E9AA6; --s2:#C96422; --s3:#8C72CF; --s4:#CC4A8D;
+  --o1:#0F5C65; --o2:#15818C; --o3:#28A3AE; --o4:#6FCAD2;
+  --grilla:#243039; --eje:#33424D;
+  --consola:#080E13; --consola-2:#111C24; --consola-3:#1A2831;
+  --consola-tinta:#C2D1DB; --consola-tinta-2:#7E94A2;
+  --sombra-hoja:0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.45);
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--mesa);color:var(--tinta);
+  font:15px/1.55 var(--cuerpo);-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--display);font-weight:700;letter-spacing:-.014em;
+  text-wrap:balance;margin:0}
+button,input,select,textarea{font:inherit}
+:focus-visible{outline:2px solid var(--acento);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ── armazón ───────────────────────────────────────────────────────── */
+.app{display:grid;grid-template-columns:304px minmax(0,1fr);height:100dvh}
+
+/* ── consola (no se imprime) ───────────────────────────────────────── */
+.consola{display:flex;flex-direction:column;min-height:0;background:var(--consola);
+  color:var(--consola-tinta);border-right:1px solid rgba(0,0,0,.35)}
+.marca{display:flex;align-items:center;gap:10px;padding:14px 16px 13px;
+  border-bottom:1px solid var(--consola-3);flex:none}
+.marca .sigla{display:grid;place-items:center;width:30px;height:30px;border-radius:7px;
+  background:var(--acento);color:#fff;font-family:var(--display);font-weight:700;
+  font-size:12px;flex:none}
+.marca b{display:block;font-family:var(--display);font-weight:600;font-size:14.5px;
+  color:#fff;letter-spacing:-.01em;line-height:1.2}
+.marca small{display:block;font-size:11px;color:var(--consola-tinta-2);margin-top:1px;
+  font-family:var(--mono)}
+.consola-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;padding:4px 16px 16px;
+  scrollbar-width:thin;scrollbar-color:var(--consola-3) transparent}
+.consola-scroll::-webkit-scrollbar{width:8px}
+.consola-scroll::-webkit-scrollbar-thumb{background:var(--consola-3);border-radius:100px}
+.grupo{padding:14px 0 4px;border-top:1px solid var(--consola-3);margin-top:10px}
+.grupo:first-child{border-top:0;margin-top:0;padding-top:12px}
+.rotulo{font-family:var(--display);font-size:9.5px;font-weight:700;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--consola-tinta-2);display:block;margin-bottom:8px}
+.campo{display:flex;flex-direction:column;gap:4px;margin-bottom:9px}
+.campo > label{font-size:11.5px;color:var(--consola-tinta-2);font-family:var(--display);
+  font-weight:600;letter-spacing:.02em}
+.consola input,.consola select{background:var(--consola-2);border:1px solid var(--consola-3);
+  color:#fff;font-family:var(--mono);font-size:12.5px;padding:6px 9px;
+  border-radius:var(--r-chico);width:100%;min-width:0}
+.consola select{font-family:var(--display);font-weight:600;font-size:13px}
+.consola select option{background:#fff;color:#0F1A21}
+.consola input::placeholder{color:#5C7080}
+.consola input:focus-visible,.consola select:focus-visible{outline-color:var(--acento-linea)}
+.nota{font-size:11px;line-height:1.5;color:var(--consola-tinta-2);margin:2px 0 0}
+.nota b{color:#E2B8B2;font-weight:600}
+.fila{display:flex;gap:7px;flex-wrap:wrap}
+.fila > *{flex:1 1 auto}
+
+.b{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;
+  padding:0 12px;border-radius:var(--r-chico);cursor:pointer;white-space:nowrap;
+  font-family:var(--display);font-weight:600;font-size:12.5px;
+  background:var(--consola-2);border:1px solid var(--consola-3);color:var(--consola-tinta)}
+.b:hover{background:var(--consola-3);color:#fff}
+.b.primario{background:var(--acento);border-color:var(--acento);color:#fff}
+.b.primario:hover{filter:brightness(1.12)}
+.b:disabled{opacity:.45;cursor:not-allowed}
+.b.ancho{width:100%}
+.estado{margin-top:12px;padding:10px 12px;border-radius:var(--r-chico);
+  background:var(--consola-2);border:1px solid var(--consola-3);font-size:11.5px;
+  line-height:1.5;color:var(--consola-tinta-2)}
+.estado b{display:block;font-family:var(--display);font-size:11px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--consola-tinta);margin-bottom:4px}
+.estado .mono{font-family:var(--mono);font-size:11px;color:#fff;word-break:break-word}
+.estado.error{background:#2B1512;border-color:#5C2A22;color:#E8B3AB}
+.estado.error b{color:#F0B8AF}
+.estado.ok{background:#0F2A1D;border-color:#27543A;color:#9FD3B5}
+.estado.ok b{color:#B4DEC6}
+.consola-pie{flex:none;padding:10px 16px;border-top:1px solid var(--consola-3);
+  display:flex;gap:7px;align-items:center}
+.zoom{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+  color:var(--consola-tinta-2)}
+.zoom input[type=range]{width:82px;padding:0;background:none;border:0;accent-color:var(--acento)}
+
+/* ── mesa: el fondo sobre el que se apoyan las hojas ───────────────── */
+.mesa{min-width:0;overflow:auto;padding:22px 16px 60px;background:var(--mesa);
+  display:flex;flex-direction:column;align-items:center;gap:18px;--zoom:1}
+.hoja{zoom:var(--zoom);width:210mm;height:297mm;flex:none;background:var(--papel);
+  box-shadow:var(--sombra-hoja);display:flex;flex-direction:column;overflow:hidden;
+  color:var(--tinta)}
+
+/* cabecera y pie corridos de cada hoja */
+.h-cab{flex:none;height:20mm;padding:0 16mm;display:flex;align-items:center;gap:12px;
+  border-bottom:2px solid var(--acento)}
+.h-cab .org{font-family:var(--display);font-weight:700;font-size:13px;letter-spacing:-.01em;
+  color:var(--tinta);white-space:nowrap}
+.h-cab .sep{width:1px;height:15px;background:var(--linea);flex:none}
+.h-cab .que{font-family:var(--display);font-size:9.5px;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--tinta-3);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.h-cab .cuando{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--tinta-3);
+  white-space:nowrap}
+.h-pie{flex:none;height:14mm;padding:0 16mm;display:flex;align-items:center;gap:10px;
+  border-top:1px solid var(--linea-suave);font-family:var(--mono);font-size:9px;
+  color:var(--tinta-3);letter-spacing:.01em}
+.h-pie .fuente{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.h-pie .folio{margin-left:auto;white-space:nowrap;font-weight:500;color:var(--tinta-2)}
+.h-cuerpo{flex:1 1 auto;min-height:0;overflow:hidden;padding:6mm 16mm 4mm;
+  display:flex;flex-direction:column;gap:5mm}
+
+/* marca de datos de ejemplo — se imprime a propósito */
+.ejemplo{display:inline-flex;align-items:center;gap:5px;font-family:var(--display);
+  font-size:8.5px;font-weight:700;letter-spacing:.11em;text-transform:uppercase;
+  padding:2px 7px;border-radius:100px;color:var(--avi);background:var(--avi-suave);
+  border:1px solid var(--avi-linea);flex:none}
+
+/* ── portada ───────────────────────────────────────────────────────── */
+.portada{display:flex;flex-direction:column;gap:3mm;padding-bottom:2mm;
+  border-bottom:1px solid var(--linea)}
+.portada .ojo{font-family:var(--display);font-size:10px;font-weight:600;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--acento)}
+.portada h1{font-size:27px;line-height:1.1;letter-spacing:-.022em}
+.portada .bajada{font-size:13px;color:var(--tinta-2);line-height:1.5;max-width:62ch}
+.portada .meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:1mm}
+.portada .meta div{display:flex;flex-direction:column;gap:1px}
+.portada .meta .e{font-family:var(--display);font-size:8.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--tinta-3)}
+.portada .meta .v{font-family:var(--mono);font-size:12px;font-weight:500;color:var(--tinta)}
+
+/* ── bloques del informe ───────────────────────────────────────────── */
+.bloque{display:flex;flex-direction:column;gap:3mm;break-inside:avoid}
+.b-tapa{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.b-tapa h2{font-size:15px;letter-spacing:-.012em}
+.b-tapa .sub{font-size:11.5px;color:var(--tinta-3);line-height:1.4}
+.b-tapa .clave{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--tinta-3);
+  background:var(--papel-2);border:1px solid var(--linea-suave);border-radius:100px;
+  padding:1px 8px;white-space:nowrap}
+.b-nota{font-size:10.5px;color:var(--tinta-3);line-height:1.45;font-style:italic}
+
+/* franja de indicadores */
+.kpis{display:grid;gap:3mm}
+.kpi{border:1px solid var(--linea);border-radius:var(--r);padding:3mm 3.4mm;
+  background:var(--papel);display:flex;flex-direction:column;gap:1mm;min-width:0}
+.kpi .e{font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--tinta-3);line-height:1.3}
+.kpi .v{font-family:var(--display);font-weight:600;font-size:21px;letter-spacing:-.022em;
+  line-height:1.05;color:var(--tinta)}
+.kpi .d{display:flex;align-items:center;gap:4px;font-family:var(--mono);font-size:10px;
+  font-weight:500;line-height:1.3}
+.kpi .d .fl{font-size:9px;line-height:1}
+.kpi .d.sube{color:var(--ok)} .kpi .d.baja{color:var(--mal)} .kpi .d.plano{color:var(--tinta-3)}
+.kpi .d .ref{color:var(--tinta-3);font-weight:400}
+.kpi .spark{margin-top:1px}
+/* el titular: una sola cifra por informe lleva este tratamiento */
+.kpi.titular{background:var(--acento-suave);border-color:var(--acento-linea);
+  grid-column:span 2}
+.kpi.titular .e{color:var(--acento)}
+.kpi.titular .v{font-size:38px;letter-spacing:-.028em}
+
+/* narrativa */
+.narrativa{display:flex;flex-direction:column;gap:2.4mm}
+.narrativa p{margin:0;font-size:12px;line-height:1.62;color:var(--tinta-2);max-width:68ch}
+.narrativa p b{color:var(--tinta);font-weight:600}
+.puntos{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:1.8mm}
+.puntos li{position:relative;padding-left:14px;font-size:12px;line-height:1.55;
+  color:var(--tinta-2);max-width:68ch}
+.puntos li::before{content:"";position:absolute;left:0;top:7px;width:5px;height:5px;
+  border-radius:50%;background:var(--acento)}
+.puntos li b{color:var(--tinta);font-weight:600}
+
+/* comentario firmado */
+.comentario{border-left:3px solid var(--acento);background:var(--papel-2);
+  padding:3.2mm 4mm;display:flex;flex-direction:column;gap:2mm;border-radius:0 var(--r) var(--r) 0}
+.comentario p{margin:0;font-size:12px;line-height:1.6;color:var(--tinta-2)}
+.comentario .firma{font-family:var(--display);font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3)}
+
+/* tablas */
+.marco{overflow:hidden;border:1px solid var(--linea);border-radius:var(--r)}
+table.datos{width:100%;border-collapse:separate;border-spacing:0;font-size:11px}
+table.datos thead th{background:var(--papel-2);font-family:var(--display);font-size:8.5px;
+  font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--tinta-3);
+  text-align:left;padding:2.2mm 3mm;border-bottom:1px solid var(--linea);white-space:nowrap}
+table.datos td{padding:2mm 3mm;border-bottom:1px solid var(--linea-suave);
+  vertical-align:middle;line-height:1.35;color:var(--tinta-2)}
+table.datos td:first-child{color:var(--tinta);font-weight:500}
+table.datos tbody tr:last-child td{border-bottom:0}
+table.datos th.n,table.datos td.n{text-align:right;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+table.datos tr.suma td{font-weight:700;color:var(--tinta);background:var(--papel-3);
+  border-top:1px solid var(--eje);border-bottom:0}
+table.datos td .marca-est{font-family:var(--mono);font-size:9px;margin-right:3px}
+table.datos td.bien{color:var(--ok)} table.datos td.mal{color:var(--mal)}
+
+/* gráficos */
+.grafico{width:100%}
+.grafico svg{display:block;width:100%;height:auto;overflow:visible}
+.leyenda{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;margin-bottom:2mm}
+.leyenda span{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;
+  color:var(--tinta-2);font-family:var(--display);font-weight:600;letter-spacing:.01em}
+.leyenda i{width:11px;height:11px;border-radius:2px;flex:none;display:block}
+.leyenda i.linea{height:3px;border-radius:100px}
+.ver-datos{align-self:flex-start;font-family:var(--display);font-size:10px;font-weight:600;
+  letter-spacing:.06em;text-transform:uppercase;color:var(--tinta-3);background:none;
+  border:1px solid var(--linea);border-radius:100px;padding:2px 10px;cursor:pointer}
+.ver-datos:hover{color:var(--acento);border-color:var(--acento-linea);background:var(--acento-suave)}
+.tabla-gemela[hidden]{display:none}
+
+/* tooltip de gráfico */
+#tip{position:fixed;z-index:80;pointer-events:none;opacity:0;transition:opacity .1s;
+  background:var(--tinta);color:var(--papel);border-radius:var(--r-chico);
+  padding:6px 9px;font-family:var(--mono);font-size:11px;line-height:1.45;
+  box-shadow:0 6px 20px rgba(0,0,0,.28);max-width:240px}
+#tip b{font-family:var(--display);font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+  display:block;margin-bottom:2px;opacity:.72;font-weight:600}
+#tip.visible{opacity:1}
+
+/* estado vacío de la mesa */
+.vacio{max-width:52ch;text-align:center;color:var(--tinta-3);font-size:13.5px;line-height:1.6;
+  padding:60px 20px}
+.vacio b{display:block;font-family:var(--display);font-size:17px;color:var(--tinta-2);
+  margin-bottom:7px}
+
+/* diálogos */
+dialog{border:1px solid var(--linea);border-radius:var(--r);background:var(--papel);
+  color:var(--tinta);padding:0;max-width:min(760px,94vw);width:100%;
+  box-shadow:0 20px 56px rgba(0,0,0,.3)}
+dialog::backdrop{background:rgba(10,16,20,.58)}
+.d-tapa{display:flex;align-items:center;gap:10px;padding:13px 18px;
+  border-bottom:1px solid var(--linea-suave);background:var(--papel-2)}
+.d-tapa h2{font-size:15px}
+.d-tapa .x{margin-left:auto;background:none;border:0;color:var(--tinta-3);cursor:pointer;
+  font-size:17px;line-height:1;padding:4px 7px;border-radius:var(--r-chico)}
+.d-tapa .x:hover{background:var(--papel-3);color:var(--tinta)}
+.d-cuerpo{padding:16px 18px;max-height:min(66vh,560px);overflow:auto;
+  display:flex;flex-direction:column;gap:12px}
+.d-pie{display:flex;gap:8px;align-items:center;padding:12px 18px;
+  border-top:1px solid var(--linea-suave);background:var(--papel-2);flex-wrap:wrap}
+.d-pie .aclara{font-size:11.5px;color:var(--tinta-3);margin-right:auto;line-height:1.45}
+.d-cuerpo p{margin:0;font-size:13px;line-height:1.6;color:var(--tinta-2)}
+.d-cuerpo p b{color:var(--tinta)}
+.d-cuerpo textarea{width:100%;min-height:210px;font-family:var(--mono);font-size:12px;
+  line-height:1.5;background:var(--papel-2);color:var(--tinta);border:1px solid var(--linea);
+  border-radius:var(--r);padding:11px 13px;resize:vertical}
+pre.cod{margin:0;font-family:var(--mono);font-size:11.5px;line-height:1.55;
+  background:var(--papel-2);border:1px solid var(--linea);border-radius:var(--r);
+  padding:12px 14px;overflow-x:auto;color:var(--tinta-2);white-space:pre}
+pre.cod b{color:var(--acento);font-weight:600}
+.d-cuerpo h3{font-size:12px;font-family:var(--display);letter-spacing:.07em;
+  text-transform:uppercase;color:var(--tinta-3);font-weight:700;margin-top:4px}
+.bd{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;
+  padding:0 13px;border-radius:var(--r-chico);cursor:pointer;font-family:var(--display);
+  font-weight:600;font-size:12.5px;background:var(--papel);border:1px solid var(--linea);
+  color:var(--tinta-2)}
+.bd:hover{background:var(--papel-2);color:var(--tinta);border-color:var(--tinta-3)}
+.bd.primario{background:var(--acento);border-color:var(--acento);color:#fff}
+.bd.primario:hover{filter:brightness(1.1);color:#fff}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{font-family:var(--display);font-size:11.5px;font-weight:600;padding:5px 11px;
+  border-radius:100px;border:1px solid var(--linea);background:var(--papel);
+  color:var(--tinta-3);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--acento);border-color:var(--acento);color:#fff}
+
+/* ── pantallas angostas ────────────────────────────────────────────── */
+/* Estos dos viven fuera de la grilla: ocultos por defecto, fijos cuando se
+   muestran, para que nunca ocupen una celda junto a la consola y la mesa. */
+.abre-consola,.velo{display:none}
+@media (max-width:1040px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .consola{position:fixed;top:0;bottom:0;left:0;width:300px;z-index:60;
+    transform:translateX(-100%);transition:transform .2s ease;
+    box-shadow:0 14px 44px rgba(0,0,0,.4)}
+  .app[data-consola="abierta"] .consola{transform:translateX(0)}
+  .app[data-consola="abierta"] .velo{display:block;position:fixed;inset:0;z-index:50;
+    background:rgba(9,16,21,.55);border:0;padding:0;cursor:pointer}
+  .abre-consola{display:inline-flex;position:fixed;z-index:40;
+    top:calc(12px + env(safe-area-inset-top,0px));left:12px;
+    height:36px;padding:0 13px;align-items:center;gap:7px;border-radius:100px;
+    background:var(--consola);color:#fff;border:0;cursor:pointer;
+    font-family:var(--display);font-weight:600;font-size:12.5px;
+    box-shadow:0 4px 16px rgba(0,0,0,.28)}
+  .mesa{padding-top:60px}
+}
+@media (max-width:520px){ .mesa{padding-left:8px;padding-right:8px} }
+
+/* ── impresión: el PDF sale del informe ya renderizado ─────────────── */
+@page{size:A4;margin:0}
+@media print{
+  /* el papel siempre es claro, sea cual sea el tema de la pantalla */
+  :root,:root[data-theme="dark"]{
+    --papel:#FFFFFF; --papel-2:#F6F8FA; --papel-3:#EDF2F6;
+    --linea:#D5DEE5; --linea-suave:#E9EEF2;
+    --tinta:#0F1A21; --tinta-2:#44555F; --tinta-3:#71838F;
+    --acento:#0B6870; --acento-suave:#DEEDEF; --acento-linea:#89C3C8;
+    --ok:#186340; --ok-suave:#E3F1E9; --ok-linea:#9DCBB3;
+    --mal:#A02017; --mal-suave:#FBE9E7; --mal-linea:#E0AAA3;
+    --avi:#835C00; --avi-suave:#FBF2DE; --avi-linea:#DCC694;
+    --s1:#00909B; --s2:#C75300; --s3:#6B3FA0; --s4:#B0116B;
+    --o1:#6BC0C9; --o2:#2FA3AE; --o3:#00808B; --o4:#0A5660;
+    --grilla:#E4EAEF; --eje:#C7D2DA;
+  }
+  html,body{height:auto;background:#fff}
+  .consola,.velo,.abre-consola,#tip,.ver-datos{display:none!important}
+  .app{display:block;height:auto}
+  .mesa{display:block;overflow:visible;padding:0;background:#fff}
+  .hoja{zoom:1!important;box-shadow:none;margin:0;width:210mm;height:297mm;
+    break-after:page;page-break-after:always;break-inside:avoid}
+  .hoja:last-child{break-after:auto;page-break-after:auto}
+  .tabla-gemela{display:none!important}
+}
+</style>
+
+<div class="app" id="app">
+  <button class="velo" id="velo" aria-label="Cerrar el panel"></button>
+  <button class="abre-consola" id="abreConsola" aria-expanded="false" aria-controls="consola">☰ Panel</button>
+
+  <!-- ══ CONSOLA ══════════════════════════════════════════════════ -->
+  <aside class="consola" id="consola" aria-label="Panel de control">
+    <div class="marca">
+      <span class="sigla" aria-hidden="true">BI</span>
+      <span>
+        <b>Tablero a Informe</b>
+        <small>Power BI → PDF</small>
+      </span>
+    </div>
+
+    <div class="consola-scroll">
+      <section class="grupo">
+        <span class="rotulo">Tablero de origen</span>
+        <div class="campo">
+          <label for="fBackend">Backend de informes</label>
+          <input id="fBackend" type="url" inputmode="url" placeholder="https://backend/api/informe"
+                 autocomplete="off" spellcheck="false">
+        </div>
+        <div class="campo">
+          <label for="fWorkspace">Workspace ID</label>
+          <input id="fWorkspace" placeholder="00000000-0000-0000-0000-000000000000"
+                 autocomplete="off" spellcheck="false">
+        </div>
+        <div class="campo">
+          <label for="fDataset">Dataset / modelo semántico ID</label>
+          <input id="fDataset" placeholder="00000000-0000-0000-0000-000000000000"
+                 autocomplete="off" spellcheck="false">
+        </div>
+        <p class="nota">Los IDs salen de la URL del reporte en Power BI Service.
+          Se guardan sólo en este navegador. <b>Nunca pegues acá el Client Secret</b> —
+          vive en el backend.</p>
+      </section>
+
+      <section class="grupo">
+        <span class="rotulo">Informe</span>
+        <div class="campo">
+          <label for="fTipo">Tipo de informe</label>
+          <select id="fTipo"></select>
+        </div>
+        <div class="fila">
+          <div class="campo" style="flex:1 1 118px">
+            <label for="fPeriodo">Período</label>
+            <input id="fPeriodo" type="month">
+          </div>
+          <div class="campo" style="flex:1 1 118px">
+            <label for="fSociedad">Sociedad</label>
+            <input id="fSociedad" placeholder="Todas" autocomplete="off">
+          </div>
+        </div>
+        <div class="campo">
+          <label for="fVertical">Vertical</label>
+          <input id="fVertical" placeholder="Todas" autocomplete="off">
+        </div>
+      </section>
+
+      <section class="grupo">
+        <span class="rotulo">Datos</span>
+        <button class="b primario ancho" id="btnActualizar">Actualizar datos</button>
+        <div class="fila" style="margin-top:7px">
+          <button class="b" id="btnPegar">Pegar JSON</button>
+          <button class="b" id="btnDemo">Datos de ejemplo</button>
+        </div>
+        <div id="estado" class="estado">
+          <b>Sin datos</b>
+          Elegí un tipo de informe y actualizá, o cargá el JSON a mano.
+        </div>
+      </section>
+
+      <section class="grupo">
+        <span class="rotulo">Salida</span>
+        <button class="b primario ancho" id="btnPdf">Exportar PDF</button>
+        <div class="fila" style="margin-top:7px">
+          <button class="b" id="btnHtml">Descargar HTML</button>
+          <button class="b" id="btnContrato">Contrato y DAX</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="consola-pie">
+      <div class="zoom">
+        <label for="fZoom" style="font-family:var(--display);font-weight:600">Zoom</label>
+        <input id="fZoom" type="range" min="40" max="130" step="5" value="100">
+        <span id="zoomVal">100%</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MESA ═════════════════════════════════════════════════════ -->
+  <main class="mesa" id="mesa" aria-label="Informe"></main>
+</div>
+
+<div id="tip" role="status" aria-live="polite"></div>
+
+<!-- ══ DIÁLOGO: pegar JSON ══════════════════════════════════════════ -->
+<dialog id="dlgJson" aria-labelledby="dlgJsonT">
+  <div class="d-tapa">
+    <h2 id="dlgJsonT">Pegar JSON normalizado</h2>
+    <button class="x" data-cerrar="dlgJson" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="d-cuerpo">
+    <p>Pegá la respuesta del backend. Es la misma estructura que devuelve
+      <b>Actualizar datos</b>, así que el informe sale idéntico.</p>
+    <textarea id="areaJson" spellcheck="false" aria-label="JSON del informe"
+      placeholder='{ "meta": { ... }, "secciones": [ ... ] }'></textarea>
+    <p id="errJson" style="color:var(--mal);display:none"></p>
+  </div>
+  <div class="d-pie">
+    <span class="aclara">¿No sabés qué forma tiene? Abrí <b>Contrato y DAX</b>.</span>
+    <button class="bd" data-cerrar="dlgJson">Cancelar</button>
+    <button class="bd primario" id="btnAplicarJson">Renderizar informe</button>
+  </div>
+</dialog>
+
+<!-- ══ DIÁLOGO: contrato de datos ═══════════════════════════════════ -->
+<dialog id="dlgContrato" aria-labelledby="dlgContratoT">
+  <div class="d-tapa">
+    <h2 id="dlgContratoT">Contrato de datos y consultas DAX</h2>
+    <button class="x" data-cerrar="dlgContrato" aria-label="Cerrar">✕</button>
+  </div>
+  <div class="d-cuerpo" id="cuerpoContrato"></div>
+  <div class="d-pie">
+    <span class="aclara">El backend arma este JSON; el artefacto sólo lo dibuja.</span>
+    <button class="bd" id="btnCopiarContrato">Copiar ejemplo</button>
+    <button class="bd primario" data-cerrar="dlgContrato">Listo</button>
+  </div>
+</dialog>
+
+<script>
+"use strict";
+/* ═══════════════════════════════════════════════════════════════════════
+   1 · FORMATO
+   Todo número que se ve en el informe pasa por acá, para que la misma
+   medida se lea igual en un KPI, en un eje y en una celda.
+   ═══════════════════════════════════════════════════════════════════════ */
+const nf = (d) => new Intl.NumberFormat("es-AR",
+  { minimumFractionDigits: d, maximumFractionDigits: d });
+const n0 = nf(0), n1 = nf(1), n2 = nf(2);
+
+let ESCALA = 1e6; // divisor por defecto de los montos
+
+function fmt(v, formato) {
+  if (v === null || v === undefined || v === "" || (typeof v === "number" && !isFinite(v)))
+    return "—";
+  switch (formato) {
+    case "moneda":   return "$ " + n1.format(v / ESCALA);
+    case "monto":    return n1.format(v / ESCALA);
+    case "moneda0":  return "$ " + n0.format(v / ESCALA);
+    case "pesos":    return "$ " + n0.format(v);
+    case "pct":      return n1.format(v) + " %";
+    case "pct2":     return n2.format(v) + " %";
+    case "pp":       return n1.format(v) + " pp";
+    case "dias":     return n0.format(v) + " d";
+    case "veces":    return n1.format(v) + "×";
+    case "entero":   return n0.format(v);
+    case "decimal":  return n1.format(v);
+    case "texto":    return String(v);
+    default:         return typeof v === "number" ? n1.format(v / ESCALA) : String(v);
+  }
+}
+/* Un desvío se lee con su signo adelante: +12,4 / −3,1 */
+function fmtDelta(v, formato) {
+  if (v === null || v === undefined) return "—";
+  return (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v), formato);
+}
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g,
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+function fechaLarga(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  if (isNaN(d)) return String(iso);
+  return d.toLocaleString("es-AR",
+    { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function mesLargo(p) {
+  if (!p || !/^\d{4}-\d{2}$/.test(p)) return p || "";
+  const [a, m] = p.split("-").map(Number);
+  const nom = new Date(a, m - 1, 1).toLocaleDateString("es-AR", { month: "long" });
+  return nom.charAt(0).toUpperCase() + nom.slice(1) + " " + a;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   2 · TIPOS DE INFORME
+   Un artefacto, varios informes. Agregar uno nuevo es agregar una entrada
+   acá y sus consultas DAX en el backend — nunca otro artefacto.
+   (Manual, pasos 15 y 19.)
+   ═══════════════════════════════════════════════════════════════════════ */
+const REPORTES = {
+  ejecutivo: {
+    nombre: "Ejecutivo",
+    titulo: "Informe Ejecutivo",
+    bajada: "Resultado del período contra objetivo, desvíos por vertical y lectura de cierre.",
+    fuente: "Power BI — Real vs BO",
+    dax: [
+      ["KPIs del período",
+       'EVALUATE\n  ROW(\n    "Real",     [Real],\n    "BO",       [BO],\n    "Variacion",[Variación],\n    "VarPct",   [Variación %],\n    "EBITDA",   [EBITDA],\n    "MargenEB", [Margen EBITDA %]\n  )'],
+      ["Evolución mensual Real vs BO",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Calendario[AnioMes],\n    TREATAS({"@SOCIEDAD"}, Sociedad[Nombre]),\n    "Real", [Real],\n    "BO",   [BO]\n  )\n  ORDER BY Calendario[AnioMes]'],
+      ["Desvíos por vertical",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Vertical[Nombre],\n    "Real",      [Real],\n    "BO",        [BO],\n    "Desvio",    [Variación],\n    "DesvioPct", [Variación %]\n  )']
+    ]
+  },
+  finanzas: {
+    nombre: "Finanzas",
+    titulo: "Informe de Finanzas",
+    bajada: "Real contra BO, estructura de OPEX, provisiones, pendiente de facturar, aging y DSO.",
+    fuente: "Power BI — Real vs BO / OPEX",
+    dax: [
+      ["KPIs de finanzas",
+       'EVALUATE\n  ROW(\n    "Real",       [Real],\n    "BO",         [BO],\n    "OPEX",       [OPEX],\n    "Provisiones",[Provisiones],\n    "PendFact",   [Pendiente de facturar],\n    "DSO",        [DSO]\n  )'],
+      ["OPEX por categoría",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Gastos[Categoria],\n    "OPEX", [OPEX]\n  )\n  ORDER BY [OPEX] DESC'],
+      ["Aging de cuentas por cobrar",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Vertical[Nombre],\n    Aging[Tramo],\n    "Saldo", [Saldo CxC]\n  )'],
+      ["Evolución de DSO",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Calendario[AnioMes],\n    "DSO", [DSO]\n  )\n  ORDER BY Calendario[AnioMes]']
+    ]
+  },
+  kam: {
+    nombre: "KAM",
+    titulo: "Informe por Cliente (KAM)",
+    bajada: "Facturación, costos y margen por cliente de la cartera, con foco en el resultado del período.",
+    fuente: "Power BI — Cartera KAM",
+    dax: [
+      ["KPIs de cartera",
+       'EVALUATE\n  ROW(\n    "Facturacion",[Facturación],\n    "Costos",     [Costos],\n    "Margen",     [Margen],\n    "MargenPct",  [Margen %],\n    "Clientes",   [Clientes activos]\n  )'],
+      ["Detalle por cliente",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Cliente[Nombre],\n    Cliente[KAM],\n    "Facturacion",[Facturación],\n    "Costos",     [Costos],\n    "Margen",     [Margen],\n    "MargenPct",  [Margen %]\n  )\n  ORDER BY [Facturacion] DESC']
+    ]
+  },
+  gerencia: {
+    nombre: "Gerencia",
+    titulo: "Informe de Gerencia",
+    bajada: "Lectura consolidada del período: resultado, desvíos, cobranza y los temas abiertos.",
+    fuente: "Power BI — Consolidado",
+    dax: [
+      ["Consolidado del período",
+       'EVALUATE\n  ROW(\n    "Real",    [Real],\n    "BO",      [BO],\n    "EBITDA",  [EBITDA],\n    "MargenEB",[Margen EBITDA %],\n    "DSO",     [DSO]\n  )'],
+      ["Real vs BO por vertical",
+       'EVALUATE\n  SUMMARIZECOLUMNS(\n    Vertical[Nombre],\n    "Real",[Real],\n    "BO",  [BO]\n  )']
+    ]
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   3 · GRÁFICOS
+   SVG a mano, con las mismas reglas en los cuatro informes: marcas finas,
+   grilla de un pelo, leyenda siempre que haya dos series o más y etiquetas
+   directas sólo donde suman.
+   ═══════════════════════════════════════════════════════════════════════ */
+const SERIES = ["--s1", "--s2", "--s3", "--s4"];
+const ORDINAL = ["--o1", "--o2", "--o3", "--o4"];
+const cvar = (t) => "var(" + t + ")";
+
+/** Números redondos para el eje: 0 / 50 / 100 / 150 … */
+function escalaEje(min, max, pasos) {
+  pasos = pasos || 4;
+  if (min > 0) min = 0;
+  if (max < 0) max = 0;
+  if (max === min) max = min + 1;
+  const bruto = (max - min) / pasos;
+  const mag = Math.pow(10, Math.floor(Math.log10(bruto)));
+  const norm = bruto / mag;
+  const paso = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+  const lo = Math.floor(min / paso) * paso;
+  const hi = Math.ceil(max / paso) * paso;
+  const ticks = [];
+  for (let v = lo; v <= hi + paso * 1e-9; v += paso) ticks.push(Math.abs(v) < paso * 1e-9 ? 0 : v);
+  return { lo, hi, ticks };
+}
+
+/** Barra con el extremo de dato redondeado y el pie cuadrado sobre la línea base. */
+function pathBarraV(x, y, w, h, arriba) {
+  const r = Math.max(0, Math.min(4, w / 2, h));
+  if (h <= 0.4) return "";
+  return arriba
+    ? `M${x},${y + h}L${x},${y + r}Q${x},${y} ${x + r},${y}L${x + w - r},${y}Q${x + w},${y} ${x + w},${y + r}L${x + w},${y + h}Z`
+    : `M${x},${y}L${x},${y + h - r}Q${x},${y + h} ${x + r},${y + h}L${x + w - r},${y + h}Q${x + w},${y + h} ${x + w},${y + h - r}L${x + w},${y}Z`;
+}
+function pathBarraH(x, y, w, h, derecha) {
+  const r = Math.max(0, Math.min(4, h / 2, w));
+  if (w <= 0.4) return "";
+  return derecha
+    ? `M${x},${y}L${x + w - r},${y}Q${x + w},${y} ${x + w},${y + r}L${x + w},${y + h - r}Q${x + w},${y + h} ${x + w - r},${y + h}L${x},${y + h}Z`
+    : `M${x + w},${y}L${x + r},${y}Q${x},${y} ${x},${y + r}L${x},${y + h - r}Q${x},${y + h} ${x + r},${y + h}L${x + w},${y + h}Z`;
+}
+
+const TXT = {
+  eje:  'font-family:var(--mono);font-size:8.5px;fill:var(--tinta-3)',
+  cat:  'font-family:var(--mono);font-size:8.5px;fill:var(--tinta-2)',
+  dato: 'font-family:var(--mono);font-size:9px;font-weight:500;fill:var(--tinta-2)',
+  dentro: 'font-family:var(--mono);font-size:8.5px;font-weight:500'
+};
+
+function leyenda(series, tipo) {
+  if (series.length < 2) return "";
+  return '<div class="leyenda">' + series.map((s, i) =>
+    `<span><i class="${tipo === "lineas" ? "linea" : ""}" style="background:${s.color || cvar(SERIES[i % 4])}"></i>${esc(s.nombre)}</span>`
+  ).join("") + "</div>";
+}
+
+/* ── columnas agrupadas (Real vs BO) ──────────────────────────────── */
+function gBarras(s) {
+  const W = 640, H = 184, mL = 44, mR = 14, mT = 12, mB = 26;
+  const pw = W - mL - mR, ph = H - mT - mB;
+  const cats = s.ejeX || [];
+  const ser = s.series || [];
+  const todos = ser.flatMap((x) => x.datos).filter((v) => typeof v === "number");
+  const { lo, hi, ticks } = escalaEje(Math.min(0, ...todos), Math.max(0, ...todos));
+  const y = (v) => mT + ph - ((v - lo) / (hi - lo)) * ph;
+  const banda = pw / Math.max(1, cats.length);
+  const GAP = 2;                                   // separador en color del papel
+  const anchoGrupo = Math.min(banda * 0.62, 24 * ser.length + GAP * (ser.length - 1));
+  const w = Math.max(3, (anchoGrupo - GAP * (ser.length - 1)) / ser.length);
+
+  let o = "";
+  ticks.forEach((t) => {
+    o += `<line x1="${mL}" y1="${y(t).toFixed(1)}" x2="${W - mR}" y2="${y(t).toFixed(1)}" stroke="${t === 0 ? "var(--eje)" : "var(--grilla)"}" stroke-width="1"/>`;
+    o += `<text x="${mL - 7}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end" style="${TXT.eje}">${esc(fmt(t, s.formatoEje || s.formato))}</text>`;
+  });
+  cats.forEach((c, i) => {
+    const x0 = mL + banda * i + (banda - anchoGrupo) / 2;
+    ser.forEach((se, j) => {
+      const v = se.datos[i];
+      if (typeof v !== "number") return;
+      const x = x0 + j * (w + GAP);
+      const arriba = v >= 0;
+      const alto = Math.abs(y(v) - y(0));
+      const yy = arriba ? y(v) : y(0);
+      const col = se.color || cvar(SERIES[j % 4]);
+      o += `<path d="${pathBarraV(x, yy, w, alto, arriba)}" fill="${col}" data-tip="${esc(c)}|${esc(se.nombre)}: ${esc(fmt(v, s.formato))}"><title>${esc(c)} · ${esc(se.nombre)}: ${esc(fmt(v, s.formato))}</title></path>`;
+      // una sola etiqueta directa, sobre la serie principal del último grupo:
+      // dos etiquetas en el mismo grupo se pisan
+      if (i === cats.length - 1 && j === 0) {
+        o += `<text x="${(x + w / 2).toFixed(1)}" y="${(arriba ? yy - 5 : yy + alto + 10).toFixed(1)}" text-anchor="middle" style="${TXT.dato}">${esc(fmt(v, s.formato))}</text>`;
+      }
+    });
+    const paso = Math.ceil(cats.length / 14);
+    if (i % paso === 0)
+      o += `<text x="${(mL + banda * i + banda / 2).toFixed(1)}" y="${H - mB + 15}" text-anchor="middle" style="${TXT.cat}">${esc(c)}</text>`;
+  });
+  return leyenda(ser) + svg(W, H, o);
+}
+
+/* ── línea (evolución de una medida) ──────────────────────────────── */
+function gLineas(s) {
+  const W = 640, H = 172, mL = 44, mR = 34, mT = 12, mB = 26;
+  const pw = W - mL - mR, ph = H - mT - mB;
+  const cats = s.ejeX || [];
+  const ser = s.series || [];
+  const todos = ser.flatMap((x) => x.datos).filter((v) => typeof v === "number");
+  const { lo, hi, ticks } = escalaEje(Math.min(...todos), Math.max(...todos));
+  const y = (v) => mT + ph - ((v - lo) / (hi - lo)) * ph;
+  const x = (i) => mL + (cats.length < 2 ? pw / 2 : (pw * i) / (cats.length - 1));
+
+  let o = "";
+  ticks.forEach((t) => {
+    o += `<line x1="${mL}" y1="${y(t).toFixed(1)}" x2="${W - mR}" y2="${y(t).toFixed(1)}" stroke="${t === 0 ? "var(--eje)" : "var(--grilla)"}" stroke-width="1"/>`;
+    o += `<text x="${mL - 7}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end" style="${TXT.eje}">${esc(fmt(t, s.formatoEje || s.formato))}</text>`;
+  });
+  ser.forEach((se, j) => {
+    const col = se.color || cvar(SERIES[j % 4]);
+    const pts = se.datos.map((v, i) => (typeof v === "number" ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null)).filter(Boolean);
+    o += `<polyline points="${pts.join(" ")}" fill="none" stroke="${col}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+    se.datos.forEach((v, i) => {
+      if (typeof v !== "number") return;
+      o += `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="3" fill="${col}" opacity="0" data-tip="${esc(cats[i])}|${esc(se.nombre)}: ${esc(fmt(v, s.formato))}"><title>${esc(cats[i])} · ${esc(fmt(v, s.formato))}</title></circle>`;
+    });
+    const ult = se.datos.length - 1;
+    if (typeof se.datos[ult] === "number") {
+      // marcador de cierre: 8px con anillo del color del papel
+      o += `<circle cx="${x(ult).toFixed(1)}" cy="${y(se.datos[ult]).toFixed(1)}" r="4" fill="${col}" stroke="var(--papel)" stroke-width="2"/>`;
+      o += `<text x="${(x(ult) + 8).toFixed(1)}" y="${(y(se.datos[ult]) + 3).toFixed(1)}" style="${TXT.dato}">${esc(fmt(se.datos[ult], s.formato))}</text>`;
+    }
+  });
+  const paso = Math.ceil(cats.length / 12);
+  cats.forEach((c, i) => {
+    if (i % paso === 0)
+      o += `<text x="${x(i).toFixed(1)}" y="${H - mB + 14}" text-anchor="middle" style="${TXT.cat}">${esc(c)}</text>`;
+  });
+  return leyenda(ser, "lineas") + svg(W, H, o);
+}
+
+/* ── columnas apiladas (tramos de aging) ──────────────────────────── */
+function gApiladas(s) {
+  const W = 640, H = 184, mL = 44, mR = 14, mT = 12, mB = 26;
+  const pw = W - mL - mR, ph = H - mT - mB;
+  const cats = s.ejeX || [];
+  const ser = s.series || [];
+  const tot = cats.map((_, i) => ser.reduce((a, se) => a + (se.datos[i] || 0), 0));
+  const { lo, hi, ticks } = escalaEje(0, Math.max(...tot));
+  const y = (v) => mT + ph - ((v - lo) / (hi - lo)) * ph;
+  const banda = pw / Math.max(1, cats.length);
+  const w = Math.min(banda * 0.5, 24);
+  const GAP = 2;
+
+  let o = "";
+  ticks.forEach((t) => {
+    o += `<line x1="${mL}" y1="${y(t).toFixed(1)}" x2="${W - mR}" y2="${y(t).toFixed(1)}" stroke="${t === 0 ? "var(--eje)" : "var(--grilla)"}" stroke-width="1"/>`;
+    o += `<text x="${mL - 7}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end" style="${TXT.eje}">${esc(fmt(t, s.formatoEje || s.formato))}</text>`;
+  });
+  cats.forEach((c, i) => {
+    const x = mL + banda * i + (banda - w) / 2;
+    let acum = 0;
+    ser.forEach((se, j) => {
+      const v = se.datos[i] || 0;
+      if (v <= 0) { acum += v; return; }
+      const y1 = y(acum + v), y2 = y(acum);
+      const alto = Math.max(0, y2 - y1 - (acum > 0 ? GAP : 0)); // 2px de papel entre tramos
+      const tope = j === ser.length - 1;
+      const col = se.color || cvar((s.rampa === "ordinal" ? ORDINAL : SERIES)[j % 4]);
+      o += `<path d="${pathBarraV(x, y1, w, alto, tope)}" fill="${col}" data-tip="${esc(c)}|${esc(se.nombre)}: ${esc(fmt(v, s.formato))}"><title>${esc(c)} · ${esc(se.nombre)}: ${esc(fmt(v, s.formato))}</title></path>`;
+      acum += v;
+    });
+    o += `<text x="${(x + w / 2).toFixed(1)}" y="${(y(tot[i]) - 5).toFixed(1)}" text-anchor="middle" style="${TXT.dato}">${esc(fmt(tot[i], s.formato))}</text>`;
+    o += `<text x="${(mL + banda * i + banda / 2).toFixed(1)}" y="${H - mB + 15}" text-anchor="middle" style="${TXT.cat}">${esc(c)}</text>`;
+  });
+  return leyenda(ser.map((se, j) => ({
+    nombre: se.nombre,
+    color: se.color || cvar((s.rampa === "ordinal" ? ORDINAL : SERIES)[j % 4])
+  }))) + svg(W, H, o);
+}
+
+/* ── barras horizontales (ranking de una sola medida) ─────────────── */
+function gBarrasH(s) {
+  const items = (s.items || []).slice(0, 12);
+  const etiqW = 116, valW = 66, mR = 8;
+  const W = 640, alto = 22, H = Math.max(40, items.length * alto + 10);
+  const pw = W - etiqW - valW - mR;
+  const max = Math.max(...items.map((i) => Math.abs(i.valor) || 0), 1);
+  let o = "";
+  items.forEach((it, i) => {
+    const y = i * alto + 5;
+    const w = (Math.abs(it.valor) / max) * pw;
+    const col = it.color || cvar(SERIES[0]);
+    o += `<text x="0" y="${y + 11}" style="${TXT.cat}">${esc(recorta(it.etiqueta, 18))}</text>`;
+    o += `<path d="${pathBarraH(etiqW, y + 2, w, 12, true)}" fill="${col}" data-tip="${esc(it.etiqueta)}|${esc(fmt(it.valor, s.formato))}"><title>${esc(it.etiqueta)}: ${esc(fmt(it.valor, s.formato))}</title></path>`;
+    o += `<text x="${W - mR}" y="${y + 11}" text-anchor="end" style="${TXT.dato}">${esc(fmt(it.valor, s.formato))}</text>`;
+  });
+  return svg(W, H, o);
+}
+
+/* ── desvíos: barras con signo a un lado y otro del cero ──────────── */
+function gDesvios(s) {
+  const items = (s.items || []).slice(0, 10);
+  const etiqW = 104, valW = 96, mR = 6;
+  const W = 640, alto = 24, H = Math.max(44, items.length * alto + 12);
+  const pw = W - etiqW - valW - mR;
+  const cero = etiqW + pw / 2;
+  const max = Math.max(...items.map((i) => Math.abs(i.desvio) || 0), 1);
+  let o = `<line x1="${cero}" y1="2" x2="${cero}" y2="${H - 8}" stroke="var(--eje)" stroke-width="1"/>`;
+  items.forEach((it, i) => {
+    const y = i * alto + 6;
+    const fav = it.favorable !== undefined ? it.favorable : it.desvio >= 0;
+    const w = (Math.abs(it.desvio) / max) * (pw / 2 - 4);
+    const col = fav ? "var(--ok)" : "var(--mal)";
+    const x = it.desvio >= 0 ? cero : cero - w;
+    o += `<text x="0" y="${y + 12}" style="${TXT.cat}">${esc(recorta(it.concepto, 17))}</text>`;
+    o += `<path d="${pathBarraH(x, y + 3, w, 12, it.desvio >= 0)}" fill="${col}" data-tip="${esc(it.concepto)}|Desvío ${esc(fmtDelta(it.desvio, s.formato))}${it.desvioPct !== undefined ? " (" + esc(fmtDelta(it.desvioPct, "pct")) + ")" : ""}"><title>${esc(it.concepto)}: ${esc(fmtDelta(it.desvio, s.formato))}</title></path>`;
+    // icono + palabra: el color nunca decide solo
+    o += `<text x="${W - mR}" y="${y + 12}" text-anchor="end" style="${TXT.dato};fill:${col}">${fav ? "▲" : "▼"} ${esc(fmtDelta(it.desvio, s.formato))}${it.desvioPct !== undefined ? "  (" + esc(fmtDelta(it.desvioPct, "pct")) + ")" : ""}</text>`;
+  });
+  return '<div class="leyenda">' +
+    `<span><i style="background:var(--ok)"></i>▲ Favorable</span>` +
+    `<span><i style="background:var(--mal)"></i>▼ Desfavorable</span></div>` + svg(W, H, o);
+}
+
+/* ── chispa de un KPI ─────────────────────────────────────────────── */
+function sparkline(datos, tono) {
+  if (!Array.isArray(datos) || datos.length < 2) return "";
+  const W = 108, H = 22, p = 3;
+  const min = Math.min(...datos), max = Math.max(...datos);
+  const r = max - min || 1;
+  const x = (i) => p + ((W - p * 2) * i) / (datos.length - 1);
+  const y = (v) => H - p - ((v - min) / r) * (H - p * 2);
+  const pts = datos.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const col = tono || cvar(SERIES[0]);
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img" aria-label="Evolución de los últimos ${datos.length} períodos" preserveAspectRatio="none">` +
+    `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" opacity=".55"/>` +
+    `<circle cx="${x(datos.length - 1).toFixed(1)}" cy="${y(datos[datos.length - 1]).toFixed(1)}" r="2.6" fill="${col}" stroke="var(--papel)" stroke-width="1.5"/></svg>`;
+}
+
+const svg = (W, H, cont) =>
+  `<div class="grafico"><svg viewBox="0 0 ${W} ${H}" role="img" preserveAspectRatio="xMidYMid meet">${cont}</svg></div>`;
+const recorta = (t, n) => { t = String(t ?? ""); return t.length > n ? t.slice(0, n - 1) + "…" : t; };
+
+/* ═══════════════════════════════════════════════════════════════════════
+   4 · COMPONENTES
+   Header · KPI · KPIGrid · Chart · Table · Commentary · Footer.
+   Cada sección del JSON elige uno; ninguno decide su propio estilo.
+   ═══════════════════════════════════════════════════════════════════════ */
+function el(html) {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
+}
+
+function cPortada(meta, rep) {
+  const f = meta.filtros || {};
+  const campos = [
+    ["Período", meta.periodoEtiqueta || mesLargo(meta.periodo)],
+    ["Sociedad", f.sociedad || "Todas"],
+    ["Vertical", f.vertical || "Todas"],
+    ["Unidad", meta.unidad || "millones de $"]
+  ].filter((x) => x[1]);
+  return el(`<section class="portada">
+    <span class="ojo">${esc(meta.organizacion || "Informe de gestión")}</span>
+    <h1>${esc(meta.titulo || rep.titulo)}</h1>
+    <p class="bajada">${esc(meta.bajada || rep.bajada)}</p>
+    <div class="meta">${campos.map(([e, v]) =>
+      `<div><span class="e">${esc(e)}</span><span class="v">${esc(v)}</span></div>`).join("")}</div>
+  </section>`);
+}
+
+function cKpis(s) {
+  const items = s.items || [];
+  const b = el(`<section class="bloque"></section>`);
+  if (s.titulo) b.appendChild(tapa(s));
+  const g = el(`<div class="kpis"></div>`);
+  // el titular ocupa dos columnas: se elige el ancho de grilla que deja
+  // menos celdas vacías, para que ninguna tarjeta quede sola en su fila
+  const ocupa = items.length + items.filter((k) => k.titular).length;
+  const cols = ocupa <= 2 ? Math.max(1, ocupa)
+    : [3, 4].reduce((a, c) => ((c - ocupa % c) % c < (a - ocupa % a) % a ? c : a));
+  g.style.gridTemplateColumns = `repeat(${cols}, minmax(0,1fr))`;
+  items.forEach((k) => {
+    const d = k.delta;
+    const sentido = k.sentido || "positivo"; // ¿subir es bueno?
+    let clase = "plano", flecha = "•";
+    if (typeof d === "number" && d !== 0) {
+      const bueno = sentido === "neutro" ? null : (d > 0) === (sentido === "positivo");
+      clase = bueno === null ? "plano" : bueno ? "sube" : "baja";
+      flecha = d > 0 ? "▲" : "▼";
+    }
+    g.appendChild(el(`<article class="kpi${k.titular ? " titular" : ""}">
+      <span class="e">${esc(k.etiqueta)}</span>
+      <span class="v">${esc(fmt(k.valor, k.formato))}</span>
+      ${typeof d === "number"
+        ? `<span class="d ${clase}"><span class="fl">${flecha}</span>${esc(fmtDelta(d, k.formatoDelta || k.formato))}<span class="ref">${esc(k.deltaEtiqueta || "vs BO")}</span></span>`
+        : k.nota ? `<span class="d plano"><span class="ref">${esc(k.nota)}</span></span>` : ""}
+      ${k.serie ? sparkline(k.serie, k.titular ? "var(--acento)" : undefined) : ""}
+    </article>`));
+  });
+  b.appendChild(g);
+  if (s.nota) b.appendChild(el(`<p class="b-nota">${esc(s.nota)}</p>`));
+  return b;
+}
+
+function tapa(s) {
+  return el(`<header class="b-tapa">
+    <h2>${esc(s.titulo || "")}</h2>
+    ${s.subtitulo ? `<span class="sub">${esc(s.subtitulo)}</span>` : ""}
+    ${s.medida ? `<span class="clave">${esc(s.medida)}</span>` : ""}
+  </header>`);
+}
+
+function cNarrativa(s) {
+  const b = el(`<section class="bloque"></section>`);
+  if (s.titulo) b.appendChild(tapa(s));
+  const n = el(`<div class="narrativa"></div>`);
+  (s.parrafos || []).forEach((p) => n.appendChild(el(`<p>${textoRico(p)}</p>`)));
+  if ((s.puntos || []).length) {
+    n.appendChild(el(`<ul class="puntos">${s.puntos.map((p) => `<li>${textoRico(p)}</li>`).join("")}</ul>`));
+  }
+  b.appendChild(n);
+  return b;
+}
+/* **negrita** en la narrativa que manda el backend, sin dejar pasar HTML */
+const textoRico = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>");
+
+function cComentario(s) {
+  const b = el(`<section class="bloque"></section>`);
+  if (s.titulo) b.appendChild(tapa(s));
+  b.appendChild(el(`<div class="comentario">
+    ${(s.parrafos || [s.texto]).filter(Boolean).map((p) => `<p>${textoRico(p)}</p>`).join("")}
+    ${s.autor ? `<span class="firma">${esc(s.autor)}</span>` : ""}
+  </div>`));
+  return b;
+}
+
+function cGrafico(s) {
+  const b = el(`<section class="bloque"></section>`);
+  b.appendChild(tapa(s));
+  const dib = { barras: gBarras, lineas: gLineas, barrasApiladas: gApiladas,
+                barrasHorizontales: gBarrasH, desvios: gDesvios }[s.tipo];
+  b.appendChild(el(`<div>${dib(s)}</div>`));
+  if (s.nota) b.appendChild(el(`<p class="b-nota">${esc(s.nota)}</p>`));
+  // gemela en tabla: todo valor del gráfico se puede leer también como número
+  const gem = tablaGemela(s);
+  if (gem) {
+    const btn = el(`<button class="ver-datos" type="button" aria-expanded="false">Ver datos</button>`);
+    gem.hidden = true;
+    btn.addEventListener("click", () => {
+      gem.hidden = !gem.hidden;
+      btn.setAttribute("aria-expanded", String(!gem.hidden));
+      btn.textContent = gem.hidden ? "Ver datos" : "Ocultar datos";
+    });
+    b.appendChild(btn);
+    b.appendChild(gem);
+  }
+  return b;
+}
+
+function tablaGemela(s) {
+  let cols, filas;
+  if (s.tipo === "barrasHorizontales") {
+    cols = [s.ejeEtiqueta || "Concepto", s.titulo || "Valor"];
+    filas = (s.items || []).map((i) => [i.etiqueta, fmt(i.valor, s.formato)]);
+  } else if (s.tipo === "desvios") {
+    cols = ["Concepto", "Real", "BO", "Desvío", "Desvío %"];
+    filas = (s.items || []).map((i) => [i.concepto, fmt(i.real, s.formato), fmt(i.bo, s.formato),
+      fmtDelta(i.desvio, s.formato), i.desvioPct !== undefined ? fmtDelta(i.desvioPct, "pct") : "—"]);
+  } else if (s.ejeX && s.series) {
+    cols = [s.ejeEtiqueta || "Período", ...s.series.map((x) => x.nombre)];
+    filas = s.ejeX.map((c, i) => [c, ...s.series.map((x) => fmt(x.datos[i], s.formato))]);
+  } else return null;
+  return el(`<div class="marco tabla-gemela"><table class="datos">
+    <thead><tr>${cols.map((c, i) => `<th class="${i ? "n" : ""}">${esc(c)}</th>`).join("")}</tr></thead>
+    <tbody>${filas.map((f) => `<tr>${f.map((v, i) => `<td class="${i ? "n" : ""}">${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table></div>`);
+}
+
+function cTabla(s) {
+  const b = el(`<section class="bloque" data-divisible="tabla"></section>`);
+  b.appendChild(tapa(s));
+  const cols = s.columnas || [];
+  const cel = (c, fila) => {
+    const v = fila[c.clave];
+    const num = c.tipo && c.tipo !== "texto" && c.tipo !== "estado";
+    let clase = num ? "n" : "";
+    let txt;
+    if (c.tipo === "estado") {
+      const fav = v === true || v === "favorable" || v === "ok";
+      clase = fav ? "bien" : "mal";
+      txt = `<span class="marca-est">${fav ? "▲" : "▼"}</span>${esc(c.etiquetas ? c.etiquetas[String(v)] : fav ? "Favorable" : "Desfavorable")}`;
+      return `<td class="${clase}">${txt}</td>`;
+    }
+    if (c.firmado) txt = esc(fmtDelta(v, c.tipo));
+    else txt = esc(fmt(v, c.tipo || "texto"));
+    if (c.colorear && typeof v === "number" && v !== 0) clase += (v > 0) === (c.bueno !== "abajo") ? " bien" : " mal";
+    return `<td class="${clase.trim()}">${txt}</td>`;
+  };
+  const marco = el(`<div class="marco"><table class="datos">
+    <thead><tr>${cols.map((c) => `<th class="${c.tipo && c.tipo !== "texto" && c.tipo !== "estado" ? "n" : ""}">${esc(c.titulo)}</th>`).join("")}</tr></thead>
+    <tbody>${(s.filas || []).map((f) => `<tr>${cols.map((c) => cel(c, f)).join("")}</tr>`).join("")}
+    ${s.total ? `<tr class="suma">${cols.map((c) => cel(c, s.total)).join("")}</tr>` : ""}</tbody>
+  </table></div>`);
+  b.appendChild(marco);
+  if (s.nota) b.appendChild(el(`<p class="b-nota">${esc(s.nota)}</p>`));
+  return b;
+}
+
+const CONSTRUCTORES = {
+  kpis: cKpis, resumen: cNarrativa, narrativa: cNarrativa, comentario: cComentario,
+  tabla: cTabla, barras: cGrafico, lineas: cGrafico, barrasApiladas: cGrafico,
+  barrasHorizontales: cGrafico, desvios: cGrafico
+};
+
+/* ═══════════════════════════════════════════════════════════════════════
+   5 · PAGINADO
+   El informe se arma en hojas A4 reales: lo que se ve en pantalla es
+   exactamente lo que sale en el PDF, con cabecera y pie en cada hoja.
+   ═══════════════════════════════════════════════════════════════════════ */
+let DATOS = null, ES_DEMO = false;
+
+function nuevaHoja(ctx) {
+  const h = el(`<article class="hoja">
+    <header class="h-cab">
+      <span class="org">${esc(ctx.meta.organizacion || "—")}</span>
+      <span class="sep" aria-hidden="true"></span>
+      <span class="que">${esc(ctx.meta.titulo || ctx.rep.titulo)}</span>
+      ${ctx.demo ? '<span class="ejemplo">Datos de ejemplo</span>' : ""}
+      <span class="cuando">${esc(ctx.meta.periodoEtiqueta || mesLargo(ctx.meta.periodo))}</span>
+    </header>
+    <div class="h-cuerpo"></div>
+    <footer class="h-pie">
+      <span class="fuente">Fuente: ${esc(ctx.meta.fuente || ctx.rep.fuente)} · Actualizado ${esc(fechaLarga(ctx.meta.actualizado))}</span>
+      <span class="folio"></span>
+    </footer>
+  </article>`);
+  ctx.mesa.appendChild(h);
+  ctx.hojas.push(h);
+  ctx.cuerpo = h.querySelector(".h-cuerpo");
+  return ctx.cuerpo;
+}
+
+const desborda = (c) => c.scrollHeight > c.clientHeight + 1;
+
+function colocar(nodo, ctx) {
+  ctx.cuerpo.appendChild(nodo);
+  if (!desborda(ctx.cuerpo)) return;
+  ctx.cuerpo.removeChild(nodo);
+  if (ctx.cuerpo.childElementCount === 0) {
+    // hoja vacía y aun así no entra: o se parte la tabla, o se deja pasar
+    if (nodo.dataset && nodo.dataset.divisible === "tabla") return partirTabla(nodo, ctx);
+    ctx.cuerpo.appendChild(nodo);
+    return;
+  }
+  nuevaHoja(ctx);
+  colocar(nodo, ctx);
+}
+
+/** Una tabla larga se corta por filas y sigue en la hoja siguiente. */
+function partirTabla(bloque, ctx) {
+  const tbody = bloque.querySelector("tbody");
+  const filas = Array.from(tbody.rows);
+  const titulo = bloque.querySelector(".b-tapa h2");
+  const base = titulo ? titulo.textContent : "";
+  let actual = bloque, cuerpoActual = tbody;
+  filas.forEach((tr) => tr.remove());
+  ctx.cuerpo.appendChild(actual);
+  for (const tr of filas) {
+    cuerpoActual.appendChild(tr);
+    if (!desborda(ctx.cuerpo)) continue;
+    tr.remove();
+    if (cuerpoActual.rows.length === 0) { cuerpoActual.appendChild(tr); continue; } // fila gigante: pasa igual
+    const sigue = actual.cloneNode(true);
+    const t2 = sigue.querySelector(".b-tapa h2");
+    if (t2) t2.textContent = base + " (cont.)";
+    const tb2 = sigue.querySelector("tbody");
+    Array.from(tb2.rows).forEach((r) => r.remove());
+    const nota = sigue.querySelector(".b-nota");
+    if (nota) nota.remove();
+    nuevaHoja(ctx);
+    ctx.cuerpo.appendChild(sigue);
+    actual = sigue; cuerpoActual = tb2;
+    cuerpoActual.appendChild(tr);
+  }
+}
+
+function render(datos) {
+  const mesa = document.getElementById("mesa");
+  mesa.innerHTML = "";
+  if (!datos) {
+    mesa.appendChild(el(`<div class="vacio">
+      <b>Todavía no hay informe</b>
+      Indicá el tablero de Power BI y actualizá los datos, pegá el JSON del backend,
+      o mirá cómo queda con <em>Datos de ejemplo</em>.
+    </div>`));
+    document.getElementById("btnPdf").disabled = true;
+    document.getElementById("btnHtml").disabled = true;
+    return;
+  }
+  const meta = datos.meta || {};
+  const rep = REPORTES[meta.informe] || REPORTES.ejecutivo;
+  ESCALA = typeof meta.escala === "number" && meta.escala > 0 ? meta.escala : 1e6;
+
+  const ctx = { mesa, meta, rep, hojas: [], cuerpo: null, demo: ES_DEMO };
+  nuevaHoja(ctx);
+  colocar(cPortada(meta, rep), ctx);
+
+  (datos.secciones || []).forEach((s) => {
+    if (s.tipo === "saltoPagina") { nuevaHoja(ctx); return; }
+    const c = CONSTRUCTORES[s.tipo];
+    if (!c) return;
+    let nodo;
+    try { nodo = c(s); } catch (e) { console.warn("Sección no renderizada:", s.tipo, e); return; }
+    if (nodo) colocar(nodo, ctx);
+  });
+
+  const total = ctx.hojas.length;
+  ctx.hojas.forEach((h, i) => {
+    h.querySelector(".folio").textContent = `Página ${i + 1} de ${total}`;
+  });
+  document.getElementById("btnPdf").disabled = false;
+  document.getElementById("btnHtml").disabled = false;
+  ajustarZoom();
+  return total;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   6 · CONSOLA
+   ═══════════════════════════════════════════════════════════════════════ */
+const $ = (id) => document.getElementById(id);
+const CLAVE = "tablero-a-informe/v1";
+
+function guardarPrefs() {
+  try {
+    localStorage.setItem(CLAVE, JSON.stringify({
+      backend: $("fBackend").value, workspace: $("fWorkspace").value,
+      dataset: $("fDataset").value, tipo: $("fTipo").value,
+      periodo: $("fPeriodo").value, sociedad: $("fSociedad").value,
+      vertical: $("fVertical").value, zoom: $("fZoom").value
+    }));
+  } catch (e) { /* navegación privada o almacenamiento bloqueado */ }
+}
+function leerPrefs() {
+  try { return JSON.parse(localStorage.getItem(CLAVE) || "{}") || {}; }
+  catch (e) { return {}; }
+}
+
+function estado(tipo, titulo, cuerpo) {
+  const e = $("estado");
+  e.className = "estado" + (tipo ? " " + tipo : "");
+  e.innerHTML = `<b>${esc(titulo)}</b>${cuerpo || ""}`;
+}
+
+function filtrosActuales() {
+  const f = {};
+  if ($("fSociedad").value.trim()) f.sociedad = $("fSociedad").value.trim();
+  if ($("fVertical").value.trim()) f.vertical = $("fVertical").value.trim();
+  return f;
+}
+
+async function actualizar() {
+  const url = $("fBackend").value.trim();
+  const tipo = $("fTipo").value;
+  if (!url) {
+    estado("error", "Falta el backend",
+      "Cargá la URL del backend que consulta Power BI. Mientras tanto podés usar " +
+      "<b>Pegar JSON</b> o <b>Datos de ejemplo</b>.");
+    return;
+  }
+  const cuerpo = {
+    reportType: tipo,
+    workspaceId: $("fWorkspace").value.trim(),
+    datasetId: $("fDataset").value.trim(),
+    periodo: $("fPeriodo").value,
+    filtros: filtrosActuales()
+  };
+  $("btnActualizar").disabled = true;
+  estado("", "Consultando Power BI…", "El backend está ejecutando las consultas DAX del informe.");
+  try {
+    const r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      body: JSON.stringify(cuerpo)
+    });
+    if (!r.ok) throw new Error("El backend respondió " + r.status + " " + r.statusText);
+    aplicar(await r.json());
+  } catch (e) {
+    estado("error", "No se pudo consultar",
+      `<span class="mono">${esc(e.message)}</span><br><br>` +
+      "Publicado en claude.ai, el navegador bloquea las llamadas de la página a otros " +
+      "servidores. Para automatizar, serví este mismo archivo desde tu backend " +
+      "(<b>Descargar HTML</b>). Acá y ahora, usá <b>Pegar JSON</b>.");
+  } finally {
+    $("btnActualizar").disabled = false;
+  }
+}
+
+function aplicar(json, demo) {
+  if (!json || typeof json !== "object") throw new Error("El JSON no es un objeto");
+  json.meta = json.meta || {};
+  if (!json.meta.informe) json.meta.informe = $("fTipo").value;
+  if (!json.meta.actualizado) json.meta.actualizado = new Date().toISOString();
+  DATOS = json; ES_DEMO = !!demo;
+  const hojas = render(json);
+  const m = json.meta;
+  estado(demo ? "" : "ok", demo ? "Datos de ejemplo" : "Informe actualizado",
+    `<span class="mono">${esc((REPORTES[m.informe] || {}).nombre || m.informe)} · ` +
+    `${esc(m.periodoEtiqueta || mesLargo(m.periodo))} · ${hojas} ${hojas === 1 ? "hoja" : "hojas"}</span><br>` +
+    `Fuente: ${esc(m.fuente || "Power BI")}<br>Actualizado ${esc(fechaLarga(m.actualizado))}`);
+}
+
+/* ── exportar ─────────────────────────────────────────────────────── */
+function exportarPdf() {
+  try { window.focus(); window.print(); }
+  catch (e) {
+    estado("error", "La impresión está bloqueada",
+      "Abrí el informe en una pestaña propia y usá Imprimir → <b>Guardar como PDF</b>, " +
+      "o descargá el HTML y abrilo en tu navegador.");
+  }
+}
+
+async function descargarHtml() {
+  const doc = "<!doctype html>\n<html lang=\"es\">\n" + document.documentElement.innerHTML
+    .replace(/<script[\s\S]*?<\/script>/gi, "")  // el HTML descargado es el informe, no la herramienta
+    + "\n</html>";
+  const nombre = "informe-" + ($("fTipo").value || "powerbi") + "-" +
+    ($("fPeriodo").value || "periodo") + ".html";
+  try {
+    const d = await window.claude?.use?.("downloads");
+    if (!d) throw new Error("sin descargas");
+    await d.save({ filename: nombre, data: doc });
+    estado("ok", "Archivo guardado",
+      `<span class="mono">${esc(nombre)}</span><br>Abrilo en el navegador y usá Imprimir → Guardar como PDF.`);
+  } catch (e) {
+    if (e && e.code === "declined") return;
+    estado("error", "No se pudo guardar",
+      "Descargá el archivo desde el repositorio, o usá <b>Exportar PDF</b> directamente.");
+  }
+}
+
+/* ── diálogos ─────────────────────────────────────────────────────── */
+function abrir(id) { const d = $(id); d.showModal ? d.showModal() : (d.open = true); }
+document.querySelectorAll("[data-cerrar]").forEach((b) =>
+  b.addEventListener("click", () => $(b.dataset.cerrar).close()));
+
+function pintarContrato() {
+  const c = $("cuerpoContrato");
+  const tipo = $("fTipo").value;
+  const rep = REPORTES[tipo];
+  c.innerHTML = `
+    <p>El backend consulta el modelo semántico con <b>Execute Queries</b> y devuelve
+    <b>siempre esta forma</b>. El artefacto no recalcula medidas: dibuja lo que Power BI
+    ya calculó, así el PDF y el tablero nunca se contradicen.</p>
+    <div class="tabs" id="tabsInforme">${Object.keys(REPORTES).map((k) =>
+      `<button type="button" data-tipo="${k}" aria-pressed="${k === tipo}">${esc(REPORTES[k].nombre)}</button>`).join("")}</div>
+    <h3>JSON normalizado</h3>
+    <pre class="cod">${esc(JSON.stringify(ejemploJson(tipo), null, 2).slice(0, 2600))}…</pre>
+    <h3>Secciones que entiende el artefacto</h3>
+    <pre class="cod">kpis                 items[]  → etiqueta, valor, formato, delta, sentido, serie[], titular
+resumen | narrativa  parrafos[], puntos[]     (**negrita** permitida)
+comentario           parrafos[], autor
+barras               ejeX[], series[{nombre,datos[]}]      columnas agrupadas
+lineas               ejeX[], series[{nombre,datos[]}]      evolución
+barrasApiladas       ejeX[], series[], rampa:"ordinal"     tramos (aging)
+barrasHorizontales   items[{etiqueta,valor}]               ranking
+desvios              items[{concepto,real,bo,desvio,desvioPct,favorable}]
+tabla                columnas[{clave,titulo,tipo,firmado,colorear}], filas[], total
+saltoPagina          fuerza una hoja nueva
+
+formato: moneda · monto · pesos · pct · pp · dias · veces · entero · decimal · texto</pre>
+    <h3>Consultas DAX de ${esc(rep.nombre)}</h3>
+    ${rep.dax.map(([t, q]) =>
+      `<h3 style="text-transform:none;letter-spacing:0;font-size:11.5px;color:var(--tinta-2)">${esc(t)}</h3><pre class="cod">${esc(q)}</pre>`).join("")}
+    <h3>Endpoint</h3>
+    <pre class="cod">POST https://api.powerbi.com/v1.0/myorg/groups/<b>{workspaceId}</b>/datasets/<b>{datasetId}</b>/executeQueries</pre>`;
+  c.querySelectorAll("#tabsInforme button").forEach((b) =>
+    b.addEventListener("click", () => { $("fTipo").value = b.dataset.tipo; pintarContrato(); }));
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   7 · DATOS DE EJEMPLO
+   Cifras inventadas, con la forma exacta que devuelve el backend. Sirven
+   para ver el formato antes de conectar el tablero — van marcadas como
+   ejemplo en cada hoja, también en el PDF.
+   ═══════════════════════════════════════════════════════════════════════ */
+const MESES = ["Ago 25","Sep 25","Oct 25","Nov 25","Dic 25","Ene 26","Feb 26","Mar 26","Abr 26","May 26","Jun 26","Jul 26"];
+
+function ejemploJson(tipo) {
+  const base = {
+    organizacion: "Grupo IHSA",
+    informe: tipo,
+    periodo: "2026-07",
+    periodoEtiqueta: "Julio 2026",
+    filtros: { sociedad: "IHSA", vertical: "Todas" },
+    unidad: "millones de $",
+    escala: 1e6,
+    actualizado: new Date().toISOString(),
+    workspaceId: "", datasetId: ""
+  };
+  const real = [96.4,101.2,99.8,104.6,118.3,92.7,97.1,108.4,112.9,115.2,119.6,125.0].map((v) => v * 1e6);
+  const bo   = [ 98.0,100.0,102.0,105.0,112.0,95.0,99.0,106.0,110.0,114.0,116.0,118.0].map((v) => v * 1e6);
+
+  if (tipo === "finanzas") return {
+    meta: { ...base, titulo: "Informe de Finanzas", fuente: "Power BI — Real vs BO / OPEX" },
+    secciones: [
+      { tipo: "kpis", items: [
+        { etiqueta: "Facturación real", valor: 125.0e6, formato: "moneda", delta: 7.0e6, deltaEtiqueta: "vs BO", sentido: "positivo", titular: true, serie: real.slice(-8) },
+        { etiqueta: "Objetivo (BO)", valor: 118.0e6, formato: "moneda", nota: "Presupuesto vigente" },
+        { etiqueta: "OPEX", valor: 41.8e6, formato: "moneda", delta: 2.3e6, deltaEtiqueta: "vs BO", sentido: "negativo" },
+        { etiqueta: "Provisiones", valor: 6.4e6, formato: "moneda", delta: -0.8e6, deltaEtiqueta: "vs mes ant.", sentido: "negativo" },
+        { etiqueta: "Pendiente de facturar", valor: 18.7e6, formato: "moneda", nota: "3 obras en certificación" },
+        { etiqueta: "DSO", valor: 52, formato: "dias", delta: -4, deltaEtiqueta: "vs mes ant.", sentido: "negativo", formatoDelta: "dias" }
+      ]},
+      { tipo: "resumen", titulo: "Lectura del período", parrafos: [
+        "El mes cierra **7,0 M$ por encima del BO** (+5,9 %), con el grueso del desvío favorable explicado por Petróleo. OPEX quedó **2,3 M$ arriba** del presupuesto por mayor costo de logística y una recomposición salarial adelantada.",
+        "La cobranza mejoró: el DSO baja a **52 días** (−4 contra junio) y el tramo de más de 90 días se reduce por segundo mes consecutivo."
+      ]},
+      { tipo: "barrasHorizontales", titulo: "OPEX por categoría", subtitulo: "Julio 2026", medida: "[OPEX]",
+        formato: "moneda", ejeEtiqueta: "Categoría", items: [
+          { etiqueta: "Personal", valor: 16.2e6 }, { etiqueta: "Logística", valor: 8.9e6 },
+          { etiqueta: "Mantenimiento", valor: 5.6e6 }, { etiqueta: "Servicios profesionales", valor: 4.1e6 },
+          { etiqueta: "Alquileres", valor: 3.2e6 }, { etiqueta: "Seguros", valor: 2.1e6 },
+          { etiqueta: "Otros", valor: 1.7e6 }
+        ], nota: "Personal y logística concentran el 60 % del OPEX del período." },
+      { tipo: "saltoPagina" },
+      { tipo: "barrasApiladas", titulo: "Aging de cuentas por cobrar", subtitulo: "Saldo por tramo de vencimiento",
+        medida: "[Saldo CxC]", formato: "moneda", rampa: "ordinal", ejeEtiqueta: "Vertical",
+        ejeX: ["Petróleo", "Minería", "O&OD", "Corporativo"], series: [
+          { nombre: "0–30 días", datos: [22.4e6, 14.1e6, 9.8e6, 3.2e6] },
+          { nombre: "31–60 días", datos: [11.2e6, 7.6e6, 5.1e6, 1.4e6] },
+          { nombre: "61–90 días", datos: [5.8e6, 3.9e6, 2.4e6, 0.7e6] },
+          { nombre: "Más de 90 días", datos: [4.1e6, 2.2e6, 1.6e6, 0.3e6] }
+        ], nota: "El tramo de más de 90 días representa el 8,0 % de la cartera (9,4 % en junio)." },
+      { tipo: "lineas", titulo: "Evolución del DSO", subtitulo: "Días de venta pendientes de cobro",
+        medida: "[DSO]", formato: "dias", formatoEje: "entero", ejeEtiqueta: "Mes",
+        ejeX: MESES, series: [{ nombre: "DSO", datos: [61,63,60,58,57,59,61,58,56,55,56,52] }] },
+      { tipo: "tabla", titulo: "Aging por vertical", medida: "[Saldo CxC]",
+        columnas: [
+          { clave: "vertical", titulo: "Vertical", tipo: "texto" },
+          { clave: "t1", titulo: "0–30", tipo: "monto" }, { clave: "t2", titulo: "31–60", tipo: "monto" },
+          { clave: "t3", titulo: "61–90", tipo: "monto" }, { clave: "t4", titulo: "+90", tipo: "monto" },
+          { clave: "total", titulo: "Total", tipo: "monto" },
+          { clave: "pct90", titulo: "% +90", tipo: "pct" }
+        ],
+        filas: [
+          { vertical: "Petróleo", t1: 22.4e6, t2: 11.2e6, t3: 5.8e6, t4: 4.1e6, total: 43.5e6, pct90: 9.4 },
+          { vertical: "Minería", t1: 14.1e6, t2: 7.6e6, t3: 3.9e6, t4: 2.2e6, total: 27.8e6, pct90: 7.9 },
+          { vertical: "O&OD", t1: 9.8e6, t2: 5.1e6, t3: 2.4e6, t4: 1.6e6, total: 18.9e6, pct90: 8.5 },
+          { vertical: "Corporativo", t1: 3.2e6, t2: 1.4e6, t3: 0.7e6, t4: 0.3e6, total: 5.6e6, pct90: 5.4 }
+        ],
+        total: { vertical: "Total", t1: 49.5e6, t2: 25.3e6, t3: 12.8e6, t4: 8.2e6, total: 95.8e6, pct90: 8.6 } }
+    ]
+  };
+
+  if (tipo === "kam") return {
+    meta: { ...base, titulo: "Informe por Cliente (KAM)", fuente: "Power BI — Cartera KAM" },
+    secciones: [
+      { tipo: "kpis", items: [
+        { etiqueta: "Facturación de cartera", valor: 125.0e6, formato: "moneda", delta: 9.8e6, deltaEtiqueta: "vs jun.", sentido: "positivo", titular: true, serie: real.slice(-8) },
+        { etiqueta: "Costos", valor: 88.2e6, formato: "moneda", delta: 6.1e6, deltaEtiqueta: "vs jun.", sentido: "negativo" },
+        { etiqueta: "Margen", valor: 36.8e6, formato: "moneda", delta: 3.7e6, deltaEtiqueta: "vs jun.", sentido: "positivo" },
+        { etiqueta: "Margen %", valor: 29.4, formato: "pct", delta: 0.6, formatoDelta: "pp", deltaEtiqueta: "vs jun.", sentido: "positivo" },
+        { etiqueta: "Clientes activos", valor: 23, formato: "entero", nota: "2 altas en el período" }
+      ]},
+      { tipo: "resumen", titulo: "Lectura de cartera", parrafos: [
+        "Los **cinco primeros clientes explican el 68 %** de la facturación del mes. YPF sostiene el volumen y Pan American recupera actividad tras la parada de mayo.",
+        "El margen de Tecpetrol sigue **por debajo del umbral de 20 %**: es el punto a revisar en la próxima reunión de cartera."
+      ]},
+      { tipo: "barrasHorizontales", titulo: "Facturación por cliente", subtitulo: "Julio 2026",
+        medida: "[Facturación]", formato: "moneda", ejeEtiqueta: "Cliente", items: [
+          { etiqueta: "YPF", valor: 32.4e6 }, { etiqueta: "Pan American Energy", valor: 24.1e6 },
+          { etiqueta: "Vista Energy", valor: 14.8e6 }, { etiqueta: "Tecpetrol", valor: 12.2e6 },
+          { etiqueta: "Minera Alumbrera", valor: 11.6e6 }, { etiqueta: "Pluspetrol", valor: 9.7e6 },
+          { etiqueta: "Shell Argentina", valor: 8.3e6 }, { etiqueta: "Resto de cartera", valor: 11.9e6 }
+        ]},
+      { tipo: "saltoPagina" },
+      { tipo: "tabla", titulo: "Detalle por cliente", medida: "[Facturación] · [Margen]",
+        columnas: [
+          { clave: "cliente", titulo: "Cliente", tipo: "texto" },
+          { clave: "kam", titulo: "KAM", tipo: "texto" },
+          { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
+          { clave: "costos", titulo: "Costos", tipo: "monto" },
+          { clave: "margen", titulo: "Margen", tipo: "monto" },
+          { clave: "margenPct", titulo: "Margen %", tipo: "pct" },
+          { clave: "vsBo", titulo: "vs BO", tipo: "monto", firmado: true, colorear: true }
+        ],
+        filas: [
+          { cliente: "YPF", kam: "M. Bianchi", facturacion: 32.4e6, costos: 22.1e6, margen: 10.3e6, margenPct: 31.8, vsBo: 2.4e6 },
+          { cliente: "Pan American Energy", kam: "M. Bianchi", facturacion: 24.1e6, costos: 16.8e6, margen: 7.3e6, margenPct: 30.3, vsBo: 1.9e6 },
+          { cliente: "Vista Energy", kam: "L. Ferreyra", facturacion: 14.8e6, costos: 10.2e6, margen: 4.6e6, margenPct: 31.1, vsBo: 0.7e6 },
+          { cliente: "Tecpetrol", kam: "L. Ferreyra", facturacion: 12.2e6, costos: 10.1e6, margen: 2.1e6, margenPct: 17.2, vsBo: -1.3e6 },
+          { cliente: "Minera Alumbrera", kam: "S. Quiroga", facturacion: 11.6e6, costos: 8.0e6, margen: 3.6e6, margenPct: 31.0, vsBo: 0.4e6 },
+          { cliente: "Pluspetrol", kam: "S. Quiroga", facturacion: 9.7e6, costos: 6.9e6, margen: 2.8e6, margenPct: 28.9, vsBo: 0.2e6 },
+          { cliente: "Shell Argentina", kam: "M. Bianchi", facturacion: 8.3e6, costos: 5.8e6, margen: 2.5e6, margenPct: 30.1, vsBo: -0.3e6 },
+          { cliente: "Resto de cartera", kam: "—", facturacion: 11.9e6, costos: 8.3e6, margen: 3.6e6, margenPct: 30.3, vsBo: 0.8e6 }
+        ],
+        total: { cliente: "Total cartera", kam: "", facturacion: 125.0e6, costos: 88.2e6, margen: 36.8e6, margenPct: 29.4, vsBo: 4.8e6 } },
+      { tipo: "comentario", titulo: "Comentario del responsable", autor: "Dirección Comercial", parrafos: [
+        "Se mantiene el foco en recomponer el margen de Tecpetrol antes del cierre del trimestre. La renegociación de la tarifa de equipos está agendada para la primera semana de agosto."
+      ]}
+    ]
+  };
+
+  if (tipo === "gerencia") return {
+    meta: { ...base, titulo: "Informe de Gerencia", fuente: "Power BI — Consolidado" },
+    secciones: [
+      { tipo: "kpis", items: [
+        { etiqueta: "Facturación real", valor: 125.0e6, formato: "moneda", delta: 7.0e6, deltaEtiqueta: "vs BO", sentido: "positivo", titular: true, serie: real.slice(-8) },
+        { etiqueta: "EBITDA", valor: 32.0e6, formato: "moneda", delta: 2.6e6, deltaEtiqueta: "vs BO", sentido: "positivo" },
+        { etiqueta: "Margen EBITDA", valor: 25.6, formato: "pct", delta: 0.7, formatoDelta: "pp", deltaEtiqueta: "vs BO", sentido: "positivo" },
+        { etiqueta: "DSO", valor: 52, formato: "dias", delta: -4, formatoDelta: "dias", deltaEtiqueta: "vs mes ant.", sentido: "negativo" }
+      ]},
+      { tipo: "resumen", titulo: "Síntesis del período", parrafos: [
+        "Julio cierra **por encima del objetivo en las tres verticales operativas**, con un acumulado del año que ya recupera el atraso del primer trimestre.",
+        "El margen EBITDA sube a **25,6 %**, siete décimas sobre el BO, con OPEX contenido pese al desvío de logística."
+      ], puntos: [
+        "**Petróleo** aporta 4,2 M$ del desvío favorable total de 7,0 M$.",
+        "**Minería** cierra levemente abajo por la parada programada de Alumbrera.",
+        "La cobranza mejora por segundo mes: DSO en **52 días**, el mejor valor del ejercicio."
+      ]},
+      { tipo: "barras", titulo: "Evolución Real vs BO", subtitulo: "Últimos 12 meses",
+        medida: "[Real] · [BO]", formato: "moneda", formatoEje: "monto", ejeEtiqueta: "Mes",
+        ejeX: MESES, series: [{ nombre: "Real", datos: real }, { nombre: "BO", datos: bo }] },
+      { tipo: "desvios", titulo: "Desvíos por vertical", subtitulo: "Real contra objetivo del mes",
+        medida: "[Variación]", formato: "moneda", items: [
+          { concepto: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, favorable: true },
+          { concepto: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, favorable: false },
+          { concepto: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, favorable: true },
+          { concepto: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, favorable: true }
+        ]},
+      { tipo: "tabla", titulo: "Real vs BO por vertical", medida: "[Real] · [BO] · [Variación]",
+        columnas: [
+          { clave: "vertical", titulo: "Vertical", tipo: "texto" },
+          { clave: "real", titulo: "Real", tipo: "monto" },
+          { clave: "bo", titulo: "BO", tipo: "monto" },
+          { clave: "desvio", titulo: "Desvío", tipo: "monto", firmado: true, colorear: true },
+          { clave: "desvioPct", titulo: "Desvío %", tipo: "pct", firmado: true, colorear: true },
+          { clave: "estado", titulo: "Situación", tipo: "estado" }
+        ],
+        filas: [
+          { vertical: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, estado: true },
+          { vertical: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, estado: false },
+          { vertical: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, estado: true },
+          { vertical: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, estado: true }
+        ],
+        total: { vertical: "Total", real: 125.0e6, bo: 118.0e6, desvio: 7.0e6, desvioPct: 5.9, estado: true } },
+      { tipo: "comentario", titulo: "Temas abiertos", autor: "Gerencia General", parrafos: [
+        "Queda pendiente definir el tratamiento de la provisión por el litigio de transporte antes del cierre del trimestre, y confirmar el calendario de la parada de Alumbrera de septiembre."
+      ]}
+    ]
+  };
+
+  return { // ejecutivo
+    meta: { ...base, titulo: "Informe Ejecutivo", fuente: "Power BI — Real vs BO" },
+    secciones: [
+      { tipo: "kpis", items: [
+        { etiqueta: "Facturación real", valor: 125.0e6, formato: "moneda", delta: 7.0e6, deltaEtiqueta: "vs BO", sentido: "positivo", titular: true, serie: real.slice(-8) },
+        { etiqueta: "Objetivo (BO)", valor: 118.0e6, formato: "moneda", nota: "Presupuesto vigente" },
+        { etiqueta: "Desvío vs BO", valor: 7.0e6, formato: "moneda", delta: 5.9, formatoDelta: "pp", deltaEtiqueta: "sobre objetivo", sentido: "positivo" },
+        { etiqueta: "EBITDA", valor: 32.0e6, formato: "moneda", delta: 2.6e6, deltaEtiqueta: "vs BO", sentido: "positivo" },
+        { etiqueta: "Margen EBITDA", valor: 25.6, formato: "pct", delta: 0.7, formatoDelta: "pp", deltaEtiqueta: "vs BO", sentido: "positivo" }
+      ]},
+      { tipo: "resumen", titulo: "Resumen ejecutivo", parrafos: [
+        "Julio cierra en **125,0 M$**, 7,0 M$ por encima del objetivo (**+5,9 %**). Es el cuarto mes consecutivo por sobre el BO y el mejor registro del ejercicio.",
+        "El EBITDA alcanza **32,0 M$** con un margen de **25,6 %**, siete décimas sobre el presupuesto, sostenido por la mayor actividad en Petróleo y O&OD."
+      ], puntos: [
+        "**Petróleo** aporta 4,2 M$ del desvío favorable, con 7,2 % sobre objetivo.",
+        "**Minería** cierra 0,9 M$ abajo por la parada programada de Alumbrera.",
+        "El acumulado del año queda **2,1 % sobre el BO**, recuperando el atraso del primer trimestre."
+      ]},
+      { tipo: "barras", titulo: "Evolución Real vs BO", subtitulo: "Últimos 12 meses",
+        medida: "[Real] · [BO]", formato: "moneda", formatoEje: "monto", ejeEtiqueta: "Mes",
+        ejeX: MESES, series: [{ nombre: "Real", datos: real }, { nombre: "BO", datos: bo }],
+        nota: "La etiqueta directa marca el cierre del período; el resto de los valores está en Ver datos." },
+      { tipo: "desvios", titulo: "Desvíos por vertical", subtitulo: "Real contra objetivo del mes",
+        medida: "[Variación]", formato: "moneda", items: [
+          { concepto: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, favorable: true },
+          { concepto: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, favorable: false },
+          { concepto: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, favorable: true },
+          { concepto: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, favorable: true }
+        ]},
+      { tipo: "tabla", titulo: "Real vs BO por vertical", medida: "[Real] · [BO] · [Variación]",
+        columnas: [
+          { clave: "vertical", titulo: "Vertical", tipo: "texto" },
+          { clave: "real", titulo: "Real", tipo: "monto" },
+          { clave: "bo", titulo: "BO", tipo: "monto" },
+          { clave: "desvio", titulo: "Desvío", tipo: "monto", firmado: true, colorear: true },
+          { clave: "desvioPct", titulo: "Desvío %", tipo: "pct", firmado: true, colorear: true },
+          { clave: "estado", titulo: "Situación", tipo: "estado" }
+        ],
+        filas: [
+          { vertical: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, estado: true },
+          { vertical: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, estado: false },
+          { vertical: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, estado: true },
+          { vertical: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, estado: true }
+        ],
+        total: { vertical: "Total", real: 125.0e6, bo: 118.0e6, desvio: 7.0e6, desvioPct: 5.9, estado: true } },
+      { tipo: "comentario", titulo: "Lectura de cierre", autor: "Dirección de Administración y Finanzas", parrafos: [
+        "El desvío favorable es de actividad, no de precio: el volumen facturado en Petróleo creció 6,8 % contra el mes anterior. Se mantiene la proyección de cierre de ejercicio sin cambios."
+      ]}
+    ]
+  };
+}
+
+/* ═══════════════════════════════════════════════════════════════════════
+   8 · ARRANQUE
+   ═══════════════════════════════════════════════════════════════════════ */
+function ajustarZoom() {
+  const mesa = $("mesa");
+  const manual = Number($("fZoom").value) / 100;
+  const hoja = mesa.querySelector(".hoja");
+  if (!hoja) return;
+  const disponible = mesa.clientWidth - 34;
+  const anchoHoja = 210 * 96 / 25.4;           // 210 mm a 96 dpi
+  const cabe = Math.min(1, disponible / anchoHoja);
+  mesa.style.setProperty("--zoom", String(Math.min(manual, Math.max(0.28, cabe * manual))));
+}
+
+const tip = $("tip");
+function moverTip(e, texto) {
+  const [t, v] = texto.split("|");
+  tip.innerHTML = `<b>${esc(t)}</b>${esc(v || "")}`;
+  tip.classList.add("visible");
+  const r = tip.getBoundingClientRect();
+  let x = e.clientX + 14, y = e.clientY - r.height - 10;
+  if (x + r.width > innerWidth - 8) x = e.clientX - r.width - 14;
+  if (y < 8) y = e.clientY + 18;
+  tip.style.left = x + "px"; tip.style.top = y + "px";
+}
+document.addEventListener("pointermove", (e) => {
+  const m = e.target.closest ? e.target.closest("[data-tip]") : null;
+  if (m) moverTip(e, m.dataset.tip);
+  else tip.classList.remove("visible");
+});
+document.addEventListener("pointerleave", () => tip.classList.remove("visible"));
+
+(function iniciar() {
+  // tipos de informe
+  const sel = $("fTipo");
+  Object.entries(REPORTES).forEach(([k, r]) =>
+    sel.appendChild(el(`<option value="${k}">${esc(r.nombre)}</option>`)));
+
+  const p = leerPrefs();
+  $("fBackend").value = p.backend || "";
+  $("fWorkspace").value = p.workspace || "";
+  $("fDataset").value = p.dataset || "";
+  $("fTipo").value = p.tipo && REPORTES[p.tipo] ? p.tipo : "ejecutivo";
+  $("fPeriodo").value = p.periodo || "2026-07";
+  $("fSociedad").value = p.sociedad || "";
+  $("fVertical").value = p.vertical || "";
+  $("fZoom").value = p.zoom || "100";
+  $("zoomVal").textContent = $("fZoom").value + "%";
+
+  ["fBackend","fWorkspace","fDataset","fTipo","fPeriodo","fSociedad","fVertical"]
+    .forEach((id) => $(id).addEventListener("change", guardarPrefs));
+
+  $("btnActualizar").addEventListener("click", actualizar);
+  $("btnDemo").addEventListener("click", () => aplicar(ejemploJson($("fTipo").value), true));
+  $("btnPegar").addEventListener("click", () => {
+    $("areaJson").value = JSON.stringify(ejemploJson($("fTipo").value), null, 2);
+    $("errJson").style.display = "none";
+    abrir("dlgJson");
+  });
+  $("btnAplicarJson").addEventListener("click", () => {
+    try {
+      aplicar(JSON.parse($("areaJson").value), false);
+      $("dlgJson").close();
+    } catch (e) {
+      const err = $("errJson");
+      err.textContent = "No se pudo leer el JSON: " + e.message;
+      err.style.display = "block";
+    }
+  });
+  $("btnContrato").addEventListener("click", () => { pintarContrato(); abrir("dlgContrato"); });
+  $("btnCopiarContrato").addEventListener("click", async (ev) => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(ejemploJson($("fTipo").value), null, 2));
+      ev.target.textContent = "Copiado";
+      setTimeout(() => (ev.target.textContent = "Copiar ejemplo"), 1600);
+    } catch (e) { ev.target.textContent = "No se pudo copiar"; }
+  });
+  $("btnPdf").addEventListener("click", exportarPdf);
+  $("btnHtml").addEventListener("click", descargarHtml);
+
+  $("fZoom").addEventListener("input", () => {
+    $("zoomVal").textContent = $("fZoom").value + "%";
+    ajustarZoom(); guardarPrefs();
+  });
+  addEventListener("resize", ajustarZoom);
+
+  // panel en pantallas angostas
+  const app = $("app");
+  const alterna = (abrirlo) => {
+    app.dataset.consola = abrirlo ? "abierta" : "";
+    $("abreConsola").setAttribute("aria-expanded", String(!!abrirlo));
+  };
+  $("abreConsola").addEventListener("click", () => alterna(app.dataset.consola !== "abierta"));
+  $("velo").addEventListener("click", () => alterna(false));
+  addEventListener("keydown", (e) => { if (e.key === "Escape") alterna(false); });
+
+  // el informe abre mostrando cómo queda: el ejemplo va marcado en cada hoja
+  aplicar(ejemploJson($("fTipo").value), true);
+})();
+</script>
