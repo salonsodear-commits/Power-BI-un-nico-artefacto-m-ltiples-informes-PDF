@@ -175,7 +175,8 @@ código. Tiene tres pestañas:
    el formulario con lo que encuentra, incluido el formato del período.
    **Verificar contra el modelo** prueba cada referencia con un `EVALUATE`
    mínimo y marca si existe, una por una. Lo que quede vacío, el informe lo
-   saltea.
+   saltea. **Empezar de cero** borra el mapeo guardado y vuelve a la semilla
+   del repositorio, sin abrir una terminal.
 
    Como `executeQueries` no admite funciones `INFO` ni DMV, no hay forma de
    pedirle al modelo que se liste. Lo que sí se puede es probar:
@@ -194,7 +195,31 @@ y el archivo en uso se crea a partir de ella la primera vez.
 
 La semilla ya viene con el mapeo completo del tablero de Deuda de este
 proyecto: 14 medidas y 9 columnas, verificadas contra el modelo. Para empezar
-de cero con otro tablero, borrá `backend/modelo.json` y volvé a arrancar.
+de cero con otro tablero está el botón **Empezar de cero** en *Conectar →
+Mapeo del modelo* (o `POST /api/modelo/reiniciar`), que borra
+`backend/modelo.json` y vuelve a sembrarlo.
+
+### Un campo que no existe se señala solo
+
+Escribir una referencia que el modelo no tiene es el error más fácil de
+cometer, y Power BI lo reporta de la peor manera posible: *«The value for 'BO'
+cannot be determined»*, sin decir de dónde salió ese `BO`. El backend traduce
+ese mensaje a la casilla del mapeo que lo produjo y la devuelve en el campo
+`campo` de la respuesta; el artefacto la nombra, y **Corregir ⟨campo⟩** abre
+*Mapeo* con el cursor puesto ahí.
+
+Además la anota en `rotos`, dentro de `modelo.json`. Desde ese momento:
+
+- `GET /api/informes` da por ausente ese campo, así que el selector deja de
+  ofrecer los informes que dependen de él (marcados *— no está en tu modelo*)
+  en vez de dejarte llegar al mismo error;
+- el informe que la usaba de forma opcional la saltea, y sale sin esa sección;
+- la casilla aparece en rojo, con la marca *✗ no existe*, apenas abrís *Mapeo*.
+
+La anotación se borra sola: al reescribir esa casilla, al verificar con éxito,
+o con **Empezar de cero**. Sólo se marca lo que el modelo contestó que no
+conoce — un timeout o un 401 no ensucian el mapeo — y verificar sin haber
+elegido workspace y modelo devuelve un 400 en vez de dar todo por roto.
 
 > **Descubrimiento de medidas.** El boton *Traer medidas del modelo* intenta
 > `INFO.VIEW.MEASURES()`, pero el endpoint clasico `executeQueries` **no admite
@@ -252,6 +277,8 @@ pueda diferir del tablero.
 | `POST /api/powerbi/dax` | Consola DAX de solo lectura. |
 | `GET` / `PUT /api/modelo` | Leer y guardar el mapeo. |
 | `POST /api/modelo/verificar` | Probar cada referencia contra el modelo. |
+| `POST /api/modelo/reiniciar` | Borrar el mapeo local y volver a la semilla. |
+| `GET /api/informes` | Qué informes puede dar el mapeo actual, y qué les falta. |
 | `POST /api/informe` | El informe ya normalizado. |
 
 ## El contrato de datos

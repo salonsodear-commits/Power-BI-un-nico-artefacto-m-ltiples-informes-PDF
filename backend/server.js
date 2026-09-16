@@ -137,6 +137,13 @@ app.post("/api/powerbi/detectar", atajo(async (req) => {
 
 /* ══ mapeo del modelo ══════════════════════════════════════════════════ */
 
+/** Vuelve a la semilla versionada: es la salida cuando el mapeo local quedó viejo. */
+app.post("/api/modelo/reiniciar", (_req, res) => {
+  try {
+    res.json({ modelo: MODELO.reiniciar(), resumen: MODELO.resumen() });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 app.get("/api/modelo", (_req, res) => {
   res.json({ campos: MODELO.CAMPOS, modelo: MODELO.leer(), ejemplo: MODELO.POR_DEFECTO });
 });
@@ -148,13 +155,36 @@ app.put("/api/modelo", (req, res) => {
 
 app.post("/api/modelo/verificar", atajo(async (req) => {
   const m = MODELO.normalizar(req.body && req.body.modelo ? req.body.modelo : MODELO.leer());
-  const ws = (req.body && req.body.workspaceId) || m.workspaceId || process.env.POWERBI_WORKSPACE_ID;
-  const ds = (req.body && req.body.datasetId) || m.datasetId || process.env.POWERBI_DATASET_ID;
+  const g = MODELO.leer();
+  const ws = (req.body && req.body.workspaceId) || m.workspaceId || g.workspaceId ||
+             process.env.POWERBI_WORKSPACE_ID;
+  const ds = (req.body && req.body.datasetId) || m.datasetId || g.datasetId ||
+             process.env.POWERBI_DATASET_ID;
+  // Sin tablero, las 21 consultas fallan por la conexión y no por las
+  // referencias: dar ese resultado por bueno marcaría el mapeo entero como roto.
+  if (!GUID.test(ws || "") || !GUID.test(ds || "")) {
+    const e = new Error("Elegí antes el workspace y el modelo semántico en la pestaña Tablero: " +
+                        "sin eso no hay contra qué probar las referencias.");
+    e.status = 400;
+    throw e;
+  }
   const refs = {};
   for (const [k, v] of Object.entries(m.medidas)) if (v) refs["medidas." + k] = v;
   for (const [k, v] of Object.entries(m.columnas)) if (v) refs["columnas." + k] = v;
   const r = await DESCUBRIR.verificar(ws, ds, refs);
   const malas = Object.values(r).filter((x) => x.estado === "error").length;
+  // El veredicto queda anotado: es lo que hace que /api/informes deje de
+  // ofrecer un informe cuyo modelo no tiene las medidas que necesita. Sólo
+  // para los campos que se probaron tal cual están guardados: el formulario
+  // puede tener ediciones sin guardar, y ese veredicto no es del modelo en uso.
+  MODELO.marcar(Object.fromEntries(
+    Object.entries(r)
+      .filter(([, x]) => x.estado !== "sin-mapear")
+      .filter(([k]) => { const [gr, c] = k.split("."); return g[gr][c] === m[gr][c]; })
+      // un timeout o un 401 no dicen nada sobre la referencia: sólo cuenta
+      // como rota la que el modelo contestó que no conoce
+      .filter(([, x]) => x.estado === "ok" || esReferenciaInexistente(x.mensaje))
+      .map(([k, x]) => [k, x.estado === "error"])));
   // si la columna de período existe, de paso se averigua de qué tipo es
   const periodo = r["columnas.periodo"] && r["columnas.periodo"].estado === "ok"
     ? await DESCUBRIR.formatoPeriodo(ws, ds, m.columnas.periodo)
@@ -168,16 +198,41 @@ app.post("/api/modelo/verificar", atajo(async (req) => {
  * recién como un error de Power BI, que no dice qué hacer.
  */
 app.get("/api/informes", (_req, res) => {
-  const m = MODELO.leer();
   res.json(Object.entries(INFORMES).map(([clave, i]) => {
-    const req = i.requiere || { medidas: [], columnas: [] };
-    const faltan = [
-      ...(req.medidas || []).filter((k) => !m.medidas[k]).map((k) => rotulo("medidas", k)),
-      ...(req.columnas || []).filter((k) => !m.columnas[k]).map((k) => rotulo("columnas", k))
-    ];
-    return { clave, ...i.meta, disponible: faltan.length === 0, faltan };
+    const faltan = loQueFalta(i);
+    return {
+      clave, ...i.meta,
+      disponible: faltan.length === 0,
+      faltan: faltan.map((f) => f.texto),
+      // "roto" = está escrito pero el modelo lo rechazó · "sin-mapear" = vacío
+      motivo: faltan.some((f) => f.roto) ? "roto" : (faltan.length ? "sin-mapear" : null),
+      // la primera casilla a corregir, para que el artefacto abra ahí
+      primero: faltan.length ? { grupo: faltan[0].grupo, clave: faltan[0].clave } : null
+    };
   }));
 });
+
+/**
+ * Qué le falta a un informe para poder salir. Un campo escrito pero que el
+ * modelo semántico rechazó cuenta igual que uno vacío: lo contrario es ofrecer
+ * un informe que después explota con un error de Power BI.
+ */
+function loQueFalta(informe) {
+  const m = MODELO.leer();
+  const req = informe.requiere || { medidas: [], columnas: [] };
+  const falta = [];
+  for (const grupo of ["medidas", "columnas"]) {
+    for (const clave of req[grupo] || []) {
+      const nombre = rotulo(grupo, clave);
+      if (!m[grupo][clave]) falta.push({ grupo, clave, texto: nombre });
+      else if (m.rotos.includes(grupo + "." + clave)) {
+        falta.push({ grupo, clave, roto: true, ref: m[grupo][clave],
+                     texto: nombre + " (" + m[grupo][clave] + " no existe en el modelo)" });
+      }
+    }
+  }
+  return falta;
+}
 
 app.post("/api/informe", async (req, res) => {
   const cuerpo = req.body || {};
@@ -209,11 +264,7 @@ app.post("/api/informe", async (req, res) => {
   try {
     const secciones = await informe.construir(p);
     if (!secciones.length) {
-      const req = informe.requiere || { medidas: [], columnas: [] };
-      const faltan = [
-        ...req.medidas.filter((k) => !guardado.medidas[k]).map((k) => rotulo("medidas", k)),
-        ...req.columnas.filter((k) => !guardado.columnas[k]).map((k) => rotulo("columnas", k))
-      ];
+      const faltan = loQueFalta(informe).map((f) => f.texto);
       return res.status(422).json({
         error: "El informe " + informe.meta.nombre + " no tiene nada que mostrar con este mapeo.",
         faltan,
@@ -241,8 +292,13 @@ app.post("/api/informe", async (req, res) => {
   } catch (e) {
     // el mensaje de Power BI se devuelve tal cual; las credenciales nunca salen de acá
     console.error("[informe]", cuerpo.reportType, e.message);
+    const culpa = campoCulpable(e.message, guardado);
+    // anotarlo acá es lo que evita el segundo fallo idéntico: la próxima vez
+    // el informe ya sale sin ese campo, o el catálogo avisa que no se puede
+    if (culpa) MODELO.marcar({ [culpa.grupo + "." + culpa.clave]: true });
     res.status(e.status && e.status >= 400 && e.status < 500 ? e.status : 502)
-       .json({ error: e.message, necesitaIngreso: !!e.necesitaIngreso });
+       .json({ error: e.message, necesitaIngreso: !!e.necesitaIngreso,
+               campo: culpa || undefined });
   }
 });
 
@@ -254,9 +310,43 @@ app.use((req, res) => {
             "GET /api/powerbi/workspaces", "GET /api/powerbi/workspaces/:ws/modelos",
             "GET /api/powerbi/workspaces/:ws/reportes/:id",
             "GET /api/powerbi/modelos/:ws/:ds/medidas", "POST /api/powerbi/dax", "POST /api/powerbi/detectar",
-            "GET /api/modelo", "PUT /api/modelo", "POST /api/modelo/verificar"]
+            "GET /api/modelo", "PUT /api/modelo", "POST /api/modelo/verificar",
+            "POST /api/modelo/reiniciar"]
   });
 });
+
+/**
+ * Power BI nombra la referencia que no pudo resolver; acá se busca cuál de los
+ * campos mapeados la contiene. Sin esto, "The value for 'BO' cannot be
+ * determined" no dice en qué casilla del formulario está el problema.
+ */
+/**
+ * ¿Este error dice que una referencia no existe? Un timeout, un 401 o un límite
+ * de filas también nombran tablas, y ahí culpar a un campo sería mentir.
+ */
+const esReferenciaInexistente = (mensaje) =>
+  /cannot be determined|cannot be found|Cannot find table or measure|couldn't be found|no puede encontrar/i
+    .test(String(mensaje || ""));
+
+function campoCulpable(mensaje, modelo) {
+  const texto = String(mensaje || "");
+  if (!esReferenciaInexistente(texto)) return null;
+  for (const grupo of ["medidas", "columnas"]) {
+    for (const [clave, ref] of Object.entries(modelo[grupo] || {})) {
+      if (!ref) continue;
+      // el nombre desnudo: [BO] → BO · Tabla[Col] → Col · MIN(T[C]) → C
+      const m = String(ref).match(/\[([^\]]+)\]\s*\)?$/);
+      const nombre = m ? m[1] : ref;
+      if (!nombre) continue;
+      const esc = nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Power BI lo nombra entre comillas o entre corchetes, según el error
+      if (new RegExp("['\"\u2018\u2019\\[]" + esc + "['\"\u2018\u2019\\]]").test(texto)) {
+        return { grupo, clave, ref, rotulo: rotulo(grupo, clave) };
+      }
+    }
+  }
+  return null;
+}
 
 /** Rótulo legible de un campo del mapeo, para los mensajes de error. */
 function rotulo(grupo, clave) {

@@ -129,13 +129,19 @@ button,input,select,textarea{font:inherit}
 .estado{margin-top:12px;padding:10px 12px;border-radius:var(--r-chico);
   background:var(--consola-2);border:1px solid var(--consola-3);font-size:11.5px;
   line-height:1.5;color:var(--consola-tinta-2)}
-.estado b{display:block;font-family:var(--display);font-size:11px;letter-spacing:.09em;
-  text-transform:uppercase;color:var(--consola-tinta);margin-bottom:4px}
+/* sólo el titular es bloque: los <b> del cuerpo resaltan una palabra y
+   tienen que quedarse en el renglón */
+.estado>b:first-child{display:block;font-family:var(--display);font-size:11px;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--consola-tinta);margin-bottom:4px}
+.estado b{color:var(--consola-tinta)}
 .estado .mono{font-family:var(--mono);font-size:11px;color:#fff;word-break:break-word}
 .estado.error{background:#2B1512;border-color:#5C2A22;color:#E8B3AB}
 .estado.error b{color:#F0B8AF}
 .estado.ok{background:#0F2A1D;border-color:#27543A;color:#9FD3B5}
 .estado.ok b{color:#B4DEC6}
+.estado .acciones-estado{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+.estado code{font-family:var(--mono);font-size:11px;background:rgba(255,255,255,.08);
+  padding:1px 5px;border-radius:4px}
 .consola-pie{flex:none;padding:10px 16px;border-top:1px solid var(--consola-3);
   display:flex;gap:7px;align-items:center}
 .zoom{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
@@ -387,6 +393,13 @@ pre.cod b{color:var(--acento);font-weight:600}
   padding:5px 8px;width:100%;min-width:0}
 .mapeo-fila input:focus-visible{outline:2px solid var(--acento);outline-offset:-1px}
 .mapeo-fila input.vacio{border-style:dashed;color:var(--tinta-3)}
+.mapeo-fila input.malo{border-color:var(--mal-linea);background:var(--mal-suave)}
+/* al llegar desde un error, la casilla en cuestión tiene que saltar a la vista */
+.mapeo-fila input.senalado{outline:2px solid var(--acento);outline-offset:1px;
+  animation:latir 1.1s ease-in-out 2}
+@keyframes latir{0%,100%{box-shadow:0 0 0 0 rgba(11,104,112,0)}
+  50%{box-shadow:0 0 0 4px rgba(11,104,112,.22)}}
+@media (prefers-reduced-motion:reduce){.mapeo-fila input.senalado{animation:none}}
 .pill{display:inline-flex;align-items:center;gap:4px;font-family:var(--display);font-size:9.5px;
   font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;
   border-radius:100px;border:1px solid;white-space:nowrap;justify-self:start}
@@ -611,6 +624,7 @@ pre.cod b{color:var(--acento);font-weight:600}
       <div class="fila-controles" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
         <button class="bd primario" id="btnDetectar">Detectar automáticamente</button>
         <button class="bd" id="btnVerificar">Verificar contra el modelo</button>
+        <button class="bd" id="btnReiniciarMapeo">Empezar de cero</button>
       </div>
       <datalist id="listaMedidas"></datalist>
       <div id="formMapeo"><p class="cargando">Sin cargar.</p></div>
@@ -1336,6 +1350,13 @@ function estado(tipo, titulo, cuerpo) {
   const e = $("estado");
   e.className = "estado" + (tipo ? " " + tipo : "");
   e.innerHTML = `<b>${esc(titulo)}</b>${cuerpo || ""}`;
+  // el panel vive al pie de la consola: un error largo, o con un botón,
+  // queda fuera de la vista si no se lo trae
+  if (tipo === "error") {
+    // "end": lo que importa está al final, el botón para arreglarlo
+    try { e.scrollIntoView({ block: "end", behavior: "smooth" }); }
+    catch (x) { e.scrollIntoView(false); }
+  }
 }
 
 function filtrosActuales() {
@@ -1360,17 +1381,57 @@ async function actualizar() {
   try {
     aplicar(await API.pedir("/api/informe", { method: "POST", body: JSON.stringify(cuerpo) }));
   } catch (e) {
-    estado("error", e.necesitaIngreso ? "Falta entrar con tu cuenta" : "No se pudo consultar",
+    if (e.campo) fallaDeCampo(e);
+    else estado("error", e.necesitaIngreso ? "Falta entrar con tu cuenta" : "No se pudo consultar",
       `<span class="mono">${esc(e.message)}</span><br><br>` +
       (e.necesitaIngreso
         ? "Abrí <b>Conectar a Power BI</b> y entrá con tu cuenta."
-        : "Si el modelo no tiene esas medidas, mapealas en <b>Conectar → Mapeo</b>. " +
+        : (e.faltan && e.faltan.length
+            ? `Faltan en el mapeo: <b>${esc(e.faltan.join(", "))}</b>.<br><br>`
+            : "") +
+          "Si el modelo no tiene esas medidas, mapealas en <b>Conectar → Mapeo</b>. " +
           "Si el backend no responde, revisá que esté levantado; publicado en claude.ai " +
           "el navegador bloquea las llamadas a otros servidores y hay que usar " +
           "<b>Pegar JSON</b>."));
   } finally {
     $("btnActualizar").disabled = false;
   }
+}
+
+/**
+ * Power BI dice «The value for 'BO' cannot be determined» y ahí termina la
+ * ayuda. El backend ya tradujo eso a una casilla del mapeo; acá se muestra
+ * cuál y se abre directamente en ella. El backend además la anotó, así que el
+ * selector de informes se vuelve a pedir para que deje de ofrecer lo imposible.
+ */
+function fallaDeCampo(e) {
+  const c = e.campo;
+  estado("error", "Tu modelo no tiene « " + (c.ref || c.rotulo) + " »",
+    `<span class="mono">${esc(e.message)}</span><br><br>` +
+    `El informe pide <b>${esc(c.rotulo)}</b>, que en el mapeo figura como ` +
+    `<code>${esc(c.ref)}</code>, y el modelo semántico no la reconoce. ` +
+    `Escribí el nombre real, o dejá la casilla vacía para que el informe la saltee.` +
+    `<div class="acciones-estado"><button class="bd primario" id="btnIrAlCampo">` +
+    `Corregir ${esc(c.rotulo)}</button></div>`);
+  const b = $("btnIrAlCampo");
+  if (b) b.addEventListener("click", () => irAlCampo(c.grupo, c.clave));
+  sincronizarInformes();
+}
+
+/** Abre Conectar → Mapeo con el foco puesto en una casilla concreta. */
+async function irAlCampo(grupo, clave) {
+  abrir("dlgConectar");
+  pie("", PIE_NEUTRO);
+  verMapeo();
+  verSesion();
+  // siempre de nuevo: el backend acaba de anotar la referencia como rota
+  await cargarMapeo();
+  const i = grupo && clave ? $(`map-${grupo}-${clave}`) : null;
+  if (!i) return;
+  i.scrollIntoView({ block: "center" });
+  i.focus(); i.select();
+  i.classList.add("senalado");
+  setTimeout(() => i.classList.remove("senalado"), 4000);
 }
 
 function aplicar(json, demo) {
@@ -1496,6 +1557,9 @@ const API = {
     if (!r.ok) {
       const err = new Error((j && (j.error || j.sugerencia)) || ("HTTP " + r.status));
       if (j && j.necesitaIngreso) err.necesitaIngreso = true;
+      // el backend sabe qué casilla del mapeo produjo el error: no perderla
+      if (j && j.campo) err.campo = j.campo;
+      if (j && j.faltan) err.faltan = j.faltan;
       throw err;
     }
     return j;
@@ -1603,12 +1667,17 @@ async function sincronizarInformes() {
     REPORTES[r.clave] = Object.assign({ dax: [] }, REPORTES[r.clave], {
       nombre: r.nombre, titulo: r.titulo, bajada: r.bajada, fuente: r.fuente
     });
-    DISPONIBLES[r.clave] = { disponible: r.disponible !== false, faltan: r.faltan || [] };
+    DISPONIBLES[r.clave] = { disponible: r.disponible !== false,
+                             faltan: r.faltan || [], motivo: r.motivo,
+                             primero: r.primero || null };
   }
   const sel = $("fTipo"), elegido = sel.value;
   sel.innerHTML = "";
   lista.forEach((r) => sel.appendChild(el(
-    `<option value="${esc(r.clave)}">${esc(r.nombre)}${r.disponible === false ? " — sin mapear" : ""}</option>`)));
+    `<option value="${esc(r.clave)}">${esc(r.nombre)}${
+      r.disponible === false
+        ? (r.motivo === "roto" ? " — no está en tu modelo" : " — sin mapear")
+        : ""}</option>`)));
 
   // si lo elegido no lo soporta el modelo, se pasa al primero que sí
   const sirve = (k) => DISPONIBLES[k] && DISPONIBLES[k].disponible;
@@ -1624,8 +1693,15 @@ function avisarInforme() {
   if (!d || d.disponible) return true;
   estado("error", "Este informe no sale con el mapeo actual",
     `<b>${esc((REPORTES[k] || {}).nombre || k)}</b> necesita ` +
-    `${esc(d.faltan.join(", "))}, que tu modelo no tiene mapeado.<br><br>` +
-    "Elegí otro informe, o mapeá esos campos en <b>Conectar → Mapeo</b>.");
+    `${esc(d.faltan.join("; "))}, que tu modelo no tiene` +
+    (d.motivo === "roto" ? "." : " mapeado.") + "<br><br>" +
+    "Elegí otro informe, o corregí esos campos en <b>Conectar → Mapeo</b>." +
+    `<div class="acciones-estado"><button class="bd primario" id="btnIrAMapeo">` +
+    `Abrir Mapeo</button></div>`);
+  const b = $("btnIrAMapeo");
+  if (b) b.addEventListener("click", () => d.primero
+    ? irAlCampo(d.primero.grupo, d.primero.clave)
+    : irAlCampo(null, null));
   return false;
 }
 
@@ -1810,12 +1886,35 @@ async function leerUrlPbi() {
 }
 
 /* ── mapeo ────────────────────────────────────────────────────────── */
+/**
+ * El tablero ya está guardado en el backend; en un navegador nuevo las casillas
+ * salen vacías igual, porque se recuerdan en localStorage. Traerlas evita que
+ * «Verificar contra el modelo» se quede sin contra qué probar.
+ */
+async function traerTableroGuardado() {
+  if ($("fWorkspace").value.trim() && $("fDataset").value.trim()) return;
+  try {
+    const j = await API.pedir("/api/modelo");
+    CAMPOS = j.campos; MAPEO = j.modelo;
+    ponerIdsDelModelo();
+  } catch (e) { /* sin backend se sigue con el ejemplo */ }
+}
+
+function ponerIdsDelModelo() {
+  if (!MAPEO) return;
+  for (const [id, v] of [["fWorkspace", MAPEO.workspaceId], ["fDataset", MAPEO.datasetId]]) {
+    if (v && !$(id).value.trim()) $(id).value = v;
+  }
+  guardarPrefs();
+}
+
 async function cargarMapeo() {
   const f = $("formMapeo");
   f.innerHTML = '<p class="cargando">Cargando el mapeo…</p>';
   try {
     const j = await API.pedir("/api/modelo");
     CAMPOS = j.campos; MAPEO = j.modelo;
+    ponerIdsDelModelo();
     pintarMapeo();
   } catch (e) {
     f.innerHTML = "";
@@ -1824,6 +1923,10 @@ async function cargarMapeo() {
     else aviso("avisoMapeo", "mal", esc(e.message) + "<br><br>" + SIN_BACKEND);
   }
 }
+
+/** ¿El backend ya probó esta referencia y el modelo la rechazó? */
+const roto = (grupo, clave) =>
+  !!(MAPEO && MAPEO.rotos && MAPEO.rotos.indexOf(grupo + "." + clave) >= 0);
 
 function pintarMapeo() {
   const f = $("formMapeo");
@@ -1844,8 +1947,15 @@ function pintarMapeo() {
       </div>`);
       const inp = fila.querySelector("input");
       if (!valor) inp.classList.add("vacio");
+      // lo que ya falló contra el modelo se ve de entrada, sin volver a probar
+      if (roto(grupo, c.clave)) {
+        const p = fila.querySelector(".pill");
+        p.className = "pill mal"; p.textContent = "✗ no existe";
+        inp.classList.add("malo");
+      }
       inp.addEventListener("input", () => {
         inp.classList.toggle("vacio", !inp.value.trim());
+        inp.classList.remove("malo");
         const p = $(`est-${grupo}-${c.clave}`);
         p.className = "pill neutra"; p.textContent = "sin probar";
       });
@@ -2041,6 +2151,33 @@ function verMapeo() {
   });
 }
 
+/**
+ * Un mapeo viejo —de otro tablero, o del ejemplo del manual— es la causa más
+ * común de un informe que falla sin motivo aparente. Esto lo borra y vuelve a
+ * la plantilla del repositorio, sin pedirle a nadie que abra una terminal.
+ */
+async function reiniciarMapeo() {
+  if (!confirm("Se borra el mapeo guardado en el backend y vuelve la plantilla " +
+               "del repositorio.\n\n¿Seguir?")) return;
+  const b = $("btnReiniciarMapeo");
+  b.disabled = true;
+  aviso("avisoMapeo", "info", "Volviendo a la plantilla…");
+  try {
+    const j = await API.pedir("/api/modelo/reiniciar", { method: "POST" });
+    MAPEO = j.modelo;
+    pintarMapeo();
+    aviso("avisoMapeo", "ok",
+      `Mapeo reiniciado desde <b>${esc((j.resumen || {}).origen || "la plantilla")}</b>: ` +
+      `${(j.resumen || {}).medidas || 0} medidas y ${(j.resumen || {}).columnas || 0} columnas. ` +
+      "Usá <b>Detectar automáticamente</b> para completarlo con los nombres de tu modelo.");
+    sincronizarInformes();
+  } catch (e) {
+    aviso("avisoMapeo", "mal", esc(e.message));
+  } finally {
+    b.disabled = false;
+  }
+}
+
 async function guardarMapeo() {
   if (!CAMPOS) {
     pie("mal", "Todavía no se cargó el mapeo. Abrí la pestaña <b>Mapeo del modelo</b>.");
@@ -2143,6 +2280,7 @@ function iniciarConectar() {
   $("fUrlPbi").addEventListener("keydown", (e) => { if (e.key === "Enter") leerUrlPbi(); });
   $("btnDetectar").addEventListener("click", detectarMapeo);
   $("btnVerificar").addEventListener("click", verificarMapeo);
+  $("btnReiniciarMapeo").addEventListener("click", reiniciarMapeo);
   $("btnGuardarMapeo").addEventListener("click", guardarMapeo);
   $("btnDax").addEventListener("click", () => correrDax());
   pintarAtajos();
@@ -2551,5 +2689,6 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   aplicar(ejemploJson($("fTipo").value), true);
   // y si hay backend, el selector pasa a reflejar sus informes
   sincronizarInformes();
+  traerTableroGuardado();
 })();
 </script>

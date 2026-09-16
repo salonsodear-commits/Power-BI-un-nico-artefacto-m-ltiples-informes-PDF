@@ -86,7 +86,11 @@ const POR_DEFECTO = {
   periodoFormato: "numero",
   organizacion: "",
   workspaceId: "",
-  datasetId: ""
+  datasetId: "",
+  // Referencias que el modelo semántico rechazó. Se llenan solas, al verificar
+  // o cuando un informe falla, y valen tanto como un campo sin mapear: la
+  // diferencia es que acá se conserva el texto para poder corregirlo.
+  rotos: []
 };
 
 /* ── validación ──────────────────────────────────────────────────────
@@ -136,7 +140,8 @@ function normalizar(entrada) {
     periodoFormato: e.periodoFormato === "texto" ? "texto" : "numero",
     organizacion: String(e.organizacion || "").slice(0, 80),
     workspaceId: String(e.workspaceId || "").trim(),
-    datasetId: String(e.datasetId || "").trim()
+    datasetId: String(e.datasetId || "").trim(),
+    rotos: []
   };
   for (const c of CAMPOS.medidas) {
     salida.medidas[c.clave] = validarRef((e.medidas || {})[c.clave], "medida");
@@ -151,8 +156,19 @@ function normalizar(entrada) {
     .filter((c) => !(salida.medidas[c.clave] || salida.columnas[c.clave]))
     .map((c) => c.rotulo);
   if (faltan.length) throw new Error("Falta mapear: " + faltan.join(", "));
+  // sólo identificadores conocidos, y sólo de campos que tienen algo escrito
+  salida.rotos = (Array.isArray(e.rotos) ? e.rotos : [])
+    .map(String)
+    .filter((id) => VALIDOS.has(id))
+    .filter((id) => { const [g, c] = id.split("."); return !!salida[g][c]; });
   return salida;
 }
+
+/** "medidas.bo", "columnas.periodo"… los identificadores que `rotos` acepta. */
+const VALIDOS = new Set([
+  ...CAMPOS.medidas.map((c) => "medidas." + c.clave),
+  ...CAMPOS.columnas.map((c) => "columnas." + c.clave)
+]);
 
 let cache = null;
 let origen = null;   // de dónde salió lo que está en memoria
@@ -181,14 +197,61 @@ function resumen() {
 }
 
 function guardar(entrada) {
+  const previo = leer();
   const m = normalizar(entrada);
-  fs.writeFileSync(ARCHIVO, JSON.stringify(m, null, 2) + "\n");
-  cache = m;
+  // Reescribir un campo es decir "ahora sí": el que cambió deja de estar roto.
+  const heredados = (entrada && Array.isArray(entrada.rotos) ? entrada.rotos : previo.rotos)
+    .filter((id) => { const [g, c] = String(id).split("."); return previo[g] && previo[g][c] === m[g][c]; });
+  m.rotos = normalizar({ ...m, rotos: heredados }).rotos;
+  escribir(m);
   return m;
 }
 
-/** ¿Está mapeado este campo? Los informes saltean lo que no lo está. */
-const tiene = (grupo, clave) => !!leer()[grupo][clave];
+function escribir(m) {
+  fs.writeFileSync(ARCHIVO, JSON.stringify(m, null, 2) + "\n");
+  cache = m;
+  origen = "modelo.json";
+}
+
+/**
+ * Anota qué referencias contestó mal el modelo semántico. Lo llaman la
+ * verificación y el informe que falla, para que la próxima vez el catálogo ya
+ * sepa que ese campo no sirve en vez de volver a ofrecer un informe imposible.
+ */
+function marcar(cambios) {
+  const m = { ...leer() };
+  const set = new Set(m.rotos);
+  let cambio = false;
+  for (const [id, roto] of Object.entries(cambios || {})) {
+    if (!VALIDOS.has(id)) continue;
+    const antes = set.size;
+    roto ? set.add(id) : set.delete(id);
+    if (set.size !== antes) cambio = true;
+  }
+  if (!cambio) return m;
+  escribir(normalizar({ ...m, rotos: [...set] }));
+  return cache;
+}
+
+/** ¿Este campo existe de verdad en el modelo? (mapeado y no marcado roto) */
+function sirve(grupo, clave) {
+  const m = leer();
+  return !!m[grupo][clave] && !m.rotos.includes(grupo + "." + clave);
+}
+
+/** Borra el mapeo local y vuelve a la semilla del repositorio. */
+function reiniciar() {
+  try { fs.unlinkSync(ARCHIVO); } catch (e) { if (e.code !== "ENOENT") throw e; }
+  cache = null; origen = null;
+  return leer();
+}
+
+/**
+ * ¿Puede un informe usar este campo? Los informes saltean lo que no lo está.
+ * Un campo marcado roto cuenta como ausente: es preferible un informe con una
+ * sección menos que una consulta que falla entera.
+ */
+const tiene = (grupo, clave) => sirve(grupo, clave);
 
 module.exports = { CAMPOS, POR_DEFECTO, leer, guardar, normalizar, tablaDe, tiene,
-                   resumen, ARCHIVO, SEMILLA };
+                   sirve, marcar, resumen, reiniciar, ARCHIVO, SEMILLA };
