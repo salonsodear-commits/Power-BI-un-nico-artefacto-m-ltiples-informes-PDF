@@ -95,6 +95,15 @@ app.post("/api/informe", async (req, res) => {
 const PORT = Number(process.env.PORT || 3000);
 app.listen(PORT, () => {
   console.log("Backend de informes escuchando en http://localhost:" + PORT);
-  console.log("Artefacto:      http://localhost:" + PORT + "/informes-powerbi.html");
-  console.log("Informes:       " + Object.keys(INFORMES).join(", "));
+  console.log("Artefacto:  http://localhost:" + PORT + "/informes-powerbi.html");
+  console.log("Informes:   " + Object.keys(INFORMES).join(", "));
+
+  // Sin credenciales el servidor igual sirve el artefacto: se puede trabajar
+  // con Datos de ejemplo o Pegar JSON. Sólo "Actualizar datos" necesita .env.
+  const faltan = ["TENANT_ID", "CLIENT_ID", "CLIENT_SECRET"].filter((k) => !process.env[k]);
+  if (faltan.length) {
+    console.log("\nFalta configurar " + faltan.join(", ") + " en backend/.env");
+    console.log("  cp backend/.env.example backend/.env   y completalo");
+    console.log("Mientras tanto el artefacto funciona con Datos de ejemplo y Pegar JSON.");
+  }
 });

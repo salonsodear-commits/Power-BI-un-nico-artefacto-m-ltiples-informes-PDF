@@ -42,17 +42,28 @@ Después, **Exportar PDF**.
 
 ### Con backend
 
+Desde la raíz del repositorio:
+
 ```bash
-cd backend
-npm install
-cp .env.example .env     # completá TENANT_ID, CLIENT_ID, CLIENT_SECRET y los IDs
-node prueba-api.js       # que esto pase ANTES de seguir
-npm start
+npm install                                  # instala backend/ (workspace)
+cp backend/.env.example backend/.env         # completá credenciales e IDs
+npm run prueba                               # que esto pase ANTES de seguir
+npm run dev                                  # o npm start, sin recarga
 ```
 
 Después abrí `http://localhost:3000/informes-powerbi.html`: el artefacto queda
 servido desde el mismo origen que la API, así que **Actualizar datos** consulta
 Power BI de verdad.
+
+Sin `.env` el servidor arranca igual y sirve el artefacto: podés trabajar con
+**Datos de ejemplo** y **Pegar JSON**. Sólo *Actualizar datos* necesita
+credenciales.
+
+| Comando | Qué hace |
+|---|---|
+| `npm run dev` | Levanta el backend con recarga al guardar. |
+| `npm start` | Igual, sin recarga. |
+| `npm run prueba` | Token + workspace + dataset + un `EVALUATE` mínimo. |
 
 ### De dónde salen los IDs
 

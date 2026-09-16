@@ -1,0 +1,13 @@
+{
+  "name": "tablero-a-informe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Power BI → un único artefacto → múltiples informes → PDF",
+  "workspaces": ["backend"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "dev": "npm run dev --workspace backend",
+    "start": "npm start --workspace backend",
+    "prueba": "npm run prueba --workspace backend"
+  }
+}
