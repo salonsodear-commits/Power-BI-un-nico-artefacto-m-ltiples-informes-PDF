@@ -7,7 +7,7 @@
  *   npm run prueba -- <ws> <ds>          probá otro tablero sin tocar nada
  *   npm run prueba -- <ws> <ds> "EVALUATE ROW(\"R\", [Real])"
  */
-require("dotenv").config();
+require("./entorno");
 const { consultar } = require("./powerbi/client");
 const MODELO = require("./modelo");
 

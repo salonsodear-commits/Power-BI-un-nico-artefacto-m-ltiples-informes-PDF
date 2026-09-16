@@ -6,7 +6,7 @@
  * tablero, y recibe el JSON normalizado ya listo para dibujar.
  * (Manual, pasos 6, 14 y 20.)
  */
-require("dotenv").config();
+const ENTORNO = require("./entorno");
 const path = require("path");
 const express = require("express");
 const INFORMES = require("./informes");
@@ -66,7 +66,11 @@ const atajo = (fn) => async (req, res) => {
    En modo delegado entra el usuario con su propia cuenta: la API lo ve con
    los permisos que ya tiene en Power BI, sin depender de un administrador. */
 
-app.get("/api/auth", (_req, res) => res.json(AUTH.estado()));
+app.get("/api/auth", (_req, res) => {
+  const a = AUTH.estado();
+  if (a.faltan && a.faltan.length) a.diagnostico = ENTORNO.diagnostico(a.faltan);
+  res.json(a);
+});
 
 app.post("/api/auth/ingresar", atajo(async () => {
   if (AUTH.modo() === "servicio") {
@@ -241,8 +245,8 @@ app.listen(PORT, () => {
     console.log("Sesión:     Service Principal" + (a.conectado ? " · configurado" : " · incompleto"));
   }
   if (a.faltan && a.faltan.length) {
-    console.log("\nFalta " + a.faltan.join(", ") + " en backend/.env");
-    console.log("  cp backend/.env.example backend/.env   y completalo");
+    console.log("\n── Falta configurar " + a.faltan.join(" y ") + " ──");
+    for (const l of ENTORNO.diagnostico(a.faltan)) console.log("  " + l);
   } else if (a.modo === "delegado") {
     console.log("\nCada persona entra desde Conectar → Entrar con mi cuenta.");
     console.log("No hace falta un administrador: la API los ve con sus propios permisos.");

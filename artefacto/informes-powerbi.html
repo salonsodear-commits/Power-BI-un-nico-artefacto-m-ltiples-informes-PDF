@@ -327,6 +327,8 @@ pre.cod b{color:var(--acento);font-weight:600}
 .sesion.falta{background:var(--avi-suave);border-color:var(--avi-linea)}
 .sesion .txt{min-width:0;flex:1 1 220px;font-size:12.5px;line-height:1.5;color:var(--tinta-2)}
 .sesion .txt b{display:block;font-family:var(--display);font-size:13px;color:var(--tinta)}
+.sesion.falta .txt{font-family:var(--mono);font-size:11.5px;white-space:pre-wrap}
+.sesion.falta .txt b{font-family:var(--display);font-size:13px;white-space:normal;margin-bottom:5px}
 .sesion.dentro .txt b{color:var(--ok)}
 .sesion.falta .txt b{color:var(--avi)}
 .sesion .txt code{font-family:var(--mono);font-size:11.5px;background:var(--papel);
@@ -1541,14 +1543,15 @@ function pintarSesion(a) {
   const b = $("barraSesion");
 
   if (a.faltan && a.faltan.length) {
+    // el backend mira el .env real y dice por qué no lo ve
+    const diag = (a.diagnostico || []).length
+      ? `<br><br>` + a.diagnostico.map((l) => esc(l) || "&nbsp;").join("<br>")
+      : (a.modo === "delegado"
+        ? " Los dos salen de Entra → tu app → <b>Información general</b>: " +
+          "«Id. de aplicación (cliente)» y «Id. de directorio (inquilino)»."
+        : " Completá las credenciales del Service Principal.");
     b.innerHTML = `<div class="sesion falta"><span class="txt">
-      <b>Falta ${esc(a.faltan.join(", "))} en backend/.env</b>
-      ${a.modo === "delegado"
-        ? "Registrá una app en Microsoft Entra como <b>cliente público</b> " +
-          "(sin secreto) y pegá su <i>Application (client) ID</i>. " +
-          "En la mayoría de las organizaciones no hace falta un administrador."
-        : "Completá las credenciales del Service Principal."}
-      </span></div>`;
+      <b>Falta ${esc(a.faltan.join(" y "))} en backend/.env</b>${diag}</span></div>`;
     return;
   }
 
