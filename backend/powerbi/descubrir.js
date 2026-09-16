@@ -33,6 +33,23 @@ async function modelos(workspaceId) {
 }
 
 /**
+ * De un reporte al modelo que lo alimenta. Es el atajo para cuando uno copia
+ * la URL del tablero abierto, que lleva el reportId pero no el datasetId.
+ */
+async function reporte(workspaceId, reportId) {
+  if (!GUID.test(workspaceId || "")) throw new Error("workspaceId no es un GUID válido");
+  if (!GUID.test(reportId || "")) throw new Error("reportId no es un GUID válido");
+  const r = await rest(`/groups/${workspaceId}/reports/${reportId}`);
+  if (!r.datasetId) throw new Error("Ese reporte no declara un modelo semántico.");
+  let nombreModelo = null;
+  try {
+    const ds = await rest(`/groups/${workspaceId}/datasets/${r.datasetId}`);
+    nombreModelo = ds.name || null;
+  } catch (e) { /* el nombre es un lujo; el ID es lo que importa */ }
+  return { id: r.id, nombre: r.name, datasetId: r.datasetId, nombreModelo };
+}
+
+/**
  * Medidas del modelo.
  *
  * Las funciones INFO de DAX no están soportadas por el endpoint clásico
@@ -93,4 +110,4 @@ async function verificar(workspaceId, datasetId, refs) {
 
 const recortar = (m) => String(m).replace(/\s+/g, " ").slice(0, 200);
 
-module.exports = { workspaces, modelos, medidas, verificar };
+module.exports = { workspaces, modelos, reporte, medidas, verificar };

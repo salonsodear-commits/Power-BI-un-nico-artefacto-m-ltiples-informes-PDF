@@ -65,6 +65,9 @@ app.get("/api/powerbi/workspaces/:ws/modelos", atajo(async (req) => ({
   modelos: await DESCUBRIR.modelos(req.params.ws)
 })));
 
+app.get("/api/powerbi/workspaces/:ws/reportes/:id", atajo(async (req) =>
+  DESCUBRIR.reporte(req.params.ws, req.params.id)));
+
 app.get("/api/powerbi/modelos/:ws/:ds/medidas", atajo(async (req) =>
   DESCUBRIR.medidas(req.params.ws, req.params.ds)));
 
@@ -186,6 +189,7 @@ app.use((req, res) => {
     error: "No existe " + req.method + " " + req.path,
     rutas: ["GET /", "GET /api/informes", "POST /api/informe",
             "GET /api/powerbi/workspaces", "GET /api/powerbi/workspaces/:ws/modelos",
+            "GET /api/powerbi/workspaces/:ws/reportes/:id",
             "GET /api/powerbi/modelos/:ws/:ds/medidas", "POST /api/powerbi/dax",
             "GET /api/modelo", "PUT /api/modelo", "POST /api/modelo/verificar"]
   });

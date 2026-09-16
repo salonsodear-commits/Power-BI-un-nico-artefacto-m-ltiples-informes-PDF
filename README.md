@@ -71,9 +71,18 @@ credenciales.
 Con el backend levantado, **Conectar a Power BI** hace todo el vínculo sin tocar
 código. Tiene tres pestañas:
 
-1. **Tablero** — el backend llama a `GET /groups` y `GET /groups/{ws}/datasets` y
-   te muestra los workspaces y modelos que ve esta identidad, con qué reportes
-   usa cada modelo. Elegís y quedan cargados los IDs.
+1. **Tablero** — pegá la URL del tablero abierto en Power BI y listo: se leen
+   los IDs que traiga y, si trae el reporte pero no el modelo (que es el caso
+   normal), el backend le pregunta a la API cuál lo alimenta. También podés
+   elegir a mano de las listas, que salen de `GET /groups` y
+   `GET /groups/{ws}/datasets` y muestran qué reportes usa cada modelo.
+
+   | URL que pegues | Qué se resuelve |
+   |---|---|
+   | `/groups/{ws}/reports/{rep}/...` | workspace + **modelo, resuelto por API** |
+   | `/groups/{ws}/settings/datasets/{ds}` | workspace + modelo |
+   | `/groups/{ws}/lineage` | sólo el workspace |
+   | `/groups/me/...` | Mi área de trabajo no tiene GUID: la API no la alcanza |
 2. **Mapeo del modelo** — los informes piden campos logicos (*Real*, *BO*,
    *Vertical*...) y aca se traducen a los nombres de **tu** modelo:
    `[Facturacion Neta]`, `'Dim Calendario'[AnioMes]`, `Dim_UN[Descripcion]`.
@@ -117,6 +126,7 @@ pueda diferir del tablero.
 |---|---|
 | `GET /api/powerbi/workspaces` | Workspaces visibles. |
 | `GET /api/powerbi/workspaces/:ws/modelos` | Modelos semanticos y sus reportes. |
+| `GET /api/powerbi/workspaces/:ws/reportes/:id` | De un reporte al modelo que lo alimenta. |
 | `GET /api/powerbi/modelos/:ws/:ds/medidas` | Medidas via INFO, si el modelo las admite. |
 | `POST /api/powerbi/dax` | Consola DAX de solo lectura. |
 | `GET` / `PUT /api/modelo` | Leer y guardar el mapeo. |

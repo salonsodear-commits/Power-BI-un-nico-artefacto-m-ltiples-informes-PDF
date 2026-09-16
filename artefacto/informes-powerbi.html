@@ -543,8 +543,16 @@ pre.cod b{color:var(--acento);font-weight:600}
     </div>
 
     <section class="panel-t" id="pTablero">
-      <p>El backend pregunta a Power BI qué ve esta identidad. Elegí el workspace y el
-        modelo semántico que alimenta tu tablero.</p>
+      <p>Pegá cualquier URL de Power BI y se leen los IDs que traiga. Si no,
+        elegí abajo: el backend pregunta a Power BI qué ve esta identidad.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <input id="fUrlPbi" type="text" spellcheck="false" autocomplete="off"
+          aria-label="URL de Power BI" style="flex:1 1 300px;min-width:0;
+          font-family:var(--mono);font-size:12px;background:var(--papel-2);
+          color:var(--tinta);border:1px solid var(--linea);border-radius:var(--r-chico);
+          padding:6px 9px" placeholder="https://app.powerbi.com/groups/…">
+        <button class="bd" id="btnLeerUrl">Leer IDs</button>
+      </div>
       <div id="avisoTablero"></div>
       <h3>Workspaces</h3>
       <div class="lista" id="listaWs"><p class="cargando">Sin cargar.</p></div>
@@ -1480,6 +1488,78 @@ async function cargarModelos(ws) {
   } catch (e) { l.innerHTML = `<p class="cargando">${esc(e.message)}</p>`; }
 }
 
+/**
+ * Saca los GUID de una URL de Power BI. Sirven todas las formas que uno copia
+ * del navegador: reporte, modelo, configuración, linaje o la raíz del
+ * workspace.
+ *
+ *   /groups/{ws}/reports/{reporte}/...
+ *   /groups/{ws}/settings/datasets/{modelo}
+ *   /groups/{ws}/lineage            ← sólo trae el workspace
+ *   /groups/me/...                  ← Mi área de trabajo, sin GUID
+ */
+const GUID_RE = "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}";
+function idsDeUrl(texto) {
+  const t = String(texto || "");
+  const uno = (seg) => {
+    const x = t.match(new RegExp("/" + seg + "/(" + GUID_RE + ")"));
+    return x ? x[1] : null;
+  };
+  const grupo = t.match(new RegExp("/groups/(" + GUID_RE + "|me)(?![\\w-])"));
+  return {
+    workspaceId: grupo && grupo[1] !== "me" ? grupo[1] : null,
+    miArea: !!(grupo && grupo[1] === "me"),
+    datasetId: uno("datasets") || uno("semanticmodels"),
+    reportId: uno("reports")
+  };
+}
+
+async function leerUrlPbi() {
+  const crudo = $("fUrlPbi").value.trim();
+  if (!crudo) { aviso("avisoTablero", "info", "Pegá una URL de Power BI."); return; }
+  const r = idsDeUrl(crudo);
+  const puesto = [];
+  if (r.workspaceId) { $("fWorkspace").value = r.workspaceId; puesto.push("<b>Workspace</b>"); }
+  if (r.datasetId) { $("fDataset").value = r.datasetId; puesto.push("<b>Modelo semántico</b>"); }
+  guardarPrefs();
+
+  if (!puesto.length) {
+    aviso("avisoTablero", "mal", r.miArea
+      ? "Es una URL de <b>Mi área de trabajo</b>, que no tiene GUID. La API necesita " +
+        "un workspace con ID: mové el modelo a un workspace, o elegí en las listas de abajo."
+      : "No encontré ningún ID en esa URL. Copiá la del reporte o la del modelo " +
+        "semántico abiertos en Power BI Service.");
+    return;
+  }
+  if (r.workspaceId) cargarModelos(r.workspaceId);
+
+  // La URL del tablero trae el reporte, no el modelo: se lo preguntamos a la API.
+  if (!r.datasetId && r.reportId && r.workspaceId) {
+    aviso("avisoTablero", "info", "Leído: " + puesto.join(" y ") +
+      ". Buscando qué modelo alimenta ese reporte…");
+    try {
+      const rep = await API.pedir(
+        `/api/powerbi/workspaces/${encodeURIComponent(r.workspaceId)}/reportes/${encodeURIComponent(r.reportId)}`);
+      $("fDataset").value = rep.datasetId;
+      guardarPrefs();
+      cargarModelos(r.workspaceId);
+      aviso("avisoTablero", "ok", `Reporte <b>${esc(rep.nombre || "")}</b> → modelo ` +
+        `<b>${esc(rep.nombreModelo || rep.datasetId)}</b>. Workspace y modelo cargados.`);
+    } catch (e) {
+      aviso("avisoTablero", "info", "Leído: " + puesto.join(" y ") +
+        `. No pude resolver el modelo automáticamente (${esc(e.message)}): ` +
+        "elegí el modelo semántico en la lista de abajo.");
+    }
+    return;
+  }
+
+  const falta = !r.datasetId
+    ? " Falta el <b>modelo semántico</b>: elegilo en la lista de abajo, o abrilo en " +
+      "Power BI y pegá esa URL."
+    : "";
+  aviso("avisoTablero", r.datasetId ? "ok" : "info", "Leído: " + puesto.join(" y ") + "." + falta);
+}
+
 /* ── mapeo ────────────────────────────────────────────────────────── */
 async function cargarMapeo() {
   const f = $("formMapeo");
@@ -1632,6 +1712,8 @@ function iniciarConectar() {
       $(x.dataset.panel).hidden = x !== b;
     });
   });
+  $("btnLeerUrl").addEventListener("click", leerUrlPbi);
+  $("fUrlPbi").addEventListener("keydown", (e) => { if (e.key === "Enter") leerUrlPbi(); });
   $("btnMedidas").addEventListener("click", traerMedidas);
   $("btnVerificar").addEventListener("click", verificarMapeo);
   $("btnGuardarMapeo").addEventListener("click", guardarMapeo);
