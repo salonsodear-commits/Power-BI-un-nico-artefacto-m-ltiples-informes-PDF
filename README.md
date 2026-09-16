@@ -66,6 +66,15 @@ credenciales.
 | `npm start` | Igual, sin recarga. |
 | `npm run prueba` | Token + workspace + dataset + un `EVALUATE` mínimo. |
 
+`prueba` toma los IDs de `backend/modelo.json` o del `.env`, y acepta otros por
+argumento sin tocar nada:
+
+```bash
+npm run prueba                                          # el tablero configurado
+npm run prueba -- <workspaceId> <datasetId>             # otro tablero
+npm run prueba -- <ws> <ds> 'EVALUATE ROW("R", [Real])' # otra consulta
+```
+
 ### Vincular con tu modelo semántico
 
 Con el backend levantado, **Conectar a Power BI** hace todo el vínculo sin tocar
@@ -79,8 +88,9 @@ código. Tiene tres pestañas:
 
    | URL que pegues | Qué se resuelve |
    |---|---|
-   | `/groups/{ws}/reports/{rep}/...` | workspace + **modelo, resuelto por API** |
+   | `/groups/{ws}/modeling/{ds}/modelView` | workspace + modelo |
    | `/groups/{ws}/settings/datasets/{ds}` | workspace + modelo |
+   | `/groups/{ws}/reports/{rep}/...` | workspace + **modelo, resuelto por API** |
    | `/groups/{ws}/lineage` | sólo el workspace |
    | `/groups/me/...` | Mi área de trabajo no tiene GUID: la API no la alcanza |
 2. **Mapeo del modelo** — los informes piden campos logicos (*Real*, *BO*,
@@ -93,7 +103,8 @@ código. Tiene tres pestañas:
    la forma de descubrir como se llaman tus medidas antes de mapearlas.
 
 El mapeo se guarda en `backend/modelo.json`. No tiene secretos: podes
-commitearlo para que lo comparta el equipo.
+commitearlo para que lo comparta el equipo. **Ya viene con el workspace y el
+modelo de este proyecto cargados**; falta completar los nombres de las medidas.
 
 > **Descubrimiento de medidas.** El boton *Traer medidas del modelo* intenta
 > `INFO.VIEW.MEASURES()`, pero el endpoint clasico `executeQueries` **no admite

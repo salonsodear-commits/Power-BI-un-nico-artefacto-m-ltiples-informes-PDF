@@ -1494,6 +1494,7 @@ async function cargarModelos(ws) {
  * workspace.
  *
  *   /groups/{ws}/reports/{reporte}/...
+ *   /groups/{ws}/modeling/{modelo}/modelView   ← la vista del modelo
  *   /groups/{ws}/settings/datasets/{modelo}
  *   /groups/{ws}/lineage            ← sólo trae el workspace
  *   /groups/me/...                  ← Mi área de trabajo, sin GUID
@@ -1509,7 +1510,7 @@ function idsDeUrl(texto) {
   return {
     workspaceId: grupo && grupo[1] !== "me" ? grupo[1] : null,
     miArea: !!(grupo && grupo[1] === "me"),
-    datasetId: uno("datasets") || uno("semanticmodels"),
+    datasetId: uno("datasets") || uno("semanticmodels") || uno("modeling"),
     reportId: uno("reports")
   };
 }

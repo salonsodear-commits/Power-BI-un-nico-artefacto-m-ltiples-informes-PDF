@@ -1,0 +1,33 @@
+{
+  "medidas": {
+    "real": "[Real]",
+    "bo": "[BO]",
+    "variacion": "",
+    "variacionPct": "",
+    "ebitda": "",
+    "margenEbitda": "",
+    "opex": "",
+    "opexBo": "",
+    "provisiones": "",
+    "pendienteFacturar": "",
+    "dso": "",
+    "saldoCxC": "",
+    "facturacion": "",
+    "costos": "",
+    "margen": "",
+    "margenPct": "",
+    "clientesActivos": ""
+  },
+  "columnas": {
+    "periodo": "Calendario[ClaveMes]",
+    "sociedad": "",
+    "vertical": "",
+    "gastoCategoria": "",
+    "agingTramo": "",
+    "clienteNombre": "",
+    "clienteKam": ""
+  },
+  "organizacion": "",
+  "workspaceId": "8ab266c7-3a3c-4b9a-b62f-79879e6ac936",
+  "datasetId": "e2132c9a-d1d2-4596-bd47-49e5fbf10e61"
+}
