@@ -162,8 +162,21 @@ app.post("/api/modelo/verificar", atajo(async (req) => {
   return { resultado: r, ok: malas === 0, conError: malas, periodo };
 }));
 
+/**
+ * Además del catálogo, qué informes puede dar el mapeo actual. Sin esto el
+ * artefacto deja elegir uno que el modelo no soporta y el fallo aparece
+ * recién como un error de Power BI, que no dice qué hacer.
+ */
 app.get("/api/informes", (_req, res) => {
-  res.json(Object.entries(INFORMES).map(([clave, i]) => ({ clave, ...i.meta })));
+  const m = MODELO.leer();
+  res.json(Object.entries(INFORMES).map(([clave, i]) => {
+    const req = i.requiere || { medidas: [], columnas: [] };
+    const faltan = [
+      ...(req.medidas || []).filter((k) => !m.medidas[k]).map((k) => rotulo("medidas", k)),
+      ...(req.columnas || []).filter((k) => !m.columnas[k]).map((k) => rotulo("columnas", k))
+    ];
+    return { clave, ...i.meta, disponible: faltan.length === 0, faltan };
+  }));
 });
 
 app.post("/api/informe", async (req, res) => {

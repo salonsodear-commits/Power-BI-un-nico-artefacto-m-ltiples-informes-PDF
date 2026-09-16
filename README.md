@@ -221,7 +221,14 @@ Si el DSO vive en su propia tabla sin relación con el calendario —como suele
 pasar—, mapeá además **Período de la tabla de DSO** y el informe toma el valor
 del último período, igual que la card del tablero.
 
-Los marcados con `*` son obligatorios. `periodo` debe ser una columna con el
+El único obligatorio es el **período**: es lo que ordena cualquier serie. Qué
+medidas hacen falta lo decide **cada informe**, no el mapeo — un modelo de
+cobranzas no tiene Real ni BO, y no tiene por qué inventarlos.
+
+`GET /api/informes` devuelve, además del catálogo, si el mapeo actual alcanza
+para cada informe y qué le falta. El selector del artefacto marca los que no
+salen, se mueve solo al primero que sí, y avisa antes de consultar en vez de
+dejar que Power BI responda un error sobre una medida inexistente. `periodo` debe ser una columna con el
 **entero AAAAMM** (202607): DAX no agrupa por expresiones, asi que una columna
 de fecha no sirve para las series de evolucion. Si no la tenes, agrega al modelo
 una columna calculada `YEAR([Fecha])*100 + MONTH([Fecha])`.

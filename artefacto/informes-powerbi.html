@@ -1346,6 +1346,7 @@ function filtrosActuales() {
 }
 
 async function actualizar() {
+  if (!avisarInforme()) return;
   const tipo = $("fTipo").value;
   const cuerpo = {
     reportType: tipo,
@@ -1590,21 +1591,42 @@ async function cargarModelos(ws) {
  * aparecer acá sin tocar el artefacto. Lo que el artefacto ya conoce aporta
  * los datos de ejemplo y las consultas DAX de referencia.
  */
+let DISPONIBLES = null;   // clave → { disponible, faltan[] }, según el mapeo
+
 async function sincronizarInformes() {
   let lista;
   try { lista = await API.pedir("/api/informes"); }
   catch (e) { return; }                       // sin backend, queda el catálogo local
   if (!Array.isArray(lista) || !lista.length) return;
+  DISPONIBLES = {};
   for (const r of lista) {
     REPORTES[r.clave] = Object.assign({ dax: [] }, REPORTES[r.clave], {
       nombre: r.nombre, titulo: r.titulo, bajada: r.bajada, fuente: r.fuente
     });
+    DISPONIBLES[r.clave] = { disponible: r.disponible !== false, faltan: r.faltan || [] };
   }
   const sel = $("fTipo"), elegido = sel.value;
   sel.innerHTML = "";
-  lista.forEach((r) => sel.appendChild(el(`<option value="${esc(r.clave)}">${esc(r.nombre)}</option>`)));
-  sel.value = lista.some((r) => r.clave === elegido) ? elegido : lista[0].clave;
-  if (sel.value !== elegido) guardarPrefs();
+  lista.forEach((r) => sel.appendChild(el(
+    `<option value="${esc(r.clave)}">${esc(r.nombre)}${r.disponible === false ? " — sin mapear" : ""}</option>`)));
+
+  // si lo elegido no lo soporta el modelo, se pasa al primero que sí
+  const sirve = (k) => DISPONIBLES[k] && DISPONIBLES[k].disponible;
+  const primero = lista.find((r) => r.disponible !== false);
+  sel.value = sirve(elegido) ? elegido : (primero ? primero.clave : lista[0].clave);
+  if (sel.value !== elegido) { guardarPrefs(); avisarInforme(); }
+}
+
+/** Dice, antes de consultar, si el informe elegido puede salir con este mapeo. */
+function avisarInforme() {
+  const k = $("fTipo").value;
+  const d = DISPONIBLES && DISPONIBLES[k];
+  if (!d || d.disponible) return true;
+  estado("error", "Este informe no sale con el mapeo actual",
+    `<b>${esc((REPORTES[k] || {}).nombre || k)}</b> necesita ` +
+    `${esc(d.faltan.join(", "))}, que tu modelo no tiene mapeado.<br><br>` +
+    "Elegí otro informe, o mapeá esos campos en <b>Conectar → Mapeo</b>.");
+  return false;
 }
 
 /* ── sesión ───────────────────────────────────────────────────────── */
@@ -2033,6 +2055,7 @@ async function guardarMapeo() {
     MAPEO = j.modelo;
     pie("ok", "Mapeo guardado. Ya podés <b>Actualizar datos</b>.");
     aviso("avisoMapeo", "ok", "Mapeo guardado.");
+    sincronizarInformes();   // el mapeo nuevo puede habilitar otros informes
     setTimeout(() => { if ($("pieConectar").classList.contains("ok")) pie("", PIE_NEUTRO); }, 6000);
   } catch (e) {
     pie("mal", esc(e.message));
@@ -2477,6 +2500,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
 
   ["fBackend","fWorkspace","fDataset","fTipo","fPeriodo","fSociedad","fVertical"]
     .forEach((id) => $(id).addEventListener("change", guardarPrefs));
+  $("fTipo").addEventListener("change", avisarInforme);
 
   $("btnActualizar").addEventListener("click", actualizar);
   $("btnDemo").addEventListener("click", () => aplicar(ejemploJson($("fTipo").value), true));

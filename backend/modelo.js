@@ -20,8 +20,8 @@ const SEMILLA = path.join(__dirname, "modelo.ejemplo.json");
 /** Campos que los informes saben usar. `req` marca los imprescindibles. */
 const CAMPOS = {
   medidas: [
-    { clave: "real",              rotulo: "Real / Facturación",        req: true },
-    { clave: "bo",                rotulo: "BO / Objetivo",             req: true },
+    { clave: "real",              rotulo: "Real / Facturación" },
+    { clave: "bo",                rotulo: "BO / Objetivo" },
     { clave: "variacion",         rotulo: "Variación (Real − BO)" },
     { clave: "variacionPct",      rotulo: "Variación %" },
     { clave: "ebitda",            rotulo: "EBITDA" },
@@ -144,6 +144,8 @@ function normalizar(entrada) {
   for (const c of CAMPOS.columnas) {
     salida.columnas[c.clave] = validarRef((e.columnas || {})[c.clave], "columna");
   }
+  // Sólo el período es imprescindible: es lo que ordena cualquier serie.
+  // Qué medidas hacen falta lo decide cada informe, no el mapeo.
   const faltan = [...CAMPOS.medidas, ...CAMPOS.columnas]
     .filter((c) => c.req)
     .filter((c) => !(salida.medidas[c.clave] || salida.columnas[c.clave]))
