@@ -354,6 +354,16 @@ pueda diferir del tablero.
 | `GET /api/informes` | Qué informes puede dar el mapeo actual, y qué les falta. |
 | `POST /api/informe` | El informe ya normalizado. |
 
+## Empezar es tres pasos
+
+El panel pide lo justo: **conectarse a Power BI**, elegir **área de trabajo** y
+elegir **tablero**. Con una sola área, se elige sola. De ahí sale todo lo demás
+—qué informe corresponde, qué segmentadores tiene, los GUID— sin que nadie los
+escriba. Lo técnico (backend, IDs, mapeo, consola DAX) vive en **Avanzado**,
+plegado, y casi nunca hace falta abrirlo.
+
+No hay datos de ejemplo: el artefacto muestra el tablero real o nada.
+
 ## Dos vistas del mismo informe
 
 Un informe puede devolver, además de las hojas A4, un **tablero interactivo**.
@@ -367,6 +377,10 @@ exactamente lo que estabas mirando y no una segunda lectura que puede diferir.
 | Montos | la cifra exacta (`$ 413.359.095`) | en millones, que es lo que hace legible una serie |
 | Se imprime | no | sí — **Exportar PDF** sale de acá siempre, estés donde estés |
 
+El impreso se acota al **top 8** de clientes en sus tablas y aperturas —es lo
+que se lee en una hoja— con los totales de la cartera completa y una nota que
+lo dice. El tablero tiene la tabla entera, con buscador.
+
 El tablero de Deuda tiene seis solapas: **Resumen** (tarjetas + los dos aging),
 **Cobranza** (tabla por cliente con buscador, orden y filtro de vencido, más la
 apertura por clase de documento, tipo de deuda, estado y gestor), **Facturación**
@@ -374,6 +388,56 @@ apertura por clase de documento, tipo de deuda, estado y gestor), **Facturación
 tipo y estado), **Cliente 360°** (exposición combinada), **Días en calle**
 (serie mensual y promedio por año) y **Notas y alcance**, que se escribe desde
 lo que *este* modelo dice — nombra tus medidas, no un texto fijo.
+
+### Un segmentador que funciona a medias es peor que ninguno
+
+Éste es el problema menos evidente del proyecto, y el que más silenciosamente
+da números mal.
+
+El modelo de Deuda tiene **dos tablas de hechos** —`Aging - Actualizado` para
+la cobranza y `Provision` para lo pendiente de facturar— y las dos cuelgan de
+`Clientes_y_Contratos` con relaciones **unidireccionales**. Además,
+`[Deuda Facturacion] = CALCULATE(SUM(...), Provision)` ignora los filtros
+puestos sobre su propia tabla. De ahí sale esta asimetría:
+
+| Segmentador puesto sobre… | filtra Cobranza | filtra Facturación |
+|---|---|---|
+| `Clientes_y_Contratos[…]` | ✅ | ✅ |
+| `'Aging - Actualizado'[…]` | ✅ | ❌ |
+
+Un control sobre la tabla equivocada filtra la mitad de los números **y no
+avisa**: el informe igual sale y parece bien. Por eso el backend no confía en
+que la columna exista — la **prueba**. `GET /api/tablero/:ws/:ds/contexto` abre
+cada candidato por sus valores pidiendo las medidas del informe, y mira si de
+verdad las reparte o si devuelve el total entero en cada rebanada. Sólo pasan
+los que reparten **todas**; el resto no se dibuja, y el arranque dice por qué:
+
+```
+[contexto] clienteKam no se ofrece: no reparte deudaFacturacion ('Aging - Actualizado'[Gestor Cobranzas])
+```
+
+El criterio es «la medida se mueve», no «las partes suman el total»: lo segundo
+suena más exigente pero se rompe solo con el `TOPN`, con los blancos y con
+cualquier medida no aditiva.
+
+Cuando una dimensión tiene **un solo valor**, no hay nada que elegir ni que
+probar: pasa a ser un chip de contexto.
+
+### Cada universo con sus propios filtros
+
+Por lo mismo, las consultas de cobranza y las de facturación van separadas, y
+las tarjetas se arman de las dos. Agruparlas juntas por una columna del aging
+producía el producto cruzado —cada cliente mostrando las razones sociales de
+todos los demás— porque `SUMMARIZECOLUMNS` conserva toda fila con alguna medida
+no vacía, y la facturación nunca venía vacía.
+
+### «A vencer» entra o no, y se nota
+
+Lo que todavía no venció suma al saldo pero no es deuda en gestión. El
+interruptor **Incluir «a vencer»** lo saca de las consultas de cobranza —de los
+totales también, no sólo del gráfico— y deja la facturación intacta, porque la
+provisión no tiene ese tramo. Los rótulos no están escritos a mano: se
+reconocen sobre los valores que devolvió *tu* aging.
 
 ### El tablero decide el informe
 

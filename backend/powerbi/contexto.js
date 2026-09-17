@@ -1,70 +1,125 @@
+"use strict";
 /**
- * Qué filtros trae puesto el tablero.
+ * Qué segmentadores tiene este tablero, y cuáles sirven de verdad.
  *
- * Power Query puede dejar el modelo ya recortado —una sola sociedad, un solo
- * canal— y eso no se ve por la API: no hay forma de leer los pasos de Power
- * Query desde executeQueries. Pero sí se puede mirar el dato: si una dimensión
- * tiene UN solo valor distinto, el recorte ya está hecho y el informe no debe
- * volver a ofrecerla como filtro, sino mostrarla como contexto.
+ * No alcanza con que la columna exista. En un modelo con varias tablas de
+ * hechos, un segmentador puesto sobre la tabla equivocada filtra la mitad de
+ * los números y no avisa: las relaciones suelen ser unidireccionales, así que
+ * una columna del aging filtra la cobranza pero deja la facturación intacta.
+ * Un panel con un control que hace la mitad de lo que dice es peor que sin
+ * control, porque el número igual sale y parece bien.
  *
- * Es la diferencia entre un panel que pide «Sociedad» al pedo y uno que dice
- * «Sociedad: IHSA S.A.» porque es lo único que hay.
+ * Por eso cada candidato se PRUEBA: se lo abre por sus valores pidiendo las
+ * medidas clave, y se mira si de verdad las reparte. Sólo pasan los que sí.
+ *
+ * De paso, la misma consulta dice si el tablero ya viene recortado —una sola
+ * sociedad, un solo canal— para mostrarlo como contexto en vez de pedirlo.
  */
 const { consultar } = require("./client");
 const MODELO = require("../modelo");
 const Q = require("./queries");
 
-// Las que tiene sentido mostrar como contexto o pedir como filtro.
+/** Las que tiene sentido ofrecer, en el orden en que se muestran. */
 const DIMENSIONES = [
   { clave: "sociedad", rotulo: "Sociedad" },
   { clave: "canal",    rotulo: "Canal" },
   { clave: "vertical", rotulo: "Negocio" },
+  { clave: "clienteKam", rotulo: "Gestor" },
+  { clave: "riesgo",   rotulo: "Riesgo" },
   { clave: "moneda",   rotulo: "Moneda" }
 ];
 
-const TOPE = 12;   // con 12 alcanza para decidir; más sería traer la dimensión entera
+const TOPE = 40;          // valores por dimensión; más no entra en un desplegable
+const CERCA = 0.005;      // 0,5 % de holgura al comparar totales
 
-async function contexto(workspaceId, datasetId) {
+/**
+ * @param medidas claves lógicas que el segmentador tiene que saber repartir.
+ *   Son las del informe: si una no se mueve, el control miente sobre ella.
+ */
+async function contexto(workspaceId, datasetId, medidas) {
   const m = MODELO.leer();
+  const usables = (medidas || []).filter((k) => Q.m(k));
+  if (!usables.length) return { dimensiones: [], fijos: [], elegibles: [], medidas: [] };
+
+  // el total contra el que se compara cada apertura
+  const fila = Q.filaMedidas(usables);
+  const totales = (await consultar(workspaceId, datasetId,
+    `\nEVALUATE\n  ROW(\n${fila}\n  )`))[0] || {};
+
   const salida = [];
   let sinSesion = false;
 
   await Promise.all(DIMENSIONES.map(async (d) => {
     const col = m.columnas[d.clave];
     if (!col || (m.rotos || []).includes("columnas." + d.clave)) return;
+    let filas;
     try {
-      const filas = await consultar(workspaceId, datasetId, Q.valoresDe(col, TOPE));
-      const vistos = filas
-        .map((f) => Object.values(f)[0])
-        .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
-        .map(String);
-      const valores = [...new Set(vistos)];
-      if (!valores.length) return;
-      salida.push({
-        clave: d.clave, rotulo: d.rotulo, ref: col,
-        valores: valores.slice(0, TOPE).sort((a, b) => a.localeCompare(b, "es")),
-        // un solo valor = el tablero ya viene filtrado por esa dimensión
-        fijo: valores.length === 1,
-        truncado: filas.length >= TOPE
-      });
+      filas = await consultar(workspaceId, datasetId,
+        Q.desglose({ por: col, medidas: usables, tope: TOPE }));
     } catch (e) {
-      // Sin sesión no hay nada que detectar, y las cuatro fallan igual: se
-      // corta en la primera en vez de llenar la consola de lo mismo.
       if (e.necesitaIngreso) { sinSesion = true; return; }
-      // una dimensión que no responde no rompe el contexto: simplemente no está
       console.warn("[contexto] " + d.clave + ": " + e.message);
+      return;
     }
+
+    const valores = valoresUnicos(filas);
+    if (!valores.length) return;
+
+    /* ¿La medida se MUEVE al abrir por esta dimensión?
+       Ésa es la pregunta, y no «¿la suma de las partes da el total?». Lo
+       segundo suena más exigente pero se rompe solo: el TOPN recorta, una
+       medida como el DSO no es aditiva, y los blancos no se listan. Lo que
+       delata a un segmentador que no propaga es que devuelva EL MISMO valor
+       en cada rebanada — el total entero, una y otra vez. */
+    const reparte = {}, rotas = [];
+    for (const k of usables) {
+      const vs = filas.map((f) => f[k]).filter((v) => typeof v === "number");
+      const total = totales[k];
+      if (typeof total !== "number" || total === 0) { reparte[k] = null; continue; }
+      if (!vs.length) { reparte[k] = false; rotas.push(k); continue; }   // la apaga
+      if (valoresUnicos(filas).length < 2) { reparte[k] = null; continue; }  // nada que probar
+      const inmovil = vs.every((v) => Math.abs(v - total) <= Math.abs(total) * CERCA);
+      reparte[k] = !inmovil;
+      if (inmovil) rotas.push(k);
+    }
+
+    // Con un solo valor no hay nada que elegir ni nada que probar: es contexto.
+    const fijo = valores.length === 1;
+    // Sirve si reparte TODAS las medidas que se le pidieron. A medias, no.
+    const sirve = fijo || usables.every((k) => reparte[k] !== false);
+
+    salida.push({
+      clave: d.clave, rotulo: d.rotulo, ref: col,
+      valores: valores.sort((a, b) => a.localeCompare(b, "es")),
+      fijo, sirve, rotas,
+      porDefecto: m.filtrosPorDefecto[d.clave] || null,
+      truncado: filas.length >= TOPE
+    });
   }));
 
   if (sinSesion) { const e = new Error("No hay sesión iniciada"); e.necesitaIngreso = true; throw e; }
+
   const orden = DIMENSIONES.map((d) => d.clave);
   salida.sort((a, b) => orden.indexOf(a.clave) - orden.indexOf(b.clave));
+  for (const d of salida.filter((x) => !x.sirve)) {
+    console.warn("[contexto] " + d.clave + " no se ofrece: no reparte " + d.rotas.join(", ") +
+                 " (" + d.ref + ")");
+  }
   return {
     dimensiones: salida,
-    // atajos, que es lo que el artefacto termina usando
-    fijos: salida.filter((x) => x.fijo).map((x) => ({ rotulo: x.rotulo, valor: x.valores[0] })),
-    elegibles: salida.filter((x) => !x.fijo)
+    medidas: usables,
+    // lo que el tablero ya trae recortado: se informa, no se pide
+    fijos: salida.filter((x) => x.fijo)
+                 .map((x) => ({ clave: x.clave, rotulo: x.rotulo, valor: x.valores[0] })),
+    // y lo que se puede elegir, ya probado
+    elegibles: salida.filter((x) => !x.fijo && x.sirve)
   };
 }
+
+/** Los valores de la primera columna —la dimensión— sin repetir ni vacíos. */
+const valoresUnicos = (filas) => [...new Set(filas
+  .map((f) => Object.values(f)[0])
+  .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
+  .map(String))];
 
 module.exports = { contexto, DIMENSIONES };

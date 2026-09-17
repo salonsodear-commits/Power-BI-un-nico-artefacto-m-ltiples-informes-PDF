@@ -151,6 +151,33 @@ button,input,select,textarea{font:inherit}
   color:var(--consola-tinta-2)}
 .zoom input[type=range]{width:82px;padding:0;background:none;border:0;accent-color:var(--acento)}
 
+/* ── panel guiado: conectarse, área de trabajo, tablero ────────────── */
+.paso{display:flex;flex-direction:column;gap:7px;padding:10px 12px;border-radius:var(--r-chico);
+  background:var(--consola-2);border:1px solid var(--consola-3);font-size:12px;line-height:1.5}
+.paso b{display:block;font-family:var(--display);font-size:12.5px;color:#fff}
+.paso.listo{background:#0F2A1D;border-color:#27543A}
+.paso.listo b{color:#B4DEC6}
+.paso .quien{font-family:var(--mono);font-size:11px;color:var(--consola-tinta-2);
+  overflow:hidden;text-overflow:ellipsis}
+.paso .cod{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:.16em;
+  text-align:center;color:#fff;background:var(--consola);border:1px solid var(--consola-3);
+  border-radius:var(--r-chico);padding:7px;user-select:all}
+.paso ol{margin:0;padding-left:17px;color:var(--consola-tinta-2)}
+.paso a{color:var(--acento-linea)}
+.interruptor{display:flex;align-items:center;gap:8px;padding:7px 0;cursor:pointer;
+  font-size:12px;color:var(--consola-tinta)}
+.interruptor input{width:auto;flex:none;accent-color:var(--acento)}
+.interruptor em{font-style:normal;font-size:11px;color:var(--consola-tinta-2);display:block}
+details.avanzado{margin-top:12px;border-top:1px solid var(--consola-3);padding-top:10px}
+details.avanzado>summary{cursor:pointer;font-family:var(--display);font-size:9.5px;
+  font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:var(--consola-tinta-2);
+  list-style:none}
+details.avanzado>summary::-webkit-details-marker{display:none}
+details.avanzado>summary::before{content:"▸ "}
+details.avanzado[open]>summary::before{content:"▾ "}
+details.avanzado>summary:hover{color:var(--consola-tinta)}
+details.avanzado>*:not(summary){margin-top:9px}
+
 /* ── panel: informe elegido y contexto heredado del tablero ────────── */
 .linea-inf{margin:0 0 9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
   font-size:12px;color:var(--consola-tinta-2)}
@@ -602,8 +629,59 @@ pre.cod b{color:var(--acento);font-weight:600}
     </div>
 
     <div class="consola-scroll">
+      <!-- ① Conectarse, ② elegir área de trabajo, ③ elegir tablero.
+           Nada más. Lo técnico —backend, GUIDs— vive en «Avanzado», que casi
+           nadie necesita abrir: los IDs salen de elegir el tablero. -->
       <section class="grupo">
-        <span class="rotulo">Tablero de origen</span>
+        <span class="rotulo">Empezar</span>
+        <div id="pasoSesion"></div>
+        <div class="campo" id="pasoWs" hidden>
+          <label for="selWs">Área de trabajo</label>
+          <select id="selWs"><option value="">Elegí…</option></select>
+        </div>
+        <div class="campo" id="pasoDs" hidden>
+          <label for="selDs">Tablero</label>
+          <select id="selDs"><option value="">Elegí…</option></select>
+        </div>
+        <p class="nota" id="notaPaso"></p>
+      </section>
+
+      <section class="grupo" id="grupoInforme" hidden>
+        <span class="rotulo">Informe</span>
+        <!-- El tablero decide el informe: no se elige. -->
+        <p class="linea-inf"><b id="nombreInforme">—</b></p>
+        <select id="fTipo" hidden></select>
+        <div class="campo">
+          <label for="fPeriodo">Período</label>
+          <input id="fPeriodo" type="month">
+        </div>
+        <!-- Sólo los segmentadores que el backend probó que funcionan. -->
+        <div id="filtrosTablero"></div>
+        <div id="opcionesInforme"></div>
+        <div id="chipsContexto"></div>
+      </section>
+
+      <section class="grupo" id="grupoDatos" hidden>
+        <span class="rotulo">Datos</span>
+        <button class="b primario ancho" id="btnActualizar">Actualizar datos</button>
+        <div id="estado" class="estado">
+          <b>Sin datos</b>
+          Elegí el tablero y el informe sale solo.
+        </div>
+      </section>
+
+      <section class="grupo" id="grupoSalida" hidden>
+        <span class="rotulo">Salida</span>
+        <button class="b primario ancho" id="btnPdf">Exportar PDF</button>
+        <div class="fila" style="margin-top:7px">
+          <button class="b" id="btnHtml">Descargar HTML</button>
+          <button class="b" id="btnContrato">Contrato y DAX</button>
+        </div>
+      </section>
+
+      <!-- Lo que hace falta una vez cada tanto, o nunca. -->
+      <details class="avanzado">
+        <summary>Avanzado</summary>
         <div class="campo">
           <label for="fBackend">Backend</label>
           <input id="fBackend" type="text" inputmode="url" placeholder="mismo origen"
@@ -619,55 +697,13 @@ pre.cod b{color:var(--acento);font-weight:600}
           <input id="fDataset" placeholder="00000000-0000-0000-0000-000000000000"
                  autocomplete="off" spellcheck="false">
         </div>
-        <button class="b ancho" id="btnConectar" style="margin-top:2px">Conectar a Power BI…</button>
-        <p class="nota">Dejá <em>Backend</em> vacío si abrís el artefacto servido desde
-          el backend. Los IDs salen de la URL del reporte, o los elegís en Conectar.
-          <b>Nunca pegues acá el Client Secret</b> — vive en el backend.</p>
-      </section>
-
-      <section class="grupo">
-        <span class="rotulo">Informe</span>
-        <!-- El informe lo decide el tablero, no una lista: al elegir el modelo
-             semántico se arma el que ese modelo soporta. El selector queda
-             sólo para cuando hay más de uno posible. -->
-        <p class="linea-inf" id="lineaInforme">
-          <b id="nombreInforme">—</b><button type="button" id="btnCambiarInforme" hidden>cambiar</button>
-        </p>
-        <div class="campo" id="campoTipo" hidden>
-          <label for="fTipo">Tipo de informe</label>
-          <select id="fTipo"></select>
-        </div>
-        <div class="campo">
-          <label for="fPeriodo">Período</label>
-          <input id="fPeriodo" type="month">
-        </div>
-        <!-- Sólo las dimensiones que de verdad tienen más de un valor. Lo que
-             el Power Query ya dejó filtrado aparece abajo como contexto. -->
-        <div id="filtrosTablero"></div>
-        <div id="chipsContexto"></div>
-      </section>
-
-      <section class="grupo">
-        <span class="rotulo">Datos</span>
-        <button class="b primario ancho" id="btnActualizar">Actualizar datos</button>
-        <div class="fila" style="margin-top:7px">
+        <div class="fila">
+          <button class="b" id="btnConectar">Mapeo y consola DAX…</button>
           <button class="b" id="btnPegar">Pegar JSON</button>
-          <button class="b" id="btnDemo">Datos de ejemplo</button>
         </div>
-        <div id="estado" class="estado">
-          <b>Sin datos</b>
-          Elegí un tipo de informe y actualizá, o cargá el JSON a mano.
-        </div>
-      </section>
-
-      <section class="grupo">
-        <span class="rotulo">Salida</span>
-        <button class="b primario ancho" id="btnPdf">Exportar PDF</button>
-        <div class="fila" style="margin-top:7px">
-          <button class="b" id="btnHtml">Descargar HTML</button>
-          <button class="b" id="btnContrato">Contrato y DAX</button>
-        </div>
-      </section>
+        <p class="nota">Dejá <em>Backend</em> vacío si abrís el artefacto servido desde
+          el backend. <b>Nunca pegues acá el Client Secret</b> — vive en el backend.</p>
+      </details>
     </div>
 
     <div class="consola-pie">
@@ -693,7 +729,9 @@ pre.cod b{color:var(--acento);font-weight:600}
   </div>
   <div class="d-cuerpo">
     <p>Pegá la respuesta del backend. Es la misma estructura que devuelve
-      <b>Actualizar datos</b>, así que el informe sale idéntico.</p>
+      <b>Actualizar datos</b>, así que el informe sale idéntico. Sirve cuando el
+      navegador bloquea las llamadas —el artefacto publicado en claude.ai— y hay
+      que traer el JSON a mano.</p>
     <textarea id="areaJson" spellcheck="false" aria-label="JSON del informe"
       placeholder='{ "meta": { ... }, "secciones": [ ... ] }'></textarea>
     <p id="errJson" style="color:var(--mal);display:none"></p>
@@ -780,7 +818,7 @@ pre.cod b{color:var(--acento);font-weight:600}
   <div class="d-cuerpo" id="cuerpoContrato"></div>
   <div class="d-pie">
     <span class="aclara">El backend arma este JSON; el artefacto sólo lo dibuja.</span>
-    <button class="bd" id="btnCopiarContrato">Copiar ejemplo</button>
+    <button class="bd" id="btnCopiarContrato">Copiar contrato</button>
     <button class="bd primario" data-cerrar="dlgContrato">Listo</button>
   </div>
 </dialog>
@@ -1374,7 +1412,7 @@ const CONSTRUCTORES = {
    El informe se arma en hojas A4 reales: lo que se ve en pantalla es
    exactamente lo que sale en el PDF, con cabecera y pie en cada hoja.
    ═══════════════════════════════════════════════════════════════════════ */
-let DATOS = null, ES_DEMO = false;
+let DATOS = null;
 
 function nuevaHoja(ctx) {
   const h = el(`<article class="hoja">
@@ -1382,7 +1420,6 @@ function nuevaHoja(ctx) {
       <span class="org">${esc(ctx.meta.organizacion || "—")}</span>
       <span class="sep" aria-hidden="true"></span>
       <span class="que">${esc(ctx.meta.titulo || ctx.rep.titulo)}</span>
-      ${ctx.demo ? '<span class="ejemplo">Datos de ejemplo</span>' : ""}
       <span class="cuando">${esc(ctx.meta.periodoEtiqueta || mesLargo(ctx.meta.periodo))}</span>
     </header>
     <div class="h-cuerpo"></div>
@@ -1793,9 +1830,9 @@ function render(datos) {
   mesa.innerHTML = "";
   if (!datos) {
     mesa.appendChild(el(`<div class="vacio">
-      <b>Todavía no hay informe</b>
-      Indicá el tablero de Power BI y actualizá los datos, pegá el JSON del backend,
-      o mirá cómo queda con <em>Datos de ejemplo</em>.
+      <b>Elegí un tablero</b>
+      Conectate a Power BI en el panel, elegí el área de trabajo y el tablero.
+      El informe se arma solo.
     </div>`));
     document.getElementById("btnPdf").disabled = true;
     document.getElementById("btnHtml").disabled = true;
@@ -1816,7 +1853,7 @@ function render(datos) {
     mesa.appendChild(pintarTablero(datos));
   }
 
-  const ctx = { mesa, meta, rep, hojas: [], cuerpo: null, demo: ES_DEMO };
+  const ctx = { mesa, meta, rep, hojas: [], cuerpo: null };
   nuevaHoja(ctx);
   colocar(cPortada(meta, rep), ctx);
 
@@ -1837,6 +1874,7 @@ function render(datos) {
   if (dato) dato.textContent = total + (total === 1 ? " hoja" : " hojas") + " para imprimir";
   document.getElementById("btnPdf").disabled = false;
   document.getElementById("btnHtml").disabled = false;
+  $("grupoSalida").hidden = false;
   ajustarZoom();
   return total;
 }
@@ -1857,7 +1895,7 @@ function guardarPrefs() {
       backend: $("fBackend").value, workspace: $("fWorkspace").value,
       dataset: $("fDataset").value, tipo: $("fTipo").value,
       periodo: $("fPeriodo").value, filtros: filtrosActuales(),
-      modo: MODO, zoom: $("fZoom").value
+      aVencer: INCLUIR_A_VENCER, modo: MODO, zoom: $("fZoom").value
     }));
   } catch (e) { /* navegación privada o almacenamiento bloqueado */ }
 }
@@ -1893,6 +1931,118 @@ function filtrosActuales() {
   return f;
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   EL PASO A PASO
+   Conectarse, elegir área de trabajo, elegir tablero. Nada más. Todo lo
+   demás —los GUID, el backend, el mapeo— vive en «Avanzado» y casi nadie
+   necesita abrirlo, porque elegir el tablero ya completa los IDs.
+   ═══════════════════════════════════════════════════════════════════════ */
+let SESION = null, SONDEO_PASO = null;
+
+async function arrancarPasos() {
+  try { SESION = await API.pedir("/api/auth"); }
+  catch (e) { SESION = null; pintarPasos(e); return; }
+  pintarPasos();
+  if (SESION.conectado) await cargarAreas();
+}
+
+function pintarPasos(error) {
+  const caja = $("pasoSesion");
+  if (error) {
+    caja.innerHTML = `<div class="paso"><b>No se puede hablar con el backend</b>
+      <span>${esc(error.backendInvalido ? error.message : SIN_BACKEND)}</span></div>`;
+    $("notaPaso").textContent = "";
+    return;
+  }
+  const a = SESION || {};
+  if (a.faltan && a.faltan.length) {
+    caja.innerHTML = `<div class="paso"><b>Falta configurar el backend</b>
+      <span>Falta ${esc(a.faltan.join(" y "))}. En la terminal: <code>npm run configurar</code></span></div>`;
+    return;
+  }
+  if (a.ingreso && a.ingreso.userCode) {
+    caja.innerHTML = `<div class="paso"><b>Entrá en Microsoft</b>
+      <div class="cod">${esc(a.ingreso.userCode)}</div>
+      <ol><li>Abrí <a href="${esc(a.ingreso.url || "https://microsoft.com/devicelogin")}"
+        target="_blank" rel="noopener">microsoft.com/devicelogin</a></li>
+      <li>Pegá el código y entrá con tu cuenta</li></ol>
+      <span class="latiendo">Esperando…</span></div>`;
+    return;
+  }
+  if (a.conectado) {
+    caja.innerHTML = `<div class="paso listo"><b>Conectado</b>
+      <span class="quien">${esc(a.usuario || "tu cuenta")}</span>
+      <button class="b" id="btnSalir" style="align-self:flex-start">Salir</button></div>`;
+    $("btnSalir").addEventListener("click", salirSesion);
+    return;
+  }
+  caja.innerHTML = `<div class="paso"><b>Conectate a Power BI</b>
+    <span>Con tu cuenta corporativa. Vas a ver los mismos tableros que al
+    abrir Power BI, ni uno más.</span>
+    <button class="b primario" id="btnEntrar">Entrar con mi cuenta</button></div>`;
+  $("btnEntrar").addEventListener("click", entrarSesion);
+}
+
+/** ② Las áreas de trabajo. Con una sola, se elige sola. */
+async function cargarAreas() {
+  const sel = $("selWs");
+  $("pasoWs").hidden = false;
+  $("notaPaso").textContent = "Buscando tus áreas de trabajo…";
+  let ws;
+  try { ws = (await API.pedir("/api/powerbi/workspaces")).workspaces || []; }
+  catch (e) { $("notaPaso").textContent = e.message; return; }
+  if (!ws.length) {
+    $("notaPaso").textContent = "Tu cuenta no ve ninguna área de trabajo en Power BI.";
+    return;
+  }
+  sel.innerHTML = `<option value="">Elegí…</option>` + ws.map((w) =>
+    `<option value="${esc(w.id)}">${esc(w.nombre)}</option>`).join("");
+  const previo = $("fWorkspace").value.trim();
+  sel.value = ws.some((w) => w.id === previo) ? previo : (ws.length === 1 ? ws[0].id : "");
+  $("notaPaso").textContent = ws.length === 1
+    ? "Tenés un área de trabajo: ya está elegida." : "";
+  if (sel.value) { $("fWorkspace").value = sel.value; cargarTableros(sel.value); }
+}
+
+/** ③ Los tableros de esa área. Elegir uno arma el informe. */
+async function cargarTableros(ws) {
+  const sel = $("selDs");
+  $("pasoDs").hidden = false;
+  sel.innerHTML = `<option value="">Buscando tableros…</option>`;
+  let ms;
+  try { ms = (await API.pedir(`/api/powerbi/workspaces/${encodeURIComponent(ws)}/modelos`)).modelos || []; }
+  catch (e) { sel.innerHTML = `<option value="">${esc(e.message)}</option>`; return; }
+  if (!ms.length) { sel.innerHTML = `<option value="">Sin tableros visibles</option>`; return; }
+  sel.innerHTML = `<option value="">Elegí…</option>` + ms.map((d) =>
+    `<option value="${esc(d.id)}">${esc(d.nombre)}</option>`).join("");
+  const previo = $("fDataset").value.trim();
+  if (ms.some((d) => d.id === previo)) { sel.value = previo; alElegirTablero(); }
+}
+
+function iniciarPasos() {
+  $("selWs").addEventListener("change", (e) => {
+    $("fWorkspace").value = e.target.value;
+    $("fDataset").value = "";
+    $("pasoDs").hidden = true;
+    ocultarInforme();
+    guardarPrefs();
+    if (e.target.value) cargarTableros(e.target.value);
+  });
+  $("selDs").addEventListener("change", (e) => {
+    $("fDataset").value = e.target.value;
+    guardarPrefs();
+    if (e.target.value) alElegirTablero();
+    else ocultarInforme();
+  });
+}
+
+const ocultarInforme = () => {
+  for (const id of ["grupoInforme", "grupoDatos", "grupoSalida"]) $(id).hidden = true;
+};
+const mostrarInforme = () => {
+  for (const id of ["grupoInforme", "grupoDatos"]) $(id).hidden = false;
+};
+
 /* ── contexto del tablero ──────────────────────────────────────────────
    Power Query puede dejar el modelo ya recortado a una sociedad y un canal.
    Eso no se pide de nuevo: se muestra. Y lo que sí tiene varios valores se
@@ -1900,21 +2050,29 @@ function filtrosActuales() {
    «IHSA S.A.» devolvía un informe vacío sin decir por qué. */
 let CONTEXTO = null;
 let FILTROS_GUARDADOS = {};
+let INCLUIR_A_VENCER = true;
 
 async function traerContexto() {
   const ws = $("fWorkspace").value.trim(), ds = $("fDataset").value.trim();
   if (!ES_GUID.test(ws) || !ES_GUID.test(ds)) { CONTEXTO = null; pintarContexto(); return; }
   try {
-    CONTEXTO = await API.pedir(`/api/tablero/${ws}/${ds}/contexto`);
+    const k = $("fTipo").value;
+    CONTEXTO = await API.pedir(`/api/tablero/${ws}/${ds}/contexto` +
+      (k ? "?informe=" + encodeURIComponent(k) : ""));
   } catch (e) { CONTEXTO = null; }
   pintarContexto();
 }
 
 const ES_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/**
+ * Dibuja los segmentadores. Sólo los que el backend PROBÓ que reparten todas
+ * las medidas del informe: uno que filtra la mitad de los números y no avisa
+ * es peor que no tenerlo, porque el número igual sale y parece bien.
+ */
 function pintarContexto() {
-  const caja = $("filtrosTablero"), chips = $("chipsContexto");
-  caja.innerHTML = ""; chips.innerHTML = "";
+  const caja = $("filtrosTablero"), chips = $("chipsContexto"), ops = $("opcionesInforme");
+  caja.innerHTML = ""; chips.innerHTML = ""; ops.innerHTML = "";
   if (!CONTEXTO) return;
 
   for (const d of CONTEXTO.elegibles || []) {
@@ -1926,19 +2084,31 @@ function pintarContexto() {
       </select>
     </div>`);
     const sel = campo.querySelector("select");
+    // lo elegido antes, si sigue existiendo; si no, lo que el tablero mira
     const guardado = FILTROS_GUARDADOS[d.clave];
     if (guardado && d.valores.includes(guardado)) sel.value = guardado;
-    sel.addEventListener("change", guardarPrefs);
+    else if (d.porDefecto && d.valores.includes(d.porDefecto)) sel.value = d.porDefecto;
+    sel.addEventListener("change", () => { guardarPrefs(); actualizar(); });
     caja.appendChild(campo);
   }
 
-  for (const f of CONTEXTO.fijos || []) {
-    chips.appendChild(el(`<span class="chip-ctx" title="Ya viene filtrado en el modelo">${
-      esc(f.rotulo)}: <b>${esc(f.valor)}</b></span>`));
+  // «A vencer» no es deuda en gestión pero sí suma al saldo: que entre o no
+  // cambia el total, y ésa es una decisión de quien lee.
+  if (CONTEXTO.tieneAging !== false) {
+    const l = el(`<label class="interruptor" for="optAVencer">
+      <input type="checkbox" id="optAVencer" ${INCLUIR_A_VENCER ? "checked" : ""}>
+      <span>Incluir «a vencer»<em>Suma al total de cobranza</em></span></label>`);
+    l.querySelector("input").addEventListener("change", (e) => {
+      INCLUIR_A_VENCER = e.target.checked;
+      guardarPrefs();
+      actualizar();
+    });
+    ops.appendChild(l);
   }
-  if ((CONTEXTO.fijos || []).length) {
-    chips.appendChild(el(`<span class="chip-ctx" style="border-style:dashed"
-      title="Estas dimensiones tienen un solo valor en el modelo: el recorte ya viene del Power Query">ya filtrado en el tablero</span>`));
+
+  for (const f of CONTEXTO.fijos || []) {
+    chips.appendChild(el(`<span class="chip-ctx" title="Tiene un solo valor en el modelo">${
+      esc(f.rotulo)}: <b>${esc(f.valor)}</b></span>`));
   }
 }
 
@@ -1950,7 +2120,8 @@ async function actualizar() {
     workspaceId: $("fWorkspace").value.trim(),
     datasetId: $("fDataset").value.trim(),
     periodo: $("fPeriodo").value,
-    filtros: filtrosActuales()
+    filtros: filtrosActuales(),
+    incluirAVencer: INCLUIR_A_VENCER
   };
   $("btnActualizar").disabled = true;
   estado("", "Consultando Power BI…", "El backend está ejecutando las consultas DAX del informe.");
@@ -2010,15 +2181,15 @@ async function irAlCampo(grupo, clave) {
   setTimeout(() => i.classList.remove("senalado"), 4000);
 }
 
-function aplicar(json, demo) {
+function aplicar(json) {
   if (!json || typeof json !== "object") throw new Error("El JSON no es un objeto");
   json.meta = json.meta || {};
   if (!json.meta.informe) json.meta.informe = $("fTipo").value;
   if (!json.meta.actualizado) json.meta.actualizado = new Date().toISOString();
-  DATOS = json; ES_DEMO = !!demo;
+  DATOS = json;
   const hojas = render(json);
   const m = json.meta;
-  estado(demo ? "" : "ok", demo ? "Datos de ejemplo" : "Informe actualizado",
+  estado("ok", "Informe actualizado",
     `<span class="mono">${esc((REPORTES[m.informe] || {}).nombre || m.informe)} · ` +
     `${esc(m.periodoEtiqueta || mesLargo(m.periodo))} · ${hojas} ${hojas === 1 ? "hoja" : "hojas"}</span><br>` +
     `Fuente: ${esc(m.fuente || "Power BI")}<br>Actualizado ${esc(fechaLarga(m.actualizado))}`);
@@ -2058,6 +2229,28 @@ function abrir(id) { const d = $(id); d.showModal ? d.showModal() : (d.open = tr
 document.querySelectorAll("[data-cerrar]").forEach((b) =>
   b.addEventListener("click", () => $(b.dataset.cerrar).close()));
 
+/**
+ * La forma del JSON, tomada de lo último que trajo el backend. Antes acá había
+ * un ejemplo inventado; lo que de verdad documenta el contrato es la respuesta
+ * real, y si todavía no hubo ninguna, el esqueleto alcanza.
+ */
+function muestraContrato(tipo) {
+  if (DATOS && DATOS.meta) {
+    const corte = { meta: DATOS.meta, secciones: (DATOS.secciones || []).slice(0, 2) };
+    if (DATOS.tablero) corte.tablero = { titulo: DATOS.tablero.titulo,
+      solapas: (DATOS.tablero.solapas || []).map((x) => ({ clave: x.clave, rotulo: x.rotulo,
+        bloques: (x.bloques || []).map((b) => b.tipo) })) };
+    return JSON.stringify(corte, null, 2).slice(0, 3000) + "\n…";
+  }
+  return JSON.stringify({
+    meta: { organizacion: "…", informe: tipo, titulo: "…", bajada: "…", fuente: "Power BI — …",
+            periodo: "2026-07", filtros: { sociedad: "…" }, unidad: "millones de $",
+            escala: 1e6, actualizado: "2026-07-31T12:00:00Z" },
+    secciones: [{ tipo: "kpis", items: [{ etiqueta: "…", valor: 0, formato: "moneda" }] }],
+    tablero: { titulo: "…", solapas: [{ clave: "resumen", rotulo: "Resumen", bloques: [] }] }
+  }, null, 2) + "\n\nActualizá una vez y acá aparece la respuesta real de tu tablero.";
+}
+
 function pintarContrato() {
   const c = $("cuerpoContrato");
   const tipo = $("fTipo").value;
@@ -2069,7 +2262,7 @@ function pintarContrato() {
     <div class="tabs" id="tabsInforme">${Object.keys(REPORTES).map((k) =>
       `<button type="button" data-tipo="${k}" aria-pressed="${k === tipo}">${esc(REPORTES[k].nombre)}</button>`).join("")}</div>
     <h3>JSON normalizado</h3>
-    <pre class="cod">${esc(JSON.stringify(ejemploJson(tipo), null, 2).slice(0, 2600))}…</pre>
+    <pre class="cod">${esc(muestraContrato(tipo))}</pre>
     <h3>Secciones que entiende el artefacto</h3>
     <pre class="cod">kpis                 items[]  → etiqueta, valor, formato, delta, sentido, serie[], titular
 resumen | narrativa  parrafos[], puntos[]     (**negrita** permitida)
@@ -2279,12 +2472,6 @@ async function sincronizarInformes() {
 function pintarLineaInforme() {
   const k = $("fTipo").value;
   $("nombreInforme").textContent = (REPORTES[k] || {}).nombre || k || "—";
-  const posibles = DISPONIBLES
-    ? Object.values(DISPONIBLES).filter((d) => d.disponible).length
-    : Object.keys(REPORTES).length;
-  const cambiar = $("btnCambiarInforme");
-  cambiar.hidden = posibles < 2;
-  if (cambiar.hidden) $("campoTipo").hidden = true;
 }
 
 /**
@@ -2293,7 +2480,10 @@ function pintarLineaInforme() {
  */
 async function alElegirTablero() {
   guardarPrefs();
-  await Promise.all([sincronizarInformes(), traerContexto()]);
+  mostrarInforme();
+  estado("", "Leyendo el tablero…", "Averiguando qué informe soporta y qué segmentadores tiene.");
+  await sincronizarInformes();
+  await traerContexto();
   const k = $("fTipo").value;
   if (!k || !DISPONIBLES || !DISPONIBLES[k] || !DISPONIBLES[k].disponible) { avisarInforme(); return; }
   await actualizar();
@@ -2395,34 +2585,50 @@ function pintarSesion(a) {
   if ($("btnEntrar")) $("btnEntrar").addEventListener("click", entrarSesion);
 }
 
+/**
+ * El ingreso se muestra en dos lugares —el paso a paso del panel y la barra
+ * del diálogo— y los dos tienen que reflejar lo mismo. Acá se guarda el
+ * estado una vez y se avisa a ambos; antes cada uno pintaba por su cuenta y
+ * el del panel se quedaba mudo.
+ */
+function anotarSesion(a) {
+  SESION = a;
+  pintarPasos();
+  if ($("barraSesion") && $("dlgConectar").open) pintarSesion(a);
+}
+
 async function entrarSesion() {
-  $("barraSesion").innerHTML =
-    '<div class="sesion"><span class="txt"><span class="latiendo">Pidiendo el código a Microsoft…</span></span></div>';
+  $("pasoSesion").innerHTML =
+    '<div class="paso"><span class="latiendo">Pidiendo el código a Microsoft…</span></div>';
   try {
     const r = await API.pedir("/api/auth/ingresar", { method: "POST" });
-    pintarSesion(r.estado.ingreso ? r.estado : { ...r.estado, ingreso: { userCode: r.userCode, url: r.url } });
-    // mientras el usuario completa el ingreso, se pregunta al backend si ya entró
+    anotarSesion(r.estado.ingreso ? r.estado
+      : { ...r.estado, ingreso: { userCode: r.userCode, url: r.url } });
+    // mientras la persona completa el ingreso, se pregunta al backend si ya entró
     clearInterval(sondeoSesion);
     sondeoSesion = setInterval(async () => {
       try {
         const a = await API.pedir("/api/auth");
         if (a.conectado || a.error || !a.ingreso) {
           clearInterval(sondeoSesion); sondeoSesion = null;
-          pintarSesion(a);
-          if (a.conectado) { cargarWorkspaces(); cargarMapeo(); }
+          anotarSesion(a);
+          if (a.conectado) { cargarAreas(); if ($("dlgConectar").open) cargarMapeo(); }
         }
       } catch (e) { clearInterval(sondeoSesion); sondeoSesion = null; }
-    }, 3000);
+    }, 2500);
   } catch (e) {
-    $("barraSesion").innerHTML =
-      `<div class="sesion falta"><span class="txt"><b>No se pudo iniciar</b>${esc(e.message)}</span></div>`;
+    $("pasoSesion").innerHTML =
+      `<div class="paso"><b>No se pudo iniciar</b><span>${esc(e.message)}</span></div>`;
   }
 }
 
 async function salirSesion() {
   clearInterval(sondeoSesion); sondeoSesion = null;
-  try { pintarSesion(await API.pedir("/api/auth/salir", { method: "POST" })); }
-  catch (e) { verSesion(); }
+  clearInterval(SONDEO_PASO); SONDEO_PASO = null;
+  try { anotarSesion(await API.pedir("/api/auth/salir", { method: "POST" })); }
+  catch (e) { arrancarPasos(); }
+  $("pasoWs").hidden = true; $("pasoDs").hidden = true;
+  ocultarInforme();
 }
 
 /**
@@ -2894,315 +3100,9 @@ function iniciarConectar() {
   $("btnDetectar").addEventListener("click", detectarMapeo);
   $("btnVerificar").addEventListener("click", verificarMapeo);
   $("btnReiniciarMapeo").addEventListener("click", reiniciarMapeo);
-  $("btnCambiarInforme").addEventListener("click", () => {
-    const c = $("campoTipo");
-    c.hidden = !c.hidden;
-    if (!c.hidden) $("fTipo").focus();
-  });
   $("btnGuardarMapeo").addEventListener("click", guardarMapeo);
   $("btnDax").addEventListener("click", () => correrDax());
   pintarAtajos();
-}
-
-/* ═══════════════════════════════════════════════════════════════════════
-   7 · DATOS DE EJEMPLO
-   Cifras inventadas, con la forma exacta que devuelve el backend. Sirven
-   para ver el formato antes de conectar el tablero — van marcadas como
-   ejemplo en cada hoja, también en el PDF.
-   ═══════════════════════════════════════════════════════════════════════ */
-const MESES = ["Ago 25","Sep 25","Oct 25","Nov 25","Dic 25","Ene 26","Feb 26","Mar 26","Abr 26","May 26","Jun 26","Jul 26"];
-
-function ejemploJson(tipo) {
-  const base = {
-    organizacion: "Grupo IHSA",
-    informe: tipo,
-    periodo: "2026-07",
-    periodoEtiqueta: "Julio 2026",
-    filtros: { sociedad: "IHSA", vertical: "Todas" },
-    unidad: "millones de $",
-    escala: 1e6,
-    actualizado: new Date().toISOString(),
-    workspaceId: "", datasetId: ""
-  };
-  const real = [96.4,101.2,99.8,104.6,118.3,92.7,97.1,108.4,112.9,115.2,119.6,125.0].map((v) => v * 1e6);
-  const bo   = [ 98.0,100.0,102.0,105.0,112.0,95.0,99.0,106.0,110.0,114.0,116.0,118.0].map((v) => v * 1e6);
-
-  if (tipo === "finanzas") return {
-    meta: { ...base, titulo: "Informe de Finanzas", fuente: "Power BI — Real vs BO / OPEX" },
-    secciones: [
-      { tipo: "kpis", items: [
-        { etiqueta: "Facturación real", valor: 125.0e6, formato: "moneda", delta: 7.0e6, deltaEtiqueta: "vs BO", sentido: "positivo", titular: true, serie: real.slice(-8) },
-        { etiqueta: "Objetivo (BO)", valor: 118.0e6, formato: "moneda", nota: "Presupuesto vigente" },
-        { etiqueta: "OPEX", valor: 41.8e6, formato: "moneda", delta: 2.3e6, deltaEtiqueta: "vs BO", sentido: "negativo" },
-        { etiqueta: "Provisiones", valor: 6.4e6, formato: "moneda", delta: -0.8e6, deltaEtiqueta: "vs mes ant.", sentido: "negativo" },
-        { etiqueta: "Pendiente de facturar", valor: 18.7e6, formato: "moneda", nota: "3 obras en certificación" },
-        { etiqueta: "DSO", valor: 52, formato: "dias", delta: -4, deltaEtiqueta: "vs mes ant.", sentido: "negativo", formatoDelta: "dias" }
-      ]},
-      { tipo: "resumen", titulo: "Lectura del período", parrafos: [
-        "El mes cierra **7,0 M$ por encima del BO** (+5,9 %), con el grueso del desvío favorable explicado por Petróleo. OPEX quedó **2,3 M$ arriba** del presupuesto por mayor costo de logística y una recomposición salarial adelantada.",
-        "La cobranza mejoró: el DSO baja a **52 días** (−4 contra junio) y el tramo de más de 90 días se reduce por segundo mes consecutivo."
-      ]},
-      { tipo: "barrasHorizontales", titulo: "OPEX por categoría", subtitulo: "Julio 2026", medida: "[OPEX]",
-        formato: "moneda", ejeEtiqueta: "Categoría", items: [
-          { etiqueta: "Personal", valor: 16.2e6 }, { etiqueta: "Logística", valor: 8.9e6 },
-          { etiqueta: "Mantenimiento", valor: 5.6e6 }, { etiqueta: "Servicios profesionales", valor: 4.1e6 },
-          { etiqueta: "Alquileres", valor: 3.2e6 }, { etiqueta: "Seguros", valor: 2.1e6 },
-          { etiqueta: "Otros", valor: 1.7e6 }
-        ], nota: "Personal y logística concentran el 60 % del OPEX del período." },
-      { tipo: "saltoPagina" },
-      { tipo: "barrasApiladas", titulo: "Aging de cuentas por cobrar", subtitulo: "Saldo por tramo de vencimiento",
-        medida: "[Saldo CxC]", formato: "moneda", rampa: "ordinal", ejeEtiqueta: "Vertical",
-        ejeX: ["Petróleo", "Minería", "O&OD", "Corporativo"], series: [
-          { nombre: "0–30 días", datos: [22.4e6, 14.1e6, 9.8e6, 3.2e6] },
-          { nombre: "31–60 días", datos: [11.2e6, 7.6e6, 5.1e6, 1.4e6] },
-          { nombre: "61–90 días", datos: [5.8e6, 3.9e6, 2.4e6, 0.7e6] },
-          { nombre: "Más de 90 días", datos: [4.1e6, 2.2e6, 1.6e6, 0.3e6] }
-        ], nota: "El tramo de más de 90 días representa el 8,0 % de la cartera (9,4 % en junio)." },
-      { tipo: "lineas", titulo: "Evolución del DSO", subtitulo: "Días de venta pendientes de cobro",
-        medida: "[DSO]", formato: "dias", formatoEje: "entero", ejeEtiqueta: "Mes",
-        ejeX: MESES, series: [{ nombre: "DSO", datos: [61,63,60,58,57,59,61,58,56,55,56,52] }] },
-      { tipo: "tabla", titulo: "Aging por vertical", medida: "[Saldo CxC]",
-        columnas: [
-          { clave: "vertical", titulo: "Vertical", tipo: "texto" },
-          { clave: "t1", titulo: "0–30", tipo: "monto" }, { clave: "t2", titulo: "31–60", tipo: "monto" },
-          { clave: "t3", titulo: "61–90", tipo: "monto" }, { clave: "t4", titulo: "+90", tipo: "monto" },
-          { clave: "total", titulo: "Total", tipo: "monto" },
-          { clave: "pct90", titulo: "% +90", tipo: "pct" }
-        ],
-        filas: [
-          { vertical: "Petróleo", t1: 22.4e6, t2: 11.2e6, t3: 5.8e6, t4: 4.1e6, total: 43.5e6, pct90: 9.4 },
-          { vertical: "Minería", t1: 14.1e6, t2: 7.6e6, t3: 3.9e6, t4: 2.2e6, total: 27.8e6, pct90: 7.9 },
-          { vertical: "O&OD", t1: 9.8e6, t2: 5.1e6, t3: 2.4e6, t4: 1.6e6, total: 18.9e6, pct90: 8.5 },
-          { vertical: "Corporativo", t1: 3.2e6, t2: 1.4e6, t3: 0.7e6, t4: 0.3e6, total: 5.6e6, pct90: 5.4 }
-        ],
-        total: { vertical: "Total", t1: 49.5e6, t2: 25.3e6, t3: 12.8e6, t4: 8.2e6, total: 95.8e6, pct90: 8.6 } }
-    ]
-  };
-
-  if (tipo === "kam") return {
-    meta: { ...base, titulo: "Informe por Cliente (KAM)", fuente: "Power BI — Cartera KAM" },
-    secciones: [
-      { tipo: "kpis", items: [
-        { etiqueta: "Facturación de cartera", valor: 125.0e6, formato: "moneda", delta: 9.8e6, deltaEtiqueta: "vs jun.", sentido: "positivo", titular: true, serie: real.slice(-8) },
-        { etiqueta: "Costos", valor: 88.2e6, formato: "moneda", delta: 6.1e6, deltaEtiqueta: "vs jun.", sentido: "negativo" },
-        { etiqueta: "Margen", valor: 36.8e6, formato: "moneda", delta: 3.7e6, deltaEtiqueta: "vs jun.", sentido: "positivo" },
-        { etiqueta: "Margen %", valor: 29.4, formato: "pct", delta: 0.6, formatoDelta: "pp", deltaEtiqueta: "vs jun.", sentido: "positivo" },
-        { etiqueta: "Clientes activos", valor: 23, formato: "entero", nota: "2 altas en el período" }
-      ]},
-      { tipo: "resumen", titulo: "Lectura de cartera", parrafos: [
-        "Los **cinco primeros clientes explican el 68 %** de la facturación del mes. YPF sostiene el volumen y Pan American recupera actividad tras la parada de mayo.",
-        "El margen de Tecpetrol sigue **por debajo del umbral de 20 %**: es el punto a revisar en la próxima reunión de cartera."
-      ]},
-      { tipo: "barrasHorizontales", titulo: "Facturación por cliente", subtitulo: "Julio 2026",
-        medida: "[Facturación]", formato: "moneda", ejeEtiqueta: "Cliente", items: [
-          { etiqueta: "YPF", valor: 32.4e6 }, { etiqueta: "Pan American Energy", valor: 24.1e6 },
-          { etiqueta: "Vista Energy", valor: 14.8e6 }, { etiqueta: "Tecpetrol", valor: 12.2e6 },
-          { etiqueta: "Minera Alumbrera", valor: 11.6e6 }, { etiqueta: "Pluspetrol", valor: 9.7e6 },
-          { etiqueta: "Shell Argentina", valor: 8.3e6 }, { etiqueta: "Resto de cartera", valor: 11.9e6 }
-        ]},
-      { tipo: "saltoPagina" },
-      { tipo: "tabla", titulo: "Detalle por cliente", medida: "[Facturación] · [Margen]",
-        columnas: [
-          { clave: "cliente", titulo: "Cliente", tipo: "texto" },
-          { clave: "kam", titulo: "KAM", tipo: "texto" },
-          { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
-          { clave: "costos", titulo: "Costos", tipo: "monto" },
-          { clave: "margen", titulo: "Margen", tipo: "monto" },
-          { clave: "margenPct", titulo: "Margen %", tipo: "pct" },
-          { clave: "vsBo", titulo: "vs BO", tipo: "monto", firmado: true, colorear: true }
-        ],
-        filas: [
-          { cliente: "YPF", kam: "M. Bianchi", facturacion: 32.4e6, costos: 22.1e6, margen: 10.3e6, margenPct: 31.8, vsBo: 2.4e6 },
-          { cliente: "Pan American Energy", kam: "M. Bianchi", facturacion: 24.1e6, costos: 16.8e6, margen: 7.3e6, margenPct: 30.3, vsBo: 1.9e6 },
-          { cliente: "Vista Energy", kam: "L. Ferreyra", facturacion: 14.8e6, costos: 10.2e6, margen: 4.6e6, margenPct: 31.1, vsBo: 0.7e6 },
-          { cliente: "Tecpetrol", kam: "L. Ferreyra", facturacion: 12.2e6, costos: 10.1e6, margen: 2.1e6, margenPct: 17.2, vsBo: -1.3e6 },
-          { cliente: "Minera Alumbrera", kam: "S. Quiroga", facturacion: 11.6e6, costos: 8.0e6, margen: 3.6e6, margenPct: 31.0, vsBo: 0.4e6 },
-          { cliente: "Pluspetrol", kam: "S. Quiroga", facturacion: 9.7e6, costos: 6.9e6, margen: 2.8e6, margenPct: 28.9, vsBo: 0.2e6 },
-          { cliente: "Shell Argentina", kam: "M. Bianchi", facturacion: 8.3e6, costos: 5.8e6, margen: 2.5e6, margenPct: 30.1, vsBo: -0.3e6 },
-          { cliente: "Resto de cartera", kam: "—", facturacion: 11.9e6, costos: 8.3e6, margen: 3.6e6, margenPct: 30.3, vsBo: 0.8e6 }
-        ],
-        total: { cliente: "Total cartera", kam: "", facturacion: 125.0e6, costos: 88.2e6, margen: 36.8e6, margenPct: 29.4, vsBo: 4.8e6 } },
-      { tipo: "comentario", titulo: "Comentario del responsable", autor: "Dirección Comercial", parrafos: [
-        "Se mantiene el foco en recomponer el margen de Tecpetrol antes del cierre del trimestre. La renegociación de la tarifa de equipos está agendada para la primera semana de agosto."
-      ]}
-    ]
-  };
-
-  if (tipo === "deuda") return {
-    meta: { ...base, titulo: "Informe de Deuda y Cobranzas", fuente: "Power BI — Deuda",
-            organizacion: "Emergencias" },
-    secciones: [
-      { tipo: "kpis", items: [
-        { etiqueta: "Deuda total", valor: 1482.0e6, formato: "moneda", titular: true,
-          nota: "Cobranza + facturación pendiente", serie: [1310,1352,1398,1421,1440,1465,1474,1482].map((v) => v * 1e6) },
-        { etiqueta: "Deuda de cobranza", valor: 1105.0e6, formato: "moneda", sentido: "negativo" },
-        { etiqueta: "Pendiente de facturar", valor: 377.0e6, formato: "moneda", sentido: "negativo" },
-        { etiqueta: "Deuda vencida", valor: 612.0e6, formato: "moneda",
-          nota: "41,3 % de la cartera" },
-        { etiqueta: "Índice de riesgo", valor: 41.3, formato: "pct", sentido: "negativo" },
-        { etiqueta: "Clientes", valor: 238, formato: "entero" },
-        { etiqueta: "DSO institucional", valor: 51, formato: "dias",
-          nota: "Último período: Jul 26", serie: [68, 66, 63, 61, 59, 57, 54, 51] }
-      ]},
-      { tipo: "resumen", titulo: "Lectura de cartera", parrafos: [
-        "La cartera cierra en **1.482,0 M$**, de los cuales **612,0 M$ están vencidos** (41,3 %). El tramo de más de 180 días concentra 148,0 M$ y es el que define el índice de riesgo.",
-        "Los diez primeros clientes explican el **57 %** de la deuda total: la exposición está concentrada y la gestión de cobranza rinde más ahí que en la cola."
-      ]},
-      { tipo: "barrasHorizontales", titulo: "Deuda por tramo de vencimiento",
-        subtitulo: "Cartera completa, sin corte de período", medida: "[Deuda Cobranza]",
-        formato: "moneda", ejeEtiqueta: "Tramo", items: [
-          { etiqueta: "No vencido", valor: 493.0e6 }, { etiqueta: "01–30", valor: 221.0e6 },
-          { etiqueta: "31–60", valor: 154.0e6 }, { etiqueta: "61–90", valor: 89.0e6 },
-          { etiqueta: "91–180", valor: 100.0e6 }, { etiqueta: "+180", valor: 148.0e6 }
-        ], nota: "El aging es una foto al momento de la última actualización del modelo." },
-      { tipo: "barrasHorizontales", titulo: "Deuda por negocio", medida: "[Deuda Total]",
-        formato: "moneda", ejeEtiqueta: "Negocio", items: [
-          { etiqueta: "Corporaciones", valor: 812.0e6 }, { etiqueta: "Petróleo", valor: 401.0e6 },
-          { etiqueta: "Minería", valor: 178.0e6 }, { etiqueta: "Individuos", valor: 91.0e6 }
-        ]},
-      { tipo: "lineas", titulo: "Evolución del DSO",
-        subtitulo: "Días de venta pendientes de cobro",
-        medida: "MIN(DSO[DSO - CORPORACIONES - PETR])", formato: "dias",
-        formatoEje: "entero", ejeEtiqueta: "Período",
-        ejeX: ["Dic 25","Ene 26","Feb 26","Mar 26","Abr 26","May 26","Jun 26","Jul 26"],
-        series: [{ nombre: "DSO", datos: [68, 66, 63, 61, 59, 57, 54, 51] }] },
-      { tipo: "saltoPagina" },
-      { tipo: "barrasHorizontales", titulo: "Concentración por cliente",
-        subtitulo: "Los de mayor deuda", medida: "[Deuda Total]", formato: "moneda",
-        ejeEtiqueta: "Cliente", items: [
-          { etiqueta: "YPF S.A.", valor: 214.0e6 }, { etiqueta: "Pan American Energy", valor: 168.0e6 },
-          { etiqueta: "Techint", valor: 121.0e6 }, { etiqueta: "Vista Energy", valor: 98.0e6 },
-          { etiqueta: "Tecpetrol", valor: 87.0e6 }, { etiqueta: "Aluar", valor: 74.0e6 },
-          { etiqueta: "Pluspetrol", valor: 66.0e6 }, { etiqueta: "Minera Alumbrera", valor: 58.0e6 }
-        ]},
-      { tipo: "tabla", titulo: "Detalle por cliente", medida: "[Deuda Total] · [Deuda_Cobranza_Vencida]",
-        columnas: [
-          { clave: "cliente", titulo: "Cliente", tipo: "texto" },
-          { clave: "gestor", titulo: "Gestor", tipo: "texto" },
-          { clave: "total", titulo: "Deuda total", tipo: "monto" },
-          { clave: "cobranza", titulo: "Cobranza", tipo: "monto" },
-          { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
-          { clave: "vencida", titulo: "Vencida", tipo: "monto" },
-          { clave: "pctVencida", titulo: "% vencido", tipo: "pct" }
-        ],
-        filas: [
-          { cliente: "YPF S.A.", gestor: "M. Bianchi", total: 214.0e6, cobranza: 160.0e6, facturacion: 54.0e6, vencida: 71.0e6, pctVencida: 33.2 },
-          { cliente: "Pan American Energy", gestor: "M. Bianchi", total: 168.0e6, cobranza: 129.0e6, facturacion: 39.0e6, vencida: 82.0e6, pctVencida: 48.8 },
-          { cliente: "Techint", gestor: "L. Ferreyra", total: 121.0e6, cobranza: 94.0e6, facturacion: 27.0e6, vencida: 38.0e6, pctVencida: 31.4 },
-          { cliente: "Vista Energy", gestor: "L. Ferreyra", total: 98.0e6, cobranza: 71.0e6, facturacion: 27.0e6, vencida: 21.0e6, pctVencida: 21.4 },
-          { cliente: "Tecpetrol", gestor: "S. Quiroga", total: 87.0e6, cobranza: 64.0e6, facturacion: 23.0e6, vencida: 52.0e6, pctVencida: 59.8 },
-          { cliente: "Aluar", gestor: "S. Quiroga", total: 74.0e6, cobranza: 58.0e6, facturacion: 16.0e6, vencida: 19.0e6, pctVencida: 25.7 },
-          { cliente: "Pluspetrol", gestor: "M. Bianchi", total: 66.0e6, cobranza: 49.0e6, facturacion: 17.0e6, vencida: 14.0e6, pctVencida: 21.2 },
-          { cliente: "Minera Alumbrera", gestor: "S. Quiroga", total: 58.0e6, cobranza: 44.0e6, facturacion: 14.0e6, vencida: 26.0e6, pctVencida: 44.8 }
-        ],
-        total: { cliente: "Total cartera", gestor: "", total: 1482.0e6, cobranza: 1105.0e6,
-                 facturacion: 377.0e6, vencida: 612.0e6, pctVencida: 41.3 },
-        nota: "Ordenado por deuda total. La consulta trae los 15 primeros." },
-      { tipo: "comentario", titulo: "Acción propuesta", autor: "Gestión de Cobranzas", parrafos: [
-        "Tecpetrol y Pan American concentran 134,0 M$ vencidos entre los dos. Se propone escalar ambos casos a instancia comercial antes del cierre del trimestre."
-      ]}
-    ]
-  };
-
-  if (tipo === "gerencia") return {
-    meta: { ...base, titulo: "Informe de Gerencia", fuente: "Power BI — Consolidado" },
-    secciones: [
-      { tipo: "kpis", items: [
-        { etiqueta: "Facturación real", valor: 125.0e6, formato: "moneda", delta: 7.0e6, deltaEtiqueta: "vs BO", sentido: "positivo", titular: true, serie: real.slice(-8) },
-        { etiqueta: "EBITDA", valor: 32.0e6, formato: "moneda", delta: 2.6e6, deltaEtiqueta: "vs BO", sentido: "positivo" },
-        { etiqueta: "Margen EBITDA", valor: 25.6, formato: "pct", delta: 0.7, formatoDelta: "pp", deltaEtiqueta: "vs BO", sentido: "positivo" },
-        { etiqueta: "DSO", valor: 52, formato: "dias", delta: -4, formatoDelta: "dias", deltaEtiqueta: "vs mes ant.", sentido: "negativo" }
-      ]},
-      { tipo: "resumen", titulo: "Síntesis del período", parrafos: [
-        "Julio cierra **por encima del objetivo en las tres verticales operativas**, con un acumulado del año que ya recupera el atraso del primer trimestre.",
-        "El margen EBITDA sube a **25,6 %**, siete décimas sobre el BO, con OPEX contenido pese al desvío de logística."
-      ], puntos: [
-        "**Petróleo** aporta 4,2 M$ del desvío favorable total de 7,0 M$.",
-        "**Minería** cierra levemente abajo por la parada programada de Alumbrera.",
-        "La cobranza mejora por segundo mes: DSO en **52 días**, el mejor valor del ejercicio."
-      ]},
-      { tipo: "barras", titulo: "Evolución Real vs BO", subtitulo: "Últimos 12 meses",
-        medida: "[Real] · [BO]", formato: "moneda", formatoEje: "monto", ejeEtiqueta: "Mes",
-        ejeX: MESES, series: [{ nombre: "Real", datos: real }, { nombre: "BO", datos: bo }] },
-      { tipo: "desvios", titulo: "Desvíos por vertical", subtitulo: "Real contra objetivo del mes",
-        medida: "[Variación]", formato: "moneda", items: [
-          { concepto: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, favorable: true },
-          { concepto: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, favorable: false },
-          { concepto: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, favorable: true },
-          { concepto: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, favorable: true }
-        ]},
-      { tipo: "tabla", titulo: "Real vs BO por vertical", medida: "[Real] · [BO] · [Variación]",
-        columnas: [
-          { clave: "vertical", titulo: "Vertical", tipo: "texto" },
-          { clave: "real", titulo: "Real", tipo: "monto" },
-          { clave: "bo", titulo: "BO", tipo: "monto" },
-          { clave: "desvio", titulo: "Desvío", tipo: "monto", firmado: true, colorear: true },
-          { clave: "desvioPct", titulo: "Desvío %", tipo: "pct", firmado: true, colorear: true },
-          { clave: "estado", titulo: "Situación", tipo: "estado" }
-        ],
-        filas: [
-          { vertical: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, estado: true },
-          { vertical: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, estado: false },
-          { vertical: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, estado: true },
-          { vertical: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, estado: true }
-        ],
-        total: { vertical: "Total", real: 125.0e6, bo: 118.0e6, desvio: 7.0e6, desvioPct: 5.9, estado: true } },
-      { tipo: "comentario", titulo: "Temas abiertos", autor: "Gerencia General", parrafos: [
-        "Queda pendiente definir el tratamiento de la provisión por el litigio de transporte antes del cierre del trimestre, y confirmar el calendario de la parada de Alumbrera de septiembre."
-      ]}
-    ]
-  };
-
-  return { // ejecutivo
-    meta: { ...base, titulo: "Informe Ejecutivo", fuente: "Power BI — Real vs BO" },
-    secciones: [
-      { tipo: "kpis", items: [
-        { etiqueta: "Facturación real", valor: 125.0e6, formato: "moneda", delta: 7.0e6, deltaEtiqueta: "vs BO", sentido: "positivo", titular: true, serie: real.slice(-8) },
-        { etiqueta: "Objetivo (BO)", valor: 118.0e6, formato: "moneda", nota: "Presupuesto vigente" },
-        { etiqueta: "Desvío vs BO", valor: 7.0e6, formato: "moneda", delta: 5.9, formatoDelta: "pp", deltaEtiqueta: "sobre objetivo", sentido: "positivo" },
-        { etiqueta: "EBITDA", valor: 32.0e6, formato: "moneda", delta: 2.6e6, deltaEtiqueta: "vs BO", sentido: "positivo" },
-        { etiqueta: "Margen EBITDA", valor: 25.6, formato: "pct", delta: 0.7, formatoDelta: "pp", deltaEtiqueta: "vs BO", sentido: "positivo" }
-      ]},
-      { tipo: "resumen", titulo: "Resumen ejecutivo", parrafos: [
-        "Julio cierra en **125,0 M$**, 7,0 M$ por encima del objetivo (**+5,9 %**). Es el cuarto mes consecutivo por sobre el BO y el mejor registro del ejercicio.",
-        "El EBITDA alcanza **32,0 M$** con un margen de **25,6 %**, siete décimas sobre el presupuesto, sostenido por la mayor actividad en Petróleo y O&OD."
-      ], puntos: [
-        "**Petróleo** aporta 4,2 M$ del desvío favorable, con 7,2 % sobre objetivo.",
-        "**Minería** cierra 0,9 M$ abajo por la parada programada de Alumbrera.",
-        "El acumulado del año queda **2,1 % sobre el BO**, recuperando el atraso del primer trimestre."
-      ]},
-      { tipo: "barras", titulo: "Evolución Real vs BO", subtitulo: "Últimos 12 meses",
-        medida: "[Real] · [BO]", formato: "moneda", formatoEje: "monto", ejeEtiqueta: "Mes",
-        ejeX: MESES, series: [{ nombre: "Real", datos: real }, { nombre: "BO", datos: bo }],
-        nota: "La etiqueta directa marca el cierre del período; el resto de los valores está en Ver datos." },
-      { tipo: "desvios", titulo: "Desvíos por vertical", subtitulo: "Real contra objetivo del mes",
-        medida: "[Variación]", formato: "moneda", items: [
-          { concepto: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, favorable: true },
-          { concepto: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, favorable: false },
-          { concepto: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, favorable: true },
-          { concepto: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, favorable: true }
-        ]},
-      { tipo: "tabla", titulo: "Real vs BO por vertical", medida: "[Real] · [BO] · [Variación]",
-        columnas: [
-          { clave: "vertical", titulo: "Vertical", tipo: "texto" },
-          { clave: "real", titulo: "Real", tipo: "monto" },
-          { clave: "bo", titulo: "BO", tipo: "monto" },
-          { clave: "desvio", titulo: "Desvío", tipo: "monto", firmado: true, colorear: true },
-          { clave: "desvioPct", titulo: "Desvío %", tipo: "pct", firmado: true, colorear: true },
-          { clave: "estado", titulo: "Situación", tipo: "estado" }
-        ],
-        filas: [
-          { vertical: "Petróleo", real: 62.4e6, bo: 58.2e6, desvio: 4.2e6, desvioPct: 7.2, estado: true },
-          { vertical: "Minería", real: 31.1e6, bo: 32.0e6, desvio: -0.9e6, desvioPct: -2.8, estado: false },
-          { vertical: "O&OD", real: 24.8e6, bo: 21.6e6, desvio: 3.2e6, desvioPct: 14.8, estado: true },
-          { vertical: "Corporativo", real: 6.7e6, bo: 6.2e6, desvio: 0.5e6, desvioPct: 8.1, estado: true }
-        ],
-        total: { vertical: "Total", real: 125.0e6, bo: 118.0e6, desvio: 7.0e6, desvioPct: 5.9, estado: true } },
-      { tipo: "comentario", titulo: "Lectura de cierre", autor: "Dirección de Administración y Finanzas", parrafos: [
-        "El desvío favorable es de actividad, no de precio: el volumen facturado en Petróleo creció 6,8 % contra el mes anterior. Se mantiene la proyección de cierre de ejercicio sin cambios."
-      ]}
-    ]
-  };
 }
 
 /* ═══════════════════════════════════════════════════════════════════════
@@ -3250,6 +3150,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("fTipo").value = p.tipo && REPORTES[p.tipo] ? p.tipo : "ejecutivo";
   $("fPeriodo").value = p.periodo || "2026-07";
   FILTROS_GUARDADOS = p.filtros || {};
+  if (p.aVencer === false) INCLUIR_A_VENCER = false;
   if (p.modo === "tablero" || p.modo === "informe") MODO = p.modo;
   $("fZoom").value = p.zoom || "100";
   $("zoomVal").textContent = $("fZoom").value + "%";
@@ -3261,15 +3162,14 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("fDataset").addEventListener("change", () => { if (ES_GUID.test($("fDataset").value.trim())) traerContexto(); });
 
   $("btnActualizar").addEventListener("click", actualizar);
-  $("btnDemo").addEventListener("click", () => aplicar(ejemploJson($("fTipo").value), true));
   $("btnPegar").addEventListener("click", () => {
-    $("areaJson").value = JSON.stringify(ejemploJson($("fTipo").value), null, 2);
+    $("areaJson").value = "";
     $("errJson").style.display = "none";
     abrir("dlgJson");
   });
   $("btnAplicarJson").addEventListener("click", () => {
     try {
-      aplicar(JSON.parse($("areaJson").value), false);
+      aplicar(JSON.parse($("areaJson").value));
       $("dlgJson").close();
     } catch (e) {
       const err = $("errJson");
@@ -3280,9 +3180,9 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("btnContrato").addEventListener("click", () => { pintarContrato(); abrir("dlgContrato"); });
   $("btnCopiarContrato").addEventListener("click", async (ev) => {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(ejemploJson($("fTipo").value), null, 2));
+      await navigator.clipboard.writeText(muestraContrato($("fTipo").value));
       ev.target.textContent = "Copiado";
-      setTimeout(() => (ev.target.textContent = "Copiar ejemplo"), 1600);
+      setTimeout(() => (ev.target.textContent = "Copiar contrato"), 1600);
     } catch (e) { ev.target.textContent = "No se pudo copiar"; }
   });
   iniciarConectar();
@@ -3305,11 +3205,11 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("velo").addEventListener("click", () => alterna(false));
   addEventListener("keydown", (e) => { if (e.key === "Escape") alterna(false); });
 
-  // el informe abre mostrando cómo queda: el ejemplo va marcado en cada hoja
-  aplicar(ejemploJson($("fTipo").value), true);
+  render(null);
   pintarLineaInforme();
-  // y si hay backend, el selector pasa a reflejar sus informes
+  iniciarPasos();
+  // el backend manda: qué informes hay, y en qué punto del camino estamos
   sincronizarInformes();
-  traerTableroGuardado().then(traerContexto);
+  traerTableroGuardado().then(arrancarPasos);
 })();
 </script>

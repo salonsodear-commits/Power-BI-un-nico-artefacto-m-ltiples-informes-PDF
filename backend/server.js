@@ -147,8 +147,20 @@ app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
   if (!GUID.test(ws) || !GUID.test(ds)) {
     const e = new Error("Workspace y modelo deben ser GUID"); e.status = 400; throw e;
   }
-  return CONTEXTO.contexto(ws, ds);
+  // Se prueba contra las medidas del informe que este modelo va a dar: un
+  // segmentador que no sepa repartirlas no sirve para este tablero, aunque
+  // técnicamente exista.
+  const informe = INFORMES[req.query.informe] || INFORMES[informeQueCorresponde()] || {};
+  const medidas = (informe.requiere || {}).medidas || [];
+  const ctx = await CONTEXTO.contexto(ws, ds, medidas);
+  return { ...ctx, informe: req.query.informe || informeQueCorresponde() };
 }));
+
+/** El informe que el mapeo actual soporta. Es lo que el tablero va a mostrar. */
+function informeQueCorresponde() {
+  const posible = Object.keys(INFORMES).find((k) => loQueFalta(INFORMES[k]).length === 0);
+  return posible || Object.keys(INFORMES)[0];
+}
 
 /* ══ mapeo del modelo ══════════════════════════════════════════════════ */
 
@@ -268,12 +280,19 @@ app.post("/api/informe", async (req, res) => {
     });
   }
 
-  const filtros = cuerpo.filtros || {};
+  // Lo que el tablero mira por defecto —una sociedad, un canal— sale del
+  // mapeo, no del navegador: si el artefacto no manda nada, el informe igual
+  // tiene que salir recortado como corresponde.
+  const filtros = { ...guardado.filtrosPorDefecto, ...(cuerpo.filtros || {}) };
+  for (const [k, v] of Object.entries(filtros)) {
+    if (!v || v === "Todas") delete filtros[k];
+  }
   const p = {
     workspaceId, datasetId,
     periodo: cuerpo.periodo,
-    sociedad: filtros.sociedad,
-    vertical: filtros.vertical
+    filtros,
+    // «a vencer» entra salvo que digan que no
+    incluirAVencer: cuerpo.incluirAVencer !== false
   };
 
   try {
@@ -300,7 +319,8 @@ app.post("/api/informe", async (req, res) => {
         bajada: informe.meta.bajada,
         fuente: informe.meta.fuente,
         periodo: p.periodo,
-        filtros: { sociedad: p.sociedad || "Todas", vertical: p.vertical || "Todas" },
+        filtros,
+        incluirAVencer: p.incluirAVencer,
         unidad: "millones de $",
         escala: 1e6,
         workspaceId, datasetId,

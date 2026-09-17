@@ -110,7 +110,11 @@ const POR_DEFECTO = {
   // Referencias que el modelo semántico rechazó. Se llenan solas, al verificar
   // o cuando un informe falla, y valen tanto como un campo sin mapear: la
   // diferencia es que acá se conserva el texto para poder corregirlo.
-  rotos: []
+  rotos: [],
+  // Con qué valor arranca cada segmentador. Un tablero suele mirar una sola
+  // sociedad aunque el modelo tenga varias: sin esto, el informe sale con
+  // datos de sociedades que nadie pidió.
+  filtrosPorDefecto: {}
 };
 
 /* ── validación ──────────────────────────────────────────────────────
@@ -161,7 +165,8 @@ function normalizar(entrada) {
     organizacion: String(e.organizacion || "").slice(0, 80),
     workspaceId: String(e.workspaceId || "").trim(),
     datasetId: String(e.datasetId || "").trim(),
-    rotos: []
+    rotos: [],
+    filtrosPorDefecto: {}
   };
   for (const c of CAMPOS.medidas) {
     salida.medidas[c.clave] = validarRef((e.medidas || {})[c.clave], "medida");
@@ -177,6 +182,12 @@ function normalizar(entrada) {
     .map((c) => c.rotulo);
   if (faltan.length) throw new Error("Falta mapear: " + faltan.join(", "));
   // sólo identificadores conocidos, y sólo de campos que tienen algo escrito
+  // sólo dimensiones conocidas, y el valor como texto llano
+  for (const [clave, valor] of Object.entries(e.filtrosPorDefecto || {})) {
+    if (!salida.columnas[clave] || valor == null) continue;
+    const v = String(valor).trim().slice(0, 120);
+    if (v) salida.filtrosPorDefecto[clave] = v;
+  }
   salida.rotos = (Array.isArray(e.rotos) ? e.rotos : [])
     .map(String)
     .filter((id) => VALIDOS.has(id))
@@ -223,6 +234,7 @@ function guardar(entrada) {
   const heredados = (entrada && Array.isArray(entrada.rotos) ? entrada.rotos : previo.rotos)
     .filter((id) => { const [g, c] = String(id).split("."); return previo[g] && previo[g][c] === m[g][c]; });
   m.rotos = normalizar({ ...m, rotos: heredados }).rotos;
+  if (!entrada || !entrada.filtrosPorDefecto) m.filtrosPorDefecto = previo.filtrosPorDefecto;
   escribir(m);
   return m;
 }

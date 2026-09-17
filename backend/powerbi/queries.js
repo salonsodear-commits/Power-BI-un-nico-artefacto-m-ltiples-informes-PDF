@@ -72,10 +72,19 @@ function fVentana(periodo, n) {
   return `FILTER(ALL(${tablaDe(col)}), ${col} IN {${vals}})`;
 }
 
-/** Filtros de sociedad y vertical, sólo los que estén mapeados y pedidos. */
-function fDimensiones({ sociedad, vertical }) {
+/**
+ * Los filtros que pidió el usuario, uno por dimensión mapeada.
+ *
+ * No hay lista fija de dimensiones: llegan por clave desde el panel, que a su
+ * vez sólo ofrece las que el contexto probó que funcionan. Acepta también las
+ * claves sueltas de la forma vieja (`{sociedad, vertical}`) para no romper a
+ * los informes que todavía las usan así.
+ */
+function fDimensiones(p) {
+  const pedidos = p && p.filtros ? p.filtros
+    : { sociedad: (p || {}).sociedad, vertical: (p || {}).vertical };
   const partes = [];
-  for (const [clave, valor] of [["sociedad", sociedad], ["vertical", vertical]]) {
+  for (const [clave, valor] of Object.entries(pedidos || {})) {
     const col = c(clave);
     if (!col || !valor || valor === "Todas") continue;
     partes.push(`FILTER(ALL(${tablaDe(col)}), ${col} = ${lit(valor)})`);
@@ -134,6 +143,20 @@ function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = t
     : `\nEVALUATE\n  ${tabla}${porOrden}`;
 }
 
+/**
+ * Excluye un tramo del aging de las consultas de cobranza.
+ *
+ * «A vencer» no es deuda en el sentido de gestión —todavía no venció— pero sí
+ * suma al saldo. Que entre o no cambia el total, así que la decisión es del
+ * que lee, no del informe.
+ */
+function fSinTramo(etiquetas) {
+  const col = c("agingTramo");
+  if (!col || !etiquetas || !etiquetas.length) return null;
+  const vals = etiquetas.map(lit).join(", ");
+  return `FILTER(ALL(${tablaDe(col)}), NOT(${col} IN {${vals}}))`;
+}
+
 /** Los valores distintos de una columna, para saber si el tablero ya la filtró. */
 function valoresDe(col, tope = 12) {
   if (!col) return null;
@@ -143,5 +166,5 @@ function valoresDe(col, tope = 12) {
 module.exports = {
   m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
   fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas,
-  desglose, valoresDe
+  desglose, valoresDe, fSinTramo
 };

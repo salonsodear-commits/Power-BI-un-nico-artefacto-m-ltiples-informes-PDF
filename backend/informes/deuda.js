@@ -29,59 +29,96 @@ const meta = {
   fuente: "Power BI — Deuda"
 };
 
-const MEDIDAS_KPI = ["deudaTotal", "deudaCobranza", "deudaFacturacion", "deudaVencida",
-                     "indiceRiesgo", "clientesActivos", "importeFacturado"];
-const MEDIDAS_CLIENTE = ["deudaTotal", "deudaCobranza", "deudaFacturacion", "deudaVencida"];
-const TOPE_CLIENTES = 40;
+
+const TOPE_CONSULTA = 300;   // lo que viaja
+const TOPE_IMPRESO = 8;      // lo que entra en una hoja sin volverse ilegible
 
 /** Los cortes que el usuario haya pedido, si están mapeados. */
 const cortes = (p) => Q.fDimensiones(p);
 
+/**
+ * Cómo se reconoce el tramo «a vencer» sin escribirlo a mano: cada modelo lo
+ * rotula distinto («A VENCER», «No vencido», «Por vencer»). Se decide sobre los
+ * valores reales que devolvió el aging, no sobre una lista fija.
+ */
+const ES_A_VENCER = /^\s*(a\s*vencer|no\s*vencid|por\s*vencer|corriente|sin\s*vencim)/i;
+
+/**
+ * Los filtros de las consultas de COBRANZA. Se separan de los de facturación
+ * porque «a vencer» es un tramo del aging y la provisión no lo tiene.
+ */
+function cortesCobranza(p, tramosAVencer) {
+  const f = cortes(p);
+  if (p.incluirAVencer === false && tramosAVencer.length) {
+    const sin = Q.fSinTramo(tramosAVencer);
+    if (sin) f.push(sin);
+  }
+  return f;
+}
+
 /* ══ consultas ═══════════════════════════════════════════════════════════
    Cada una es opcional: si el modelo no tiene la columna, `desglose`
    devuelve null y la vista correspondiente no se arma. */
-function consultas(p) {
+function consultas(p, tramosAVencer) {
   const q = {};
-  const f = cortes(p);
-  const dims = f.map((x) => "    " + x);
+  const f = cortes(p);                                   // vale para todo
+  const fCob = cortesCobranza(p, tramosAVencer || []);   // + el corte de «a vencer»
 
-  const fila = Q.filaMedidas(MEDIDAS_KPI);
-  if (fila) {
-    q.kpis = dims.length
-      ? `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${dims.join(",\n")}\n  )`
-      : `\nEVALUATE\n  ROW(\n${fila}\n  )`;
-  }
+  // Las tarjetas se arman con DOS consultas, no una: el total de cobranza
+  // tiene que poder excluir «a vencer» y el de facturación no se entera de
+  // ese tramo, porque la provisión no lo tiene.
+  const filaCob = Q.filaMedidas(["deudaCobranza", "deudaVencida", "clientesActivos"]);
+  if (filaCob) q.kpisCobranza = envuelto(filaCob, fCob);
+  const filaFac = Q.filaMedidas(["deudaFacturacion", "importeFacturado"]);
+  if (filaFac) q.kpisFacturacion = envuelto(filaFac, f);
 
-  // ── aging: el de cobranza y el de facturación son columnas distintas ──
+  // ── aging: el de cobranza y el de facturación son medidas distintas ──
+  //    uno sale del aging de cobranzas, el otro de la provisión.
+  //    Sin el corte de «a vencer»: es justamente el tramo que se muestra.
   q.tramos = Q.desglose({ por: Q.c("agingTramo"), filtros: f,
     medidas: ["deudaCobranza", "deudaVencida"] });
   q.tramosFact = Q.desglose({ por: Q.c("tramoFacturacion"), filtros: f,
     medidas: ["deudaFacturacion"] });
 
   // ── cortes de cartera ────────────────────────────────────────────────
-  q.negocio = Q.desglose({ por: Q.c("vertical"), filtros: f, medidas: ["deudaTotal", "deudaCobranza", "deudaFacturacion"] });
-  q.canal   = Q.desglose({ por: Q.c("canal"),    filtros: f, medidas: ["deudaTotal"] });
-  q.gestor  = Q.desglose({ por: Q.c("clienteKam"), filtros: f, medidas: ["deudaCobranza", "deudaVencida"] });
+  q.negocioCob = Q.desglose({ por: Q.c("vertical"), filtros: fCob, medidas: ["deudaCobranza"] });
+  q.negocioFac = Q.desglose({ por: Q.c("vertical"), filtros: f,    medidas: ["deudaFacturacion"] });
+  q.canal   = Q.desglose({ por: Q.c("canal"),      filtros: fCob, medidas: ["deudaCobranza"] });
+  q.gestor  = Q.desglose({ por: Q.c("clienteKam"), filtros: fCob, medidas: ["deudaCobranza", "deudaVencida"] });
 
   // ── aperturas del detalle: lo que «ver datos» tiene para mostrar ─────
-  q.claseDoc  = Q.desglose({ por: Q.c("claseDocumento"),   filtros: f, medidas: ["deudaCobranza"] });
-  q.tipoDeuda = Q.desglose({ por: Q.c("tipoDeuda"),        filtros: f, medidas: ["deudaCobranza"] });
-  q.estadoVto = Q.desglose({ por: Q.c("estadoVencimiento"),filtros: f, medidas: ["deudaCobranza"] });
-  q.condPago  = Q.desglose({ por: Q.c("condicionPago"),    filtros: f, medidas: ["deudaCobranza"] });
+  //    cada una con los filtros de SU universo
+  q.claseDoc  = Q.desglose({ por: Q.c("claseDocumento"),   filtros: fCob, medidas: ["deudaCobranza"] });
+  q.tipoDeuda = Q.desglose({ por: Q.c("tipoDeuda"),        filtros: fCob, medidas: ["deudaCobranza"] });
+  q.estadoVto = Q.desglose({ por: Q.c("estadoVencimiento"),filtros: fCob, medidas: ["deudaCobranza"] });
+  q.condPago  = Q.desglose({ por: Q.c("condicionPago"),    filtros: fCob, medidas: ["deudaCobranza"] });
   q.concepto  = Q.desglose({ por: Q.c("concepto"),         filtros: f, medidas: ["deudaFacturacion", "importeFacturado"], tope: 40 });
   q.tipoProv  = Q.desglose({ por: Q.c("tipoProvision"),    filtros: f, medidas: ["deudaFacturacion"] });
   q.statusFac = Q.desglose({ por: Q.c("statusPendiente"),  filtros: f, medidas: ["deudaFacturacion"] });
 
-  // ── por cliente: la tabla viva de las solapas Cobranza y Cliente 360° ─
-  const dimsCliente = [Q.c("clienteNombre"), Q.c("clienteRazon"), Q.c("clienteKam")].filter(Boolean);
-  q.clientes = Q.desglose({ por: dimsCliente, filtros: f,
-    medidas: MEDIDAS_CLIENTE, tope: TOPE_CLIENTES });
+  /* ── por cliente ───────────────────────────────────────────────────────
+     Las dos caras van en consultas SEPARADAS, y es la diferencia entre un
+     número correcto y uno inventado.
+
+     Las relaciones del modelo son Aging→Clientes y Provision→Clientes, en un
+     solo sentido, y [Deuda Facturacion] además ignora los filtros sobre su
+     propia tabla. Agrupar cobranza y facturación juntas por una columna del
+     aging hacía que la facturación devolviera el mismo valor para CADA
+     combinación, y SUMMARIZECOLUMNS conserva toda fila con alguna medida no
+     vacía: salía el producto cruzado, con cada cliente mostrando las razones
+     sociales de todos los demás. */
+  q.clientesCobranza = Q.desglose({
+    por: [Q.c("clienteNombre"), Q.c("clienteRazon"), Q.c("clienteKam")].filter(Boolean),
+    filtros: fCob, medidas: ["deudaCobranza", "deudaVencida"], tope: TOPE_CONSULTA });
+  q.clientesFacturacion = Q.desglose({
+    por: Q.c("clienteNombre"), filtros: f,
+    medidas: ["deudaFacturacion", "importeFacturado"], tope: TOPE_CONSULTA });
   // el aging de cada cliente, para la barrita de la tabla
-  q.clienteTramo = Q.desglose({ por: [Q.c("clienteNombre"), Q.c("agingTramo")], filtros: f,
+  q.clienteTramo = Q.desglose({ por: [Q.c("clienteNombre"), Q.c("agingTramo")], filtros: fCob,
     medidas: ["deudaCobranza"] });
   // lo pendiente de facturar, abierto por cliente y concepto
   q.clienteConcepto = Q.desglose({ por: [Q.c("clienteNombre"), Q.c("concepto")], filtros: f,
-    medidas: ["deudaFacturacion"], tope: 120 });
+    medidas: ["deudaFacturacion"], tope: 400 });
 
   // ── DSO: suele vivir en su propia tabla, sin relación con el calendario ─
   if (Q.m("dso") && Q.c("dsoPeriodo")) {
@@ -95,11 +132,40 @@ function consultas(p) {
   return q;
 }
 
+/** ROW(...) con o sin CALCULATETABLE, según haya filtros que aplicar. */
+function envuelto(fila, filtros) {
+  const dims = (filtros || []).map((x) => "    " + x);
+  return dims.length
+    ? `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${dims.join(",\n")}\n  )`
+    : `\nEVALUATE\n  ROW(\n${fila}\n  )`;
+}
+
 /* ══ armado ══════════════════════════════════════════════════════════════ */
 
 async function construir(p) {
-  const d = await consultarVarias(p.workspaceId, p.datasetId, consultas(p));
-  const k = (d.kpis || [])[0] || {};
+  // Para excluir «a vencer» hay que saber cómo lo rotula ESTE modelo, así que
+  // primero se pregunta. Sólo cuando hace falta: incluirlo es lo normal y no
+  // merece un viaje de ida y vuelta extra en cada carga.
+  let tramosAVencer = [];
+  if (p.incluirAVencer === false && Q.c("agingTramo")) {
+    const previa = await consultarVarias(p.workspaceId, p.datasetId, {
+      t: Q.desglose({ por: Q.c("agingTramo"), medidas: ["deudaCobranza"] }) });
+    const col = nombreCorto(Q.c("agingTramo"));
+    tramosAVencer = (previa.t || [])
+      .map((f) => etiquetaDe(f[col]))
+      .filter((x) => x && ES_A_VENCER.test(x));
+  }
+
+  const d = await consultarVarias(p.workspaceId, p.datasetId, consultas(p, tramosAVencer));
+  // Las tarjetas se juntan de los dos universos; la exposición total es la
+  // suma de lo que quedó, no una medida aparte que ignoraría el corte.
+  const k = Object.assign({}, (d.kpisCobranza || [])[0], (d.kpisFacturacion || [])[0]);
+  if (typeof k.deudaCobranza === "number" || typeof k.deudaFacturacion === "number") {
+    k.deudaTotal = (k.deudaCobranza || 0) + (k.deudaFacturacion || 0);
+  }
+  if (typeof k.deudaVencida === "number" && k.deudaTotal) {
+    k.indiceRiesgo = (k.deudaVencida / k.deudaTotal) * 100;
+  }
 
   const colCli  = nombreCorto(Q.c("clienteNombre"));
   const colRazon= Q.c("clienteRazon") ? nombreCorto(Q.c("clienteRazon")) : null;
@@ -122,15 +188,24 @@ async function construir(p) {
   const dsoPorAnio = promediosPorAnio(serieDso, colDso);
 
   /* ── rankings simples ────────────────────────────────────────────── */
-  const ranking = (filas, col, valor) => (filas || [])
+  // Se suma por etiqueta: si el modelo devuelve la misma categoría en varias
+  // filas —pasa cuando la consulta agrupa por algo más— listar el rótulo dos
+  // veces con dos montos es peor que sumarlos.
+  const ranking = (filas, col, valor) => sumarPorEtiqueta([(filas || [])
     .map((f) => ({ etiqueta: etiquetaDe(f[nombreCorto(col)]), valor: f[valor] }))
-    .filter((x) => x.etiqueta !== null && typeof x.valor === "number" && x.valor !== 0);
+    .filter((x) => x.etiqueta !== null && typeof x.valor === "number")])
+    .filter((x) => x.valor !== 0);
 
   const tramos     = ordenarTramos(ranking(d.tramos, Q.c("agingTramo"), "deudaCobranza"));
   const tramosFact = Q.c("tramoFacturacion")
     ? ordenarTramos(ranking(d.tramosFact, Q.c("tramoFacturacion"), "deudaFacturacion")) : [];
-  const negocio = ranking(d.negocio, Q.c("vertical"), "deudaTotal");
-  const canal   = ranking(d.canal,   Q.c("canal"),    "deudaTotal");
+  // El negocio se suma de los dos universos, que vinieron por separado
+  // justamente para que cada uno lleve los filtros que le corresponden.
+  const negocio = sumarPorEtiqueta([
+    ranking(d.negocioCob, Q.c("vertical"), "deudaCobranza"),
+    ranking(d.negocioFac, Q.c("vertical"), "deudaFacturacion")
+  ]).sort((a, b) => b.valor - a.valor);
+  const canal = ranking(d.canal, Q.c("canal"), "deudaCobranza");
 
   /* ── clientes: la fila rica que alimenta las tres solapas ────────── */
   const agingPorCliente = {};
@@ -156,25 +231,37 @@ async function construir(p) {
     }
   }
 
-  // Un cliente puede tener varias razones sociales y varios gestores: el
-  // SUMMARIZECOLUMNS devuelve una fila por combinación. Se pliegan a una fila
-  // por cliente, como hace el tablero, y si hay más de una razón social se
-  // dice cuántas en vez de elegir una al azar.
+  /* Un cliente puede tener varias razones sociales y varios gestores dentro
+     del aging: se pliegan a una fila, y si hay más de una razón social se dice
+     cuántas en vez de elegir una al azar. La facturación llega por separado,
+     ya agregada por cliente, y se une por nombre. */
   const porCliente = new Map();
-  for (const f of d.clientes || []) {
-    if (f[colCli] === undefined || f[colCli] === null) continue;
-    const nombre = String(f[colCli]);
+  const dame = (nombre) => {
     let c = porCliente.get(nombre);
     if (!c) {
       c = { cliente: nombre, razones: new Set(), gestores: new Set(),
-            total: 0, cobranza: 0, facturacion: 0, vencida: 0, hay: {} };
+            cobranza: 0, facturacion: 0, vencida: 0, hay: {} };
       porCliente.set(nombre, c);
     }
+    return c;
+  };
+
+  for (const f of d.clientesCobranza || []) {
+    const nombre = etiquetaDe(f[colCli]);
+    if (!nombre) continue;
+    const c = dame(nombre);
     if (colRazon && etiquetaDe(f[colRazon])) c.razones.add(String(f[colRazon]).trim());
     if (colKam   && etiquetaDe(f[colKam]))   c.gestores.add(String(f[colKam]).trim());
-    for (const [campo, clave] of [["total", "deudaTotal"], ["cobranza", "deudaCobranza"],
-                                  ["facturacion", "deudaFacturacion"], ["vencida", "deudaVencida"]]) {
+    for (const [campo, clave] of [["cobranza", "deudaCobranza"], ["vencida", "deudaVencida"]]) {
       if (typeof f[clave] === "number") { c[campo] += f[clave]; c.hay[campo] = true; }
+    }
+  }
+  for (const f of d.clientesFacturacion || []) {
+    const nombre = etiquetaDe(f[colCli]);
+    if (!nombre) continue;
+    const c = dame(nombre);
+    if (typeof f.deudaFacturacion === "number") {
+      c.facturacion += f.deudaFacturacion; c.hay.facturacion = true;
     }
   }
 
@@ -184,9 +271,12 @@ async function construir(p) {
       const gestores = [...c.gestores];
       const salida = {
         cliente: c.cliente,
+        // Cuántas son de verdad, o la única que hay. Nunca un número que no
+        // corresponda a este cliente.
         razon: razones.length === 1 ? razones[0]
-             : razones.length > 1 ? razones.length + " cuentas / razones sociales"
+             : razones.length > 1 ? razones.length + " razones sociales"
              : undefined,
+        razones: razones.length > 1 ? razones.slice(0, 12) : undefined,
         gestor: gestores.length === 1 ? gestores[0]
               : gestores.length > 1 ? gestores.length + " gestores"
               : undefined,
@@ -194,16 +284,18 @@ async function construir(p) {
           Object.entries(agingPorCliente[c.cliente]).map(([e, v]) => ({ etiqueta: e, valor: v }))) : undefined,
         conceptos: conceptoPorCliente[c.cliente]
       };
-      // sólo los campos que alguna fila realmente trajo: 0 y «no vino» no son lo mismo
-      for (const campo of ["total", "cobranza", "facturacion", "vencida"]) {
+      for (const campo of ["cobranza", "facturacion", "vencida"]) {
         if (c.hay[campo]) salida[campo] = c[campo];
       }
-      salida.pctVencida = typeof salida.vencida === "number" && salida.total
-        ? (salida.vencida / salida.total) * 100 : undefined;
+      // La exposición es la suma de lo que este informe está mostrando.
+      const t = (salida.cobranza || 0) + (salida.facturacion || 0);
+      if (c.hay.cobranza || c.hay.facturacion) salida.total = t;
+      salida.pctVencida = typeof salida.vencida === "number" && t
+        ? (salida.vencida / t) * 100 : undefined;
       return salida;
     })
     .filter((f) => [f.total, f.cobranza, f.facturacion].some((v) => typeof v === "number" && v !== 0))
-    .sort((a, b) => (b.total || b.cobranza || 0) - (a.total || a.cobranza || 0));
+    .sort((a, b) => (b.total || 0) - (a.total || 0));
 
   const conCobranza   = clientes.filter((c) => typeof c.cobranza === "number" && c.cobranza !== 0);
   const conFacturacion= clientes.filter((c) => typeof c.facturacion === "number" && c.facturacion !== 0);
@@ -229,16 +321,16 @@ async function construir(p) {
   ].filter(Boolean);
 
   const tarjetas = [
-    kpi("deudaTotal", k, { etiqueta: "Exposición total", formato: "moneda", titular: true,
-      nota: "Cobranza + facturación pendiente" }),
+    typeof k.deudaTotal === "number" ? { valor: k.deudaTotal, etiqueta: "Exposición total",
+      formato: "moneda", titular: true, nota: "Cobranza + facturación pendiente" } : null,
     kpi("deudaCobranza", k, { etiqueta: "Deuda de cobranza", formato: "moneda", sentido: "negativo",
       nota: "Saldo del aging, según sistema" }),
     kpi("deudaFacturacion", k, { etiqueta: "Pendiente de facturar", formato: "moneda", sentido: "negativo",
       nota: "Provisión todavía no facturada" }),
     kpi("deudaVencida", k, { etiqueta: "Deuda vencida", formato: "moneda",
       nota: vencidaPct === undefined ? undefined : unDecimal(vencidaPct) + " % de la cartera" }),
-    kpi("indiceRiesgo", k, { etiqueta: "Índice de riesgo", formato: "pct", sentido: "negativo",
-      nota: "Vencida sobre exposición total" }),
+    typeof k.indiceRiesgo === "number" ? { valor: k.indiceRiesgo, etiqueta: "Índice de riesgo",
+      formato: "pct", sentido: "negativo", nota: "Vencida sobre exposición total" } : null,
     kpi("clientesActivos", k, { etiqueta: "Clientes", formato: "entero" }),
     dsoValor === undefined ? null : { etiqueta: "Días en calle", valor: dsoValor,
       formato: "dias", nota: dsoPeriodo ? "Último período: " + dsoPeriodo : undefined,
@@ -260,14 +352,16 @@ function hojas(x) {
   const { tarjetas, tramos, tramosFact, negocio, canal, clientes, colKam, serieDso,
           colDso, k, vencidaPct, aperturasCobranza, aperturasFacturacion } = x;
 
+  const cima = clientes.slice(0, TOPE_IMPRESO);
+
   const columnas = [
     { clave: "cliente", titulo: "Cliente", tipo: "texto" },
     colKam ? { clave: "gestor", titulo: "Gestor", tipo: "texto" } : null,
-    Q.m("deudaTotal") && { clave: "total", titulo: "Exposición", tipo: "monto" },
+    { clave: "total", titulo: "Exposición", tipo: "monto" },
     Q.m("deudaCobranza") && { clave: "cobranza", titulo: "Cobranza", tipo: "monto" },
     Q.m("deudaFacturacion") && { clave: "facturacion", titulo: "Facturación", tipo: "monto" },
     Q.m("deudaVencida") && { clave: "vencida", titulo: "Vencida", tipo: "monto" },
-    Q.m("deudaVencida") && Q.m("deudaTotal") && { clave: "pctVencida", titulo: "% vencido", tipo: "pct" }
+    Q.m("deudaVencida") && { clave: "pctVencida", titulo: "% vencido", tipo: "pct" }
   ].filter(Boolean);
 
   // El detalle de «ver datos»: NO los mismos números del gráfico, sino la
@@ -276,6 +370,8 @@ function hojas(x) {
   const detalleClientes = (campo, titulo) => {
     const filas = clientes
       .filter((c) => typeof c[campo] === "number" && c[campo] !== 0)
+      .sort((a, b) => b[campo] - a[campo])
+      .slice(0, TOPE_IMPRESO)
       .map((c) => ({ cliente: c.cliente, razon: c.razon, valor: c[campo] }));
     return filas.length ? {
       titulo,
@@ -286,13 +382,14 @@ function hojas(x) {
     } : undefined;
   };
 
+  // También acotadas: una hoja con cincuenta renglones de apertura no se lee.
   const detalleApertura = (lista, titulo) => {
     const filas = [];
     for (const a of lista) {
-      for (const it of a.items) {
-        if (!it.valor) continue;
-        filas.push({ dimension: a.rotulo, valor: it.etiqueta, monto: it.valor });
-      }
+      const top = a.items.filter((it) => it.valor)
+        .sort((x, y) => Math.abs(y.valor) - Math.abs(x.valor))
+        .slice(0, TOPE_IMPRESO);
+      for (const it of top) filas.push({ dimension: a.rotulo, valor: it.etiqueta, monto: it.valor });
     }
     return filas.length ? {
       titulo,
@@ -322,12 +419,12 @@ function hojas(x) {
       detalle: detalleApertura(aperturasFacturacion, "Facturación abierta por concepto y estado") } : null,
 
     negocio.length ? { tipo: "barrasHorizontales", titulo: "Exposición por negocio",
-      medida: refs(["deudaTotal"]), formato: "moneda", ejeEtiqueta: "Negocio",
+      medida: refs(["deudaCobranza", "deudaFacturacion"]), formato: "moneda", ejeEtiqueta: "Negocio",
       items: negocio,
       detalle: detalleClientes("total", "Exposición por cliente") } : null,
 
-    canal.length ? { tipo: "barrasHorizontales", titulo: "Exposición por canal",
-      medida: refs(["deudaTotal"]), formato: "moneda", ejeEtiqueta: "Canal",
+    canal.length ? { tipo: "barrasHorizontales", titulo: "Cobranza por canal",
+      medida: refs(["deudaCobranza"]), formato: "moneda", ejeEtiqueta: "Canal",
       items: canal } : null,
 
     serieDso.length > 2 ? { tipo: "lineas", titulo: "Días en calle",
@@ -338,21 +435,29 @@ function hojas(x) {
 
     clientes.length ? { tipo: "saltoPagina" } : null,
 
-    clientes.length && Q.m("deudaTotal") ? { tipo: "barrasHorizontales",
-      titulo: "Concentración por cliente", subtitulo: "Los de mayor exposición",
-      medida: refs(["deudaTotal"]), formato: "moneda", ejeEtiqueta: "Cliente",
-      items: clientes.slice(0, 12).map((f) => ({ etiqueta: f.cliente, valor: f.total })),
+    clientes.length ? { tipo: "barrasHorizontales",
+      titulo: "Concentración por cliente",
+      subtitulo: "Los " + Math.min(TOPE_IMPRESO, clientes.length) + " de mayor exposición",
+      medida: refs(["deudaCobranza", "deudaFacturacion"]), formato: "moneda", ejeEtiqueta: "Cliente",
+      items: cima.map((f) => ({ etiqueta: f.cliente, valor: f.total })),
       detalle: detalleClientes("facturacion", "Pendiente de facturar por cliente") } : null,
 
-    clientes.length ? { tipo: "tabla", titulo: "Detalle por cliente",
-      medida: refs(["deudaTotal", "deudaVencida"]), columnas,
-      filas: clientes.map((c) => ({
+    // El impreso muestra el top, no la cartera entera: una hoja con cuarenta
+    // filas no se lee, y el tablero tiene la tabla completa con buscador.
+    cima.length ? { tipo: "tabla", titulo: "Detalle por cliente",
+      subtitulo: "Top " + cima.length + " por exposición" +
+        (clientes.length > cima.length ? " · " + clientes.length + " en total" : ""),
+      medida: refs(["deudaCobranza", "deudaFacturacion"]), columnas,
+      filas: cima.map((c) => ({
         cliente: c.cliente, gestor: c.gestor, total: c.total, cobranza: c.cobranza,
         facturacion: c.facturacion, vencida: c.vencida, pctVencida: c.pctVencida })),
       total: { cliente: "Total cartera", gestor: "", total: k.deudaTotal,
         cobranza: k.deudaCobranza, facturacion: k.deudaFacturacion,
         vencida: k.deudaVencida, pctVencida: vencidaPct },
-      nota: "Ordenado por exposición total. La consulta trae los " + TOPE_CLIENTES + " primeros." } : null
+      nota: clientes.length > cima.length
+        ? "El total es de la cartera completa (" + clientes.length + " clientes); la tabla " +
+          "lista los " + cima.length + " de mayor exposición."
+        : "Ordenado por exposición total." } : null
   ]);
 }
 
@@ -412,17 +517,23 @@ function tablero(x) {
   }
 
   /* ── Facturación ─────────────────────────────────────────────────── */
-  if (conFacturacion.length) {
+  if (clientes.length && Q.m("deudaFacturacion")) {
     solapas.push({ clave: "facturacion", rotulo: "Facturación", bloques: limpiar([
       { tipo: "tablaViva", titulo: "Pendiente de facturar",
-        subtitulo: conFacturacion.length + " clientes con trabajo no facturado",
+        subtitulo: conFacturacion.length + " de " + clientes.length +
+          " clientes tienen trabajo no facturado",
         buscar: "Buscar cliente…", buscarEn: ["cliente", "razon"],
         orden: { clave: "facturacion", desc: true },
+        // Se listan TODOS los clientes de la cartera: que uno no tenga nada
+        // pendiente también es información, y esconderlo obliga a buscarlo en
+        // otra solapa para confirmarlo.
+        filtros: [{ clave: "conPendiente", rotulo: "Solo con pendiente",
+                    campo: "facturacion", op: ">", valor: 0 }],
         columnas: colsCliente([
           { clave: "facturacion", titulo: "Pendiente de facturar", tipo: "monto" },
           { clave: "conceptos", titulo: "Principales conceptos", tipo: "chips" }
         ]),
-        filas: conFacturacion,
+        filas: clientes,
         total: { cliente: "Total", facturacion: k.deudaFacturacion } },
       ...aperturasFacturacion.map((a) => ({ tipo: "aging", titulo: "Facturación por " + a.rotulo.toLowerCase(),
         items: a.items, formato: "moneda", plegable: true }))
@@ -534,15 +645,23 @@ function notas({ tramos, tramosFact, clientes, k }) {
       cuerpo: "El modelo devuelve " + Q.m("indiceRiesgo") + " ya multiplicado por 100 " +
               "(vencida sobre exposición total), así que se muestra tal cual." });
   }
-  if (clientes.length >= TOPE_CLIENTES) {
-    n.push({ titulo: "La tabla trae los " + TOPE_CLIENTES + " primeros",
-      cuerpo: "La consulta acota por volumen. Los totales de las tarjetas son de la " +
-              "cartera completa, así que la suma de la tabla puede quedar por debajo." });
+  if (clientes.length >= TOPE_CONSULTA) {
+    n.push({ titulo: "La cartera se acota en " + TOPE_CONSULTA + " clientes",
+      cuerpo: "La consulta trae los " + TOPE_CONSULTA + " de mayor exposición. Los totales " +
+              "de las tarjetas son de la cartera completa, así que la suma de la tabla puede " +
+              "quedar por debajo." });
   }
+  n.push({ titulo: "El informe impreso muestra el top " + TOPE_IMPRESO,
+    cuerpo: "Las tablas y aperturas de las hojas se acotan a los " + TOPE_IMPRESO +
+            " clientes de mayor exposición, que es lo que se lee en una hoja. Los totales " +
+            "siguen siendo de la cartera completa, y el tablero tiene la tabla entera con buscador." });
   if (tramos.length && tramosFact.length) {
-    n.push({ titulo: "Los dos aging usan columnas distintas",
-      cuerpo: "El de cobranza sale de " + Q.c("agingTramo") + " y el de facturación de " +
-              Q.c("tramoFacturacion") + ". Los tramos pueden no coincidir, y no se suman." });
+    n.push({ titulo: "Hay dos aging porque son dos cosas distintas",
+      cuerpo: "El aging de cobranzas mide " + Q.m("deudaCobranza") + " sobre " +
+              Q.c("agingTramo") + ": antigüedad de lo ya facturado y no cobrado. El de " +
+              "facturación mide " + Q.m("deudaFacturacion") + " sobre " + Q.c("tramoFacturacion") +
+              ", que vive en la provisión: antigüedad de lo trabajado y todavía no facturado. " +
+              "Son medidas y tramos independientes; cada gráfico usa el suyo y no se suman entre sí." });
   }
   return n.map((x, i) => ({ n: String(i + 1).padStart(2, "0"), ...x }));
 }
@@ -554,6 +673,15 @@ function etiquetaDe(v) {
   if (v === null || v === undefined) return null;
   const s = String(v).trim();
   return s === "" ? null : s;
+}
+
+/** Junta varias listas {etiqueta, valor} sumando por etiqueta. */
+function sumarPorEtiqueta(listas) {
+  const m = new Map();
+  for (const lista of listas) for (const x of lista || []) {
+    m.set(x.etiqueta, (m.get(x.etiqueta) || 0) + x.valor);
+  }
+  return [...m.entries()].map(([etiqueta, valor]) => ({ etiqueta, valor }));
 }
 
 const promedio = (xs) => xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : undefined;
@@ -584,6 +712,6 @@ function ordenarTramos(items) {
   return items.slice().sort((a, b) => peso(a.etiqueta) - peso(b.etiqueta));
 }
 
-const requiere = { medidas: ["deudaTotal", "deudaCobranza"], columnas: [] };
+const requiere = { medidas: ["deudaCobranza", "deudaFacturacion"], columnas: [] };
 
 module.exports = { meta, consultas, construir, requiere };

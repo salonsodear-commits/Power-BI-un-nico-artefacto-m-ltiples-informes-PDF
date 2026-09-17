@@ -27,13 +27,13 @@
   },
   "columnas": {
     "periodo": "Calendario[Periodo]",
-    "sociedad": "'Aging - Actualizado'[Sociedad]",
+    "sociedad": "Clientes_y_Contratos[tb_comercial_contrato.sociedad_name]",
     "vertical": "Clientes_y_Contratos[Negocio]",
     "gastoCategoria": "",
     "agingTramo": "'Aging - Actualizado'[Rango Dias Venc. RepSaldo]",
     "clienteNombre": "Clientes_y_Contratos[Cliente Fantasía]",
     "clienteKam": "'Aging - Actualizado'[Gestor Cobranzas]",
-    "canal": "'Aging - Actualizado'[Canal de Distribucion del Cliente]",
+    "canal": "Clientes_y_Contratos[canal_distribucion_name]",
     "riesgo": "'Aging - Actualizado'[Semaforo_Riesgo]",
     "dsoPeriodo": "DSO[Periodo]",
     "clienteRazon": "'Aging - Actualizado'[Cliente]",
@@ -50,5 +50,8 @@
   "periodoFormato": "texto",
   "organizacion": "Emergencias",
   "workspaceId": "8ab266c7-3a3c-4b9a-b62f-79879e6ac936",
-  "datasetId": "e2132c9a-d1d2-4596-bd47-49e5fbf10e61"
+  "datasetId": "e2132c9a-d1d2-4596-bd47-49e5fbf10e61",
+  "filtrosPorDefecto": {
+    "sociedad": "IHSA S.A."
+  }
 }
