@@ -29,6 +29,11 @@ const DIMENSIONES = [
   { clave: "moneda",   rotulo: "Moneda" }
 ];
 
+const rotuloDe = (clave) => (DIMENSIONES.find((d) => d.clave === clave) || {}).rotulo ||
+  ({ claseDocumento: "Clase de documento", tipoDeuda: "Tipo de deuda",
+     condicionPago: "Condición de pago", estadoVencimiento: "Estado de vencimiento",
+     concepto: "Concepto", agingTramo: "Tramo de aging" }[clave] || clave);
+
 const TOPE = 40;          // valores por dimensión; más no entra en un desplegable
 const CERCA = 0.005;      // 0,5 % de holgura al comparar totales
 
@@ -85,13 +90,19 @@ async function contexto(workspaceId, datasetId, medidas) {
 
     // Con un solo valor no hay nada que elegir ni nada que probar: es contexto.
     const fijo = valores.length === 1;
-    // Sirve si reparte TODAS las medidas que se le pidieron. A medias, no.
-    const sirve = fijo || usables.every((k) => reparte[k] !== false);
+    /* Un segmentador que mueve una medida y no la otra NO se descarta: se
+       rotula. «Gestor — sólo cobranza» es un control honesto y útil; el
+       pecado era mostrarlo como si filtrara todo. Se descarta sólo el que no
+       mueve NADA, que ahí sí no hace nada. */
+    const alcance = usables.filter((k) => reparte[k] !== false);
+    const sirve = fijo || alcance.length > 0;
 
     salida.push({
       clave: d.clave, rotulo: d.rotulo, ref: col,
       valores: valores.sort((a, b) => a.localeCompare(b, "es")),
-      fijo, sirve, rotas,
+      fijo, sirve, rotas, alcance,
+      // qué medidas NO mueve, que es lo que hay que aclarar en el rótulo
+      parcial: !fijo && rotas.length > 0 && alcance.length > 0,
       porDefecto: m.filtrosPorDefecto[d.clave] || null,
       truncado: filas.length >= TOPE
     });
@@ -101,13 +112,20 @@ async function contexto(workspaceId, datasetId, medidas) {
 
   const orden = DIMENSIONES.map((d) => d.clave);
   salida.sort((a, b) => orden.indexOf(a.clave) - orden.indexOf(b.clave));
-  for (const d of salida.filter((x) => !x.sirve)) {
-    console.warn("[contexto] " + d.clave + " no se ofrece: no reparte " + d.rotas.join(", ") +
-                 " (" + d.ref + ")");
+  for (const d of salida.filter((x) => !x.fijo && !x.sirve)) {
+    console.warn("[contexto] " + d.clave + " no se ofrece: no mueve ninguna medida (" + d.ref + ")");
+  }
+  for (const d of salida.filter((x) => x.parcial)) {
+    console.log("[contexto] " + d.clave + " se ofrece acotado: mueve " + d.alcance.join(", ") +
+                " pero no " + d.rotas.join(", "));
   }
   return {
     dimensiones: salida,
     medidas: usables,
+    nombresMedida: NOMBRE_MEDIDA,
+    // las exclusiones fijas del tablero, ya legibles
+    exclusiones: (m.exclusiones || []).map((r) => Q.textoExclusion(r, rotuloDe(r.campo))),
+    tieneAging: !!m.columnas.agingTramo,
     // lo que el tablero ya trae recortado: se informa, no se pide
     fijos: salida.filter((x) => x.fijo)
                  .map((x) => ({ clave: x.clave, rotulo: x.rotulo, valor: x.valores[0] })),
@@ -122,4 +140,11 @@ const valoresUnicos = (filas) => [...new Set(filas
   .filter((v) => v !== null && v !== undefined && String(v).trim() !== "")
   .map(String))];
 
-module.exports = { contexto, DIMENSIONES };
+/** Cómo se nombra cada medida en un rótulo de segmentador. */
+const NOMBRE_MEDIDA = {
+  deudaCobranza: "cobranza", deudaFacturacion: "facturación",
+  deudaVencida: "vencida", deudaTotal: "exposición",
+  importeFacturado: "facturado", clientesActivos: "clientes"
+};
+
+module.exports = { contexto, DIMENSIONES, NOMBRE_MEDIDA };

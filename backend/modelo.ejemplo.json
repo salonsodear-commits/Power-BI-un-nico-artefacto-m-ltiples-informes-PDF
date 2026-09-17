@@ -53,5 +53,24 @@
   "datasetId": "e2132c9a-d1d2-4596-bd47-49e5fbf10e61",
   "filtrosPorDefecto": {
     "sociedad": "IHSA S.A."
-  }
+  },
+  "exclusiones": [
+    {
+      "campo": "canal",
+      "contiene": "32 Corporaciones"
+    },
+    {
+      "campo": "claseDocumento",
+      "incluir": [
+        "AB",
+        "DB",
+        "DG",
+        "DR",
+        "DT",
+        "DX",
+        "DZ",
+        "SA"
+      ]
+    }
+  ]
 }

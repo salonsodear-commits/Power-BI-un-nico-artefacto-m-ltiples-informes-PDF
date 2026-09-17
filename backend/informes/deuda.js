@@ -18,6 +18,7 @@
  *     canal— no se vuelve a ofrecer como filtro: se muestra como contexto.
  */
 const { consultarVarias } = require("../powerbi/client");
+const MODELO = require("../modelo");
 const Q = require("../powerbi/queries");
 const { limpiar, kpi, etiquetaMes } = require("./comun");
 const { nombreCorto, refs } = require("./ejecutivo");
@@ -33,8 +34,15 @@ const meta = {
 const TOPE_CONSULTA = 300;   // lo que viaja
 const TOPE_IMPRESO = 8;      // lo que entra en una hoja sin volverse ilegible
 
-/** Los cortes que el usuario haya pedido, si están mapeados. */
-const cortes = (p) => Q.fDimensiones(p);
+/**
+ * Los cortes de cada consulta: primero lo que el tablero recorta siempre
+ * —canal, clases de documento— y después lo que el usuario eligió. Sin las
+ * exclusiones fijas, los totales no coinciden con la pantalla de Power BI.
+ */
+const cortes = (p) => [
+  ...Q.fExclusiones(MODELO.leer().exclusiones),
+  ...Q.fDimensiones(p)
+];
 
 /**
  * Cómo se reconoce el tramo «a vencer» sin escribirlo a mano: cada modelo lo
@@ -74,8 +82,10 @@ function consultas(p, tramosAVencer) {
 
   // ── aging: el de cobranza y el de facturación son medidas distintas ──
   //    uno sale del aging de cobranzas, el otro de la provisión.
-  //    Sin el corte de «a vencer»: es justamente el tramo que se muestra.
-  q.tramos = Q.desglose({ por: Q.c("agingTramo"), filtros: f,
+  //    Lleva el corte de «a vencer» como todo lo demás: en el tablero, sacar
+  //    ese tramo le saca también la columna al aging, y el informe tiene que
+  //    mostrar lo mismo que la pantalla.
+  q.tramos = Q.desglose({ por: Q.c("agingTramo"), filtros: fCob,
     medidas: ["deudaCobranza", "deudaVencida"] });
   q.tramosFact = Q.desglose({ por: Q.c("tramoFacturacion"), filtros: f,
     medidas: ["deudaFacturacion"] });
@@ -246,9 +256,12 @@ async function construir(p) {
     return c;
   };
 
+  /* Hay documentos sin cliente asignado, y el tablero los muestra como una
+     fila en blanco con su propio saldo (a veces negativo). Descartarlos hacía
+     que la tabla no sumara al total y nadie pudiera explicar la diferencia. */
+  const SIN_CLIENTE = "(sin cliente asignado)";
   for (const f of d.clientesCobranza || []) {
-    const nombre = etiquetaDe(f[colCli]);
-    if (!nombre) continue;
+    const nombre = etiquetaDe(f[colCli]) || SIN_CLIENTE;
     const c = dame(nombre);
     if (colRazon && etiquetaDe(f[colRazon])) c.razones.add(String(f[colRazon]).trim());
     if (colKam   && etiquetaDe(f[colKam]))   c.gestores.add(String(f[colKam]).trim());
@@ -257,8 +270,7 @@ async function construir(p) {
     }
   }
   for (const f of d.clientesFacturacion || []) {
-    const nombre = etiquetaDe(f[colCli]);
-    if (!nombre) continue;
+    const nombre = etiquetaDe(f[colCli]) || SIN_CLIENTE;
     const c = dame(nombre);
     if (typeof f.deudaFacturacion === "number") {
       c.facturacion += f.deudaFacturacion; c.hay.facturacion = true;
@@ -295,7 +307,10 @@ async function construir(p) {
       return salida;
     })
     .filter((f) => [f.total, f.cobranza, f.facturacion].some((v) => typeof v === "number" && v !== 0))
-    .sort((a, b) => (b.total || 0) - (a.total || 0));
+    .map((f) => f.cliente === SIN_CLIENTE ? { ...f, sinCliente: true, razon: undefined } : f)
+    // los sin cliente van al final: son saldos a identificar, no un cliente
+    .sort((a, b) => (a.sinCliente ? 1 : 0) - (b.sinCliente ? 1 : 0) ||
+                    (b.total || 0) - (a.total || 0));
 
   const conCobranza   = clientes.filter((c) => typeof c.cobranza === "number" && c.cobranza !== 0);
   const conFacturacion= clientes.filter((c) => typeof c.facturacion === "number" && c.facturacion !== 0);
@@ -623,6 +638,21 @@ function prioridad(clientes) {
  */
 function notas({ tramos, tramosFact, clientes, k }) {
   const n = [];
+  const ex = MODELO.leer().exclusiones || [];
+  if (ex.length) {
+    n.push({ titulo: "Este informe replica las exclusiones del tablero",
+      cuerpo: "No mira el modelo entero: " +
+              ex.map((r) => Q.textoExclusion(r, r.campo)).join(" · ") + ". " +
+              "Son las mismas reglas que declara el tablero en Power BI, y por eso los " +
+              "totales coinciden con esa pantalla y no con el modelo completo." });
+  }
+  if (clientes.some((c) => c.sinCliente)) {
+    n.push({ titulo: "Hay saldo sin cliente asignado",
+      cuerpo: "Algunos documentos del aging no traen cliente. Se listan como «(sin cliente " +
+              "asignado)» al final de la tabla, con su saldo —que puede ser negativo—, para " +
+              "que la suma de la tabla cierre con el total. El tablero los muestra igual, " +
+              "como una fila en blanco." });
+  }
   n.push({ titulo: "La cartera es una foto, no un acumulado",
     cuerpo: "Los totales y el aging no llevan filtro de período: muestran el saldo " +
             "al momento de la última actualización del modelo. Filtrar por mes daría " +

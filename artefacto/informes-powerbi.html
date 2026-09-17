@@ -187,6 +187,16 @@ details.avanzado>*:not(summary){margin-top:9px}
 .linea-inf button:hover{color:#fff}
 /* lo que ya viene filtrado en el modelo: se informa, no se vuelve a pedir */
 #chipsContexto{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.campo > label em.alcance{font-style:normal;color:var(--avi);font-family:var(--mono);
+  font-size:10px;font-weight:400}
+details.exclu{width:100%;font-size:11px;color:var(--consola-tinta-2)}
+details.exclu>summary{cursor:pointer;font-family:var(--display);font-weight:600;font-size:11px;
+  color:var(--consola-tinta-2);list-style:none}
+details.exclu>summary::-webkit-details-marker{display:none}
+details.exclu>summary::before{content:"▸ "}
+details.exclu[open]>summary::before{content:"▾ "}
+details.exclu ul{margin:5px 0 0;padding-left:16px;line-height:1.55;font-family:var(--mono);
+  font-size:10.5px}
 .chip-ctx{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;
   padding:3px 8px;border-radius:100px;background:var(--consola-2);border:1px solid var(--consola-3);
   color:var(--consola-tinta-2);max-width:100%}
@@ -1596,6 +1606,23 @@ function notaDeAlcance(b, fijos) {
   return { ...b, items: [alcance, ...(b.items || [])] };
 }
 
+/**
+ * Busca el valor por defecto entre los reales, sin exigir que coincida letra
+ * por letra: «IHSA S.A.» tiene que encontrar «IHSA SA», y «32 Corporaciones»
+ * a «32 Corporaciones Petróleo». Una tilde de más no debe dejar el informe
+ * sin recortar.
+ */
+function calzar(quiero, valores) {
+  if (!quiero || !valores || !valores.length) return null;
+  const pelar = (x) => String(x).normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]/g, "");
+  const q = pelar(quiero);
+  return valores.find((v) => v === quiero)
+      || valores.find((v) => pelar(v) === q)
+      || valores.find((v) => pelar(v).startsWith(q) || q.startsWith(pelar(v)))
+      || null;
+}
+
 /** El rótulo que el contexto usa para esa dimensión, o la clave capitalizada. */
 function rotuloFiltro(clave) {
   const d = CONTEXTO && (CONTEXTO.dimensiones || []).find((x) => x.clave === clave);
@@ -2075,10 +2102,19 @@ function pintarContexto() {
   caja.innerHTML = ""; chips.innerHTML = ""; ops.innerHTML = "";
   if (!CONTEXTO) return;
 
+  const nombres = CONTEXTO.nombresMedida || {};
   for (const d of CONTEXTO.elegibles || []) {
+    // Un segmentador que mueve la cobranza pero no la facturación se muestra
+    // diciéndolo. Es útil igual; lo que no se puede es dejarlo parecer que
+    // filtra todo.
+    const aclara = d.parcial
+      ? "sólo " + d.alcance.map((k) => nombres[k] || k).join(" y ")
+      : "";
     const campo = el(`<div class="campo">
-      <label for="filtro-${esc(d.clave)}">${esc(d.rotulo)}</label>
-      <select id="filtro-${esc(d.clave)}" data-filtro="${esc(d.clave)}">
+      <label for="filtro-${esc(d.clave)}">${esc(d.rotulo)}${
+        aclara ? ` <em class="alcance">${esc(aclara)}</em>` : ""}</label>
+      <select id="filtro-${esc(d.clave)}" data-filtro="${esc(d.clave)}"${
+        aclara ? ` title="Afecta ${esc(aclara)}; las demás medidas no se mueven"` : ""}>
         <option value="">Todas</option>
         ${d.valores.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
       </select>
@@ -2086,8 +2122,9 @@ function pintarContexto() {
     const sel = campo.querySelector("select");
     // lo elegido antes, si sigue existiendo; si no, lo que el tablero mira
     const guardado = FILTROS_GUARDADOS[d.clave];
+    const porDefecto = calzar(d.porDefecto, d.valores);
     if (guardado && d.valores.includes(guardado)) sel.value = guardado;
-    else if (d.porDefecto && d.valores.includes(d.porDefecto)) sel.value = d.porDefecto;
+    else if (porDefecto) sel.value = porDefecto;
     sel.addEventListener("change", () => { guardarPrefs(); actualizar(); });
     caja.appendChild(campo);
   }
@@ -2109,6 +2146,13 @@ function pintarContexto() {
   for (const f of CONTEXTO.fijos || []) {
     chips.appendChild(el(`<span class="chip-ctx" title="Tiene un solo valor en el modelo">${
       esc(f.rotulo)}: <b>${esc(f.valor)}</b></span>`));
+  }
+  // Lo que el tablero recorta siempre, como el panel «Exclusiones aplicadas»
+  // de Power BI: si el total no es el del modelo entero, hay que decir por qué.
+  const ex = CONTEXTO.exclusiones || [];
+  if (ex.length) {
+    chips.appendChild(el(`<details class="exclu"><summary>Exclusiones aplicadas (${ex.length})</summary>
+      <ul>${ex.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></details>`));
   }
 }
 

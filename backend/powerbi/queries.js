@@ -144,6 +144,49 @@ function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = t
 }
 
 /**
+ * Las exclusiones fijas del tablero: lo que el informe filtra SIEMPRE y nunca
+ * se ofrece como segmentador.
+ *
+ * Un tablero de producción casi nunca mira el modelo entero —«sólo el canal
+ * 32, sociedad IHSA, estas clases de documento»— y esas reglas viven en el
+ * tablero, no en el modelo. Replicarlas acá es la diferencia entre un informe
+ * que da los mismos números que la pantalla de Power BI y uno que da otros.
+ *
+ * Cada regla es {campo, igual|contiene|incluir|excluir}. Todos los valores
+ * pasan por lit(), así que nada de lo que se escriba acá entra crudo en el DAX.
+ */
+function fExclusiones(reglas) {
+  const partes = [];
+  for (const r of reglas || []) {
+    const col = c(r.campo);
+    if (!col) continue;
+    const t = tablaDe(col);
+    if (r.igual != null && r.igual !== "") {
+      partes.push(`FILTER(ALL(${t}), ${col} = ${lit(r.igual)})`);
+    } else if (r.contiene) {
+      // tolera «Petroleras» vs «Petróleo»: el rótulo exacto de una dimensión
+      // cambia sin avisar y no vale la pena romper el informe por una tilde
+      partes.push(`FILTER(ALL(${t}), CONTAINSSTRING(${col}, ${lit(r.contiene)}))`);
+    } else if (Array.isArray(r.incluir) && r.incluir.length) {
+      partes.push(`FILTER(ALL(${t}), ${col} IN {${r.incluir.map(lit).join(", ")}})`);
+    } else if (Array.isArray(r.excluir) && r.excluir.length) {
+      partes.push(`FILTER(ALL(${t}), NOT(${col} IN {${r.excluir.map(lit).join(", ")}}))`);
+    }
+  }
+  return partes;
+}
+
+/** Cómo se lee una exclusión, para mostrarla en el informe. */
+function textoExclusion(r, rotulo) {
+  const q = rotulo || r.campo;
+  if (r.igual != null && r.igual !== "") return `${q}: ${r.igual}`;
+  if (r.contiene) return `${q}: contiene «${r.contiene}»`;
+  if (Array.isArray(r.incluir)) return `${q}: sólo ${r.incluir.join(", ")}`;
+  if (Array.isArray(r.excluir)) return `${q}: todo menos ${r.excluir.join(", ")}`;
+  return q;
+}
+
+/**
  * Excluye un tramo del aging de las consultas de cobranza.
  *
  * «A vencer» no es deuda en el sentido de gestión —todavía no venció— pero sí
@@ -166,5 +209,5 @@ function valoresDe(col, tope = 12) {
 module.exports = {
   m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
   fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas,
-  desglose, valoresDe, fSinTramo
+  desglose, valoresDe, fSinTramo, fExclusiones, textoExclusion
 };

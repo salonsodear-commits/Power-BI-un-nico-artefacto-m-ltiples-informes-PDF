@@ -114,7 +114,11 @@ const POR_DEFECTO = {
   // Con qué valor arranca cada segmentador. Un tablero suele mirar una sola
   // sociedad aunque el modelo tenga varias: sin esto, el informe sale con
   // datos de sociedades que nadie pidió.
-  filtrosPorDefecto: {}
+  filtrosPorDefecto: {},
+  // Lo que el tablero recorta SIEMPRE y nadie puede cambiar: el canal, las
+  // clases de documento que cuentan. Replicarlo es lo que hace que el informe
+  // dé los mismos números que la pantalla de Power BI.
+  exclusiones: []
 };
 
 /* ── validación ──────────────────────────────────────────────────────
@@ -166,7 +170,8 @@ function normalizar(entrada) {
     workspaceId: String(e.workspaceId || "").trim(),
     datasetId: String(e.datasetId || "").trim(),
     rotos: [],
-    filtrosPorDefecto: {}
+    filtrosPorDefecto: {},
+    exclusiones: []
   };
   for (const c of CAMPOS.medidas) {
     salida.medidas[c.clave] = validarRef((e.medidas || {})[c.clave], "medida");
@@ -187,6 +192,20 @@ function normalizar(entrada) {
     if (!salida.columnas[clave] || valor == null) continue;
     const v = String(valor).trim().slice(0, 120);
     if (v) salida.filtrosPorDefecto[clave] = v;
+  }
+  // Cada regla apunta a una columna mapeada y trae UNA de las cuatro formas.
+  for (const r of Array.isArray(e.exclusiones) ? e.exclusiones : []) {
+    const campo = String((r || {}).campo || "");
+    if (!salida.columnas[campo]) continue;
+    const lista = (xs) => (Array.isArray(xs) ? xs : [])
+      .map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 60);
+    const regla = { campo };
+    if (r.igual != null && String(r.igual).trim()) regla.igual = String(r.igual).trim().slice(0, 120);
+    else if (r.contiene) regla.contiene = String(r.contiene).trim().slice(0, 120);
+    else if (lista(r.incluir).length) regla.incluir = lista(r.incluir);
+    else if (lista(r.excluir).length) regla.excluir = lista(r.excluir);
+    else continue;
+    salida.exclusiones.push(regla);
   }
   salida.rotos = (Array.isArray(e.rotos) ? e.rotos : [])
     .map(String)
@@ -235,6 +254,7 @@ function guardar(entrada) {
     .filter((id) => { const [g, c] = String(id).split("."); return previo[g] && previo[g][c] === m[g][c]; });
   m.rotos = normalizar({ ...m, rotos: heredados }).rotos;
   if (!entrada || !entrada.filtrosPorDefecto) m.filtrosPorDefecto = previo.filtrosPorDefecto;
+  if (!entrada || !entrada.exclusiones) m.exclusiones = previo.exclusiones;
   escribir(m);
   return m;
 }

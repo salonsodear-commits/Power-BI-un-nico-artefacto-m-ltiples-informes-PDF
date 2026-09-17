@@ -409,11 +409,17 @@ Un control sobre la tabla equivocada filtra la mitad de los números **y no
 avisa**: el informe igual sale y parece bien. Por eso el backend no confía en
 que la columna exista — la **prueba**. `GET /api/tablero/:ws/:ds/contexto` abre
 cada candidato por sus valores pidiendo las medidas del informe, y mira si de
-verdad las reparte o si devuelve el total entero en cada rebanada. Sólo pasan
-los que reparten **todas**; el resto no se dibuja, y el arranque dice por qué:
+verdad las reparte o si devuelve el total entero en cada rebanada.
+
+Lo que hace con el resultado no es descartar, es **rotular**. Un segmentador
+que mueve la cobranza y no la facturación sigue siendo útil; el pecado era
+mostrarlo como si filtrara todo. Así que se dibuja con la aclaración al lado
+—*Gestor · sólo cobranza*— y sólo se descarta el que no mueve nada. El arranque
+lo deja dicho:
 
 ```
-[contexto] clienteKam no se ofrece: no reparte deudaFacturacion ('Aging - Actualizado'[Gestor Cobranzas])
+[contexto] clienteKam se ofrece acotado: mueve deudaCobranza pero no deudaFacturacion
+[contexto] moneda no se ofrece: no mueve ninguna medida ('Aging - Actualizado'[Moneda de Documento])
 ```
 
 El criterio es «la medida se mueve», no «las partes suman el total»: lo segundo
@@ -431,13 +437,48 @@ producía el producto cruzado —cada cliente mostrando las razones sociales de
 todos los demás— porque `SUMMARIZECOLUMNS` conserva toda fila con alguna medida
 no vacía, y la facturación nunca venía vacía.
 
+### Las exclusiones del tablero se replican
+
+Un tablero de producción casi nunca mira el modelo entero. El de Deuda declara
+en pantalla sus **Exclusiones aplicadas**, y el informe las repite: sin eso los
+totales no coinciden con Power BI y nadie puede explicar la diferencia.
+
+Viven en `exclusiones`, dentro del mapeo, y se aplican **siempre** — no son
+segmentadores, nadie las cambia desde el panel:
+
+```jsonc
+"exclusiones": [
+  { "campo": "canal", "contiene": "32 Corporaciones" },
+  { "campo": "claseDocumento", "incluir": ["AB","DB","DG","DR","DT","DX","DZ","SA"] }
+]
+```
+
+Cada regla acepta `igual`, `contiene`, `incluir` o `excluir`. El canal va por
+`contiene` a propósito: el rótulo exacto baila entre «Petroleras» y «Petróleo»
+según dónde se lea, y una tilde no debe vaciar el informe. Todos los valores
+pasan por `lit()`, así que nada entra crudo en el DAX.
+
+El panel las lista en **Exclusiones aplicadas**, igual que Power BI, y quedan
+como primera nota de alcance del informe.
+
 ### «A vencer» entra o no, y se nota
 
 Lo que todavía no venció suma al saldo pero no es deuda en gestión. El
-interruptor **Incluir «a vencer»** lo saca de las consultas de cobranza —de los
-totales también, no sólo del gráfico— y deja la facturación intacta, porque la
-provisión no tiene ese tramo. Los rótulos no están escritos a mano: se
-reconocen sobre los valores que devolvió *tu* aging.
+interruptor **Incluir «a vencer»** lo saca de **todas** las consultas de
+cobranza —totales, aging, cortes y tabla por cliente— igual que destildarlo en
+el tablero, que además le saca la columna al aging. La facturación no se mueve:
+la provisión no tiene ese tramo.
+
+Los rótulos no están escritos a mano. Se reconocen sobre los valores que
+devolvió *tu* aging, porque cada modelo los escribe distinto («A Vencer», «No
+vencido», «Por vencer»).
+
+### Saldo sin cliente
+
+Hay documentos del aging sin cliente asignado, con su propio saldo —a veces
+negativo—. Se listan como «(sin cliente asignado)» al final de la tabla, no se
+descartan: si no, la suma de la tabla no cierra con el total y la diferencia no
+tiene explicación. El tablero los muestra igual, como una fila en blanco.
 
 ### El tablero decide el informe
 
@@ -459,8 +500,9 @@ y moneda, y clasifica cada una:
   campo de texto: escribir `IHSA SA` en vez de `IHSA S.A.` devolvía un informe
   vacío sin decir por qué.
 
-Por eso el panel muestra *Negocio* y no *Sociedad* en el tablero de Deuda: la
-sociedad ya viene recortada a una sola.
+El valor por defecto se busca con tolerancia: «IHSA S.A.» encuentra «IHSA SA»,
+y «32 Corporaciones» encuentra «32 Corporaciones Petróleo». Una tilde de más no
+debe dejar el informe sin recortar.
 
 ### «Ver datos» abre, no repite
 
