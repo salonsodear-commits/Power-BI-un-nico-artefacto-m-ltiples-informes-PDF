@@ -78,16 +78,45 @@ el registro de aplicaciones y ahí sí hay que pedirle a IT — pero es un pedid
 chico: *registrar una app como cliente público, sólo lectura sobre Power BI*.
 No el ajuste de Service Principals a nivel de toda la empresa.
 
-Después, en `backend/.env`:
+Después, desde la raíz del repositorio:
 
-```
-CLIENT_ID=el-id-de-aplicacion
-TENANT_ID=el-id-de-directorio
+```bash
+npm run configurar        # pregunta los dos IDs y escribe backend/.env
 ```
 
 Los **dos** hacen falta. Con una app de inquilino único no se puede usar el
 comodín `organizations`: Microsoft responde `AADSTS50059` porque no sabe contra
 qué organización autenticar.
+
+### `backend/.env` no sobrevive a un Codespace nuevo
+
+Está fuera del repositorio a propósito (manual, paso 20): vive sólo en el disco
+de tu máquina o de tu Codespace. Si el contenedor se recrea, el archivo se va
+con él y **no hay nada que restaurar desde git** — sólo queda `.env.example`,
+que es la plantilla.
+
+Rehacerlo cuesta un comando:
+
+```bash
+npm run configurar                                    # te pregunta los dos
+npm run configurar -- <CLIENT_ID> <TENANT_ID>         # o se los pasás
+```
+
+Conserva lo que ya tuvieras puesto (`PORT`, `ORIGENES_PERMITIDOS`), descomenta
+la línea si había quedado con `#`, y nunca toca `CLIENT_SECRET`.
+
+Para que no se pierda nunca más, guardá los dos IDs como **secretos de
+Codespaces** del repositorio:
+
+> GitHub → tu repo → **Settings** → **Secrets and variables** → **Codespaces**
+> → *New repository secret*, uno para `CLIENT_ID` y otro para `TENANT_ID`.
+
+Se inyectan como variables de entorno en cada Codespace nuevo, y el backend las
+lee aunque `backend/.env` no exista. Nada de esto entra al repositorio.
+
+`CLIENT_ID` y `TENANT_ID` no son secretos —son identificadores públicos, viajan
+en la URL de cualquier login de Microsoft—, así que guardarlos ahí no relaja
+nada. El único valor sensible es `CLIENT_SECRET`, que el modo delegado no usa.
 
 ## La idea en una línea
 
@@ -104,6 +133,7 @@ componentes. **Cambiar de tablero cambia los números, nunca el diseño.**
 | `backend/modelo.js` | El mapeo entre los campos de los informes y los nombres de tu modelo. |
 | `backend/informes/` | Un archivo por informe: sus consultas DAX y cómo se arma su JSON. |
 | `backend/prueba-api.js` | La primera prueba: token + workspace + dataset + un `EVALUATE` mínimo. |
+| `backend/configurar.js` | Rehace `backend/.env` sin abrir un editor. |
 
 ## Cómo se usa
 
@@ -122,9 +152,9 @@ Después, **Exportar PDF**.
 Desde la raíz del repositorio:
 
 ```bash
-npm install                                  # instala backend/ (workspace)
-cp backend/.env.example backend/.env         # pegá el CLIENT_ID
-npm run dev                                  # o npm start, sin recarga
+npm install            # instala backend/ (workspace)
+npm run configurar     # escribe backend/.env con tu CLIENT_ID y TENANT_ID
+npm run dev            # o npm start, sin recarga
 ```
 
 Después abrí `localhost:3000` → **Conectar a Power BI** → **Entrar con mi cuenta**.
@@ -139,6 +169,7 @@ credenciales.
 
 | Comando | Qué hace |
 |---|---|
+| `npm run configurar` | Escribe `backend/.env` con tu `CLIENT_ID` y `TENANT_ID`. |
 | `npm run dev` | Levanta el backend con recarga al guardar. |
 | `npm start` | Igual, sin recarga. |
 | `npm run prueba` | Token + workspace + dataset + un `EVALUATE` mínimo (modo Service Principal). |

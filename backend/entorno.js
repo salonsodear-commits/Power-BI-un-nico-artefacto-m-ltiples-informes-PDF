@@ -47,8 +47,11 @@ function diagnostico(faltan) {
   const lineas = [];
 
   if (!yo) {
-    lineas.push("No existe backend/.env. Crealo copiando el ejemplo:");
-    lineas.push("    cp backend/.env.example backend/.env");
+    lineas.push("No existe backend/.env. Rehacelo con:");
+    lineas.push("");
+    lineas.push("    npm run configurar");
+    lineas.push("");
+    lineas.push("Pregunta los dos IDs y te dice de qué pantalla de Entra sacarlos.");
     // sólo interesa si completó, ahí, alguna de las que faltan
     const ej = inspeccionar(EJEMPLO);
     const puestas = ej
@@ -60,6 +63,7 @@ function diagnostico(faltan) {
       lineas.push(".env.example. Ese archivo es sólo la plantilla y no se lee.");
       lineas.push("Copialo a .env y el valor viaja con él.");
     }
+    lineas.push(...ENV_SE_PIERDE);
     return lineas;
   }
 
@@ -81,7 +85,22 @@ function diagnostico(faltan) {
   lineas.push("backend/.env existe y tiene " + leidas + " variable(s) con valor" +
     (yo.comentadas.length ? " y " + yo.comentadas.length + " comentada(s)" : "") + ".");
   lineas.push("Después de editarlo hay que reiniciar: Ctrl+C y npm run dev otra vez.");
+  lineas.push("O dejá que lo escriba solo:  npm run configurar");
   return lineas;
 }
+
+/**
+ * .env está fuera del repositorio a propósito, así que no hay nada que
+ * restaurar desde git cuando el contenedor se recrea. Decirlo acá evita la
+ * segunda vez.
+ */
+const ENV_SE_PIERDE = [
+  "",
+  "backend/.env vive sólo en este disco: está fuera del repositorio a",
+  "propósito, así que si el Codespace se recrea, se va con él. Para que",
+  "vuelva solo, guardá los dos IDs como secretos del repositorio:",
+  "  GitHub → tu repo → Settings → Secrets and variables → Codespaces",
+  "El backend los lee del entorno aunque backend/.env no exista."
+];
 
 module.exports = { ARCHIVO, diagnostico, inspeccionar };

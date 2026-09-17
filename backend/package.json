@@ -9,6 +9,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "configurar": "node configurar.js",
     "start": "node server.js",
     "dev": "node --watch server.js",
     "prueba": "node prueba-api.js"
