@@ -35,7 +35,17 @@
     "clienteKam": "'Aging - Actualizado'[Gestor Cobranzas]",
     "canal": "'Aging - Actualizado'[Canal de Distribucion del Cliente]",
     "riesgo": "'Aging - Actualizado'[Semaforo_Riesgo]",
-    "dsoPeriodo": "DSO[Periodo]"
+    "dsoPeriodo": "DSO[Periodo]",
+    "clienteRazon": "'Aging - Actualizado'[Cliente]",
+    "claseDocumento": "'Aging - Actualizado'[Clase Documento]",
+    "tipoDeuda": "'Aging - Actualizado'[Tipo Deuda]",
+    "condicionPago": "'Aging - Actualizado'[Condicion de Pago]",
+    "estadoVencimiento": "'Aging - Actualizado'[Estado Vencimiento]",
+    "moneda": "'Aging - Actualizado'[Moneda de Documento]",
+    "concepto": "Provision[Concepto]",
+    "tipoProvision": "Provision[TIPO]",
+    "statusPendiente": "Provision[STATUS PENDIENTE]",
+    "tramoFacturacion": "Provision[Tramo_Antiguedad]"
   },
   "periodoFormato": "texto",
   "organizacion": "Emergencias",

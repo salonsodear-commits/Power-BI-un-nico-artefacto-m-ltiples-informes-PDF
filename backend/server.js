@@ -13,6 +13,7 @@ const INFORMES = require("./informes");
 const { consultar, GUID } = require("./powerbi/client");
 const DESCUBRIR = require("./powerbi/descubrir");
 const DETECTAR = require("./powerbi/detectar");
+const CONTEXTO = require("./powerbi/contexto");
 const AUTH = require("./powerbi/auth");
 const SESIONES = require("./sesiones");
 const MODELO = require("./modelo");
@@ -133,6 +134,20 @@ app.post("/api/powerbi/detectar", atajo(async (req) => {
     throw Object.assign(new Error("Elegí antes el workspace y el modelo."), { status: 400 });
   }
   return DETECTAR.detectar(ws, ds);
+}));
+
+/**
+ * Qué filtros trae puesto el tablero. Lo que Power Query ya dejó recortado
+ * —una sola sociedad, un solo canal— se muestra como contexto en vez de
+ * pedirse otra vez: el panel sólo ofrece las dimensiones que de verdad tienen
+ * más de un valor.
+ */
+app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
+  const { ws, ds } = req.params;
+  if (!GUID.test(ws) || !GUID.test(ds)) {
+    const e = new Error("Workspace y modelo deben ser GUID"); e.status = 400; throw e;
+  }
+  return CONTEXTO.contexto(ws, ds);
 }));
 
 /* ══ mapeo del modelo ══════════════════════════════════════════════════ */
@@ -262,7 +277,11 @@ app.post("/api/informe", async (req, res) => {
   };
 
   try {
-    const secciones = await informe.construir(p);
+    // Un informe puede devolver sólo las hojas, o {secciones, tablero} cuando
+    // además tiene vista interactiva. Deuda es hoy el único con las dos.
+    const salida = await informe.construir(p);
+    const secciones = Array.isArray(salida) ? salida : (salida.secciones || []);
+    const tablero = Array.isArray(salida) ? null : (salida.tablero || null);
     if (!secciones.length) {
       const faltan = loQueFalta(informe).map((f) => f.texto);
       return res.status(422).json({
@@ -287,7 +306,8 @@ app.post("/api/informe", async (req, res) => {
         workspaceId, datasetId,
         actualizado: new Date().toISOString()
       },
-      secciones
+      secciones,
+      tablero
     });
   } catch (e) {
     // el mensaje de Power BI se devuelve tal cual; las credenciales nunca salen de acá
@@ -310,6 +330,7 @@ app.use((req, res) => {
             "GET /api/powerbi/workspaces", "GET /api/powerbi/workspaces/:ws/modelos",
             "GET /api/powerbi/workspaces/:ws/reportes/:id",
             "GET /api/powerbi/modelos/:ws/:ds/medidas", "POST /api/powerbi/dax", "POST /api/powerbi/detectar",
+            "GET /api/tablero/:ws/:ds/contexto",
             "GET /api/modelo", "PUT /api/modelo", "POST /api/modelo/verificar",
             "POST /api/modelo/reiniciar"]
   });

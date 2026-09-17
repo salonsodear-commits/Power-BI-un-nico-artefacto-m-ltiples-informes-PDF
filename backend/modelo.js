@@ -61,7 +61,24 @@ const CAMPOS = {
     { clave: "riesgo",        rotulo: "Semáforo de riesgo" },
     { clave: "dsoPeriodo",    rotulo: "Período de la tabla de DSO",
       ayuda: "Sólo si el DSO vive en su propia tabla sin relación con el calendario: " +
-             "se toma el valor del último período" }
+             "se toma el valor del último período" },
+    // ── aperturas: por dónde se abre el detalle ─────────────────────
+    // Ninguna es obligatoria. Cada una que esté mapeada agrega una solapa de
+    // «ver datos» y una vista más en el tablero interactivo, así que un modelo
+    // rico se ve rico sin tocar código.
+    { clave: "clienteRazon",     rotulo: "Razón social del cliente",
+      ayuda: "El nombre legal, si es distinto del nombre de fantasía" },
+    { clave: "claseDocumento",   rotulo: "Clase de documento" },
+    { clave: "tipoDeuda",        rotulo: "Tipo de deuda" },
+    { clave: "condicionPago",    rotulo: "Condición de pago" },
+    { clave: "estadoVencimiento",rotulo: "Estado de vencimiento" },
+    { clave: "moneda",           rotulo: "Moneda del documento" },
+    { clave: "concepto",         rotulo: "Concepto (facturación)",
+      ayuda: "De la tabla de provisión: por qué está pendiente de facturar" },
+    { clave: "tipoProvision",    rotulo: "Tipo (facturación)" },
+    { clave: "statusPendiente",  rotulo: "Estado de la facturación" },
+    { clave: "tramoFacturacion", rotulo: "Tramo de antigüedad (facturación)",
+      ayuda: "El aging de lo no facturado, que suele ser otra columna que el de cobranza" }
   ]
 };
 
@@ -81,7 +98,10 @@ const POR_DEFECTO = {
     periodo: "Calendario[ClaveMes]", sociedad: "Sociedad[Nombre]",
     vertical: "Vertical[Nombre]", gastoCategoria: "Gastos[Categoria]",
     agingTramo: "Aging[Tramo]", clienteNombre: "Cliente[Nombre]",
-    clienteKam: "Cliente[KAM]", canal: "", riesgo: "", dsoPeriodo: ""
+    clienteKam: "Cliente[KAM]", canal: "", riesgo: "", dsoPeriodo: "",
+    clienteRazon: "", claseDocumento: "", tipoDeuda: "", condicionPago: "",
+    estadoVencimiento: "", moneda: "", concepto: "", tipoProvision: "",
+    statusPendiente: "", tramoFacturacion: ""
   },
   periodoFormato: "numero",
   organizacion: "",

@@ -69,6 +69,9 @@
 }
 
 *{box-sizing:border-box}
+/* El `display:none` del navegador para [hidden] es de baja precedencia:
+   cualquier `.clase{display:flex}` se lo come. Acá se hace valer. */
+[hidden]{display:none!important}
 html,body{height:100%}
 body{margin:0;background:var(--mesa);color:var(--tinta);
   font:15px/1.55 var(--cuerpo);-webkit-font-smoothing:antialiased}
@@ -148,12 +151,127 @@ button,input,select,textarea{font:inherit}
   color:var(--consola-tinta-2)}
 .zoom input[type=range]{width:82px;padding:0;background:none;border:0;accent-color:var(--acento)}
 
+/* ── panel: informe elegido y contexto heredado del tablero ────────── */
+.linea-inf{margin:0 0 9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;
+  font-size:12px;color:var(--consola-tinta-2)}
+.linea-inf b{font-family:var(--display);font-size:14px;color:#fff;letter-spacing:-.01em}
+.linea-inf button{background:none;border:0;padding:0;cursor:pointer;font-size:11.5px;
+  font-family:var(--display);font-weight:600;color:var(--acento-linea);text-decoration:underline}
+.linea-inf button:hover{color:#fff}
+/* lo que ya viene filtrado en el modelo: se informa, no se vuelve a pedir */
+#chipsContexto{display:flex;flex-wrap:wrap;gap:5px;margin-top:4px}
+.chip-ctx{display:inline-flex;align-items:center;gap:5px;font-family:var(--mono);font-size:10.5px;
+  padding:3px 8px;border-radius:100px;background:var(--consola-2);border:1px solid var(--consola-3);
+  color:var(--consola-tinta-2);max-width:100%}
+.chip-ctx b{color:var(--consola-tinta);font-weight:600;font-family:var(--mono);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 /* ── mesa: el fondo sobre el que se apoyan las hojas ───────────────── */
 .mesa{min-width:0;overflow:auto;padding:22px 16px 60px;background:var(--mesa);
   display:flex;flex-direction:column;align-items:center;gap:18px;--zoom:1}
 .hoja{zoom:var(--zoom);width:210mm;height:297mm;flex:none;background:var(--papel);
   box-shadow:var(--sombra-hoja);display:flex;flex-direction:column;overflow:hidden;
   color:var(--tinta)}
+
+/* ── tablero interactivo ────────────────────────────────────────────
+   Convive con las hojas en el mismo DOM y se alterna por atributo, así el
+   PDF sale de las hojas sin importar qué se esté mirando. */
+.mesa[data-modo="tablero"] .hoja{display:none}
+.mesa[data-modo="informe"] .tablero{display:none}
+.conmutador{width:min(1060px,100%);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.conmutador .seg{display:inline-flex;background:var(--papel-2);border:1px solid var(--linea);
+  border-radius:100px;padding:2px}
+.conmutador .seg button{font-family:var(--display);font-size:12px;font-weight:600;
+  padding:5px 14px;border-radius:100px;border:0;background:none;color:var(--tinta-3);cursor:pointer}
+.conmutador .seg button[aria-pressed="true"]{background:var(--acento);color:#fff}
+.conmutador .dato{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--tinta-3)}
+
+.tablero{width:min(1060px,100%);display:flex;flex-direction:column;gap:14px;color:var(--tinta)}
+.tb-tapa{display:flex;flex-direction:column;gap:5px}
+.tb-tapa h1{font-size:23px;letter-spacing:-.02em}
+.tb-tapa .baj{font-size:13px;color:var(--tinta-2)}
+.tb-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px}
+.tb-chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:11px;
+  padding:4px 11px;border-radius:100px;background:var(--papel);border:1px solid var(--linea);
+  color:var(--tinta-3)}
+.tb-chip b{color:var(--tinta);font-weight:600}
+.tb-solapas{display:flex;gap:2px;flex-wrap:wrap;border-bottom:1px solid var(--linea);
+  margin-top:2px}
+.tb-solapas button{font-family:var(--display);font-size:13px;font-weight:600;padding:9px 15px;
+  border:0;background:none;color:var(--tinta-3);cursor:pointer;border-bottom:2px solid transparent;
+  margin-bottom:-1px;white-space:nowrap}
+.tb-solapas button:hover{color:var(--tinta-2)}
+.tb-solapas button[aria-selected="true"]{color:var(--acento);border-bottom-color:var(--acento)}
+.tb-panel{display:flex;flex-direction:column;gap:14px}
+.tb-panel[hidden]{display:none}
+.tarjeta{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:16px 18px;display:flex;flex-direction:column;gap:10px}
+.tarjeta>.tap{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.tarjeta>.tap h2{font-size:15px;letter-spacing:-.012em}
+.tarjeta>.tap .sub{font-size:11.5px;color:var(--tinta-3)}
+.tarjeta>.tap .der{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--tinta-3)}
+
+/* barras de aging: rótulo, barra, monto y participación */
+.aging-fila{display:grid;grid-template-columns:minmax(96px,1.1fr) minmax(0,3fr) auto;
+  gap:12px;align-items:center;padding:5px 0}
+.aging-fila .et{font-family:var(--mono);font-size:11.5px;color:var(--tinta-2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.aging-fila .via{height:14px;background:var(--papel-3);border-radius:3px;overflow:hidden}
+.aging-fila .via i{display:block;height:100%;background:var(--acento);border-radius:3px}
+.aging-fila .val{font-family:var(--mono);font-size:11.5px;font-variant-numeric:tabular-nums;
+  text-align:right;white-space:nowrap;color:var(--tinta)}
+.aging-fila .val small{display:block;font-size:9.5px;color:var(--tinta-3)}
+.aging-fila .val em{display:block;font-style:normal;font-size:9.5px;color:var(--tinta-3)}
+
+/* tabla viva: buscador, orden y filtros */
+.tv-mandos{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.tv-mandos input[type=search]{flex:1 1 220px;min-width:0;font-family:var(--cuerpo);font-size:13px;
+  padding:7px 11px;border:1px solid var(--linea);border-radius:var(--r);background:var(--papel);
+  color:var(--tinta)}
+.tv-mandos label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--tinta-2);
+  cursor:pointer}
+.tv-mandos .cuenta{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--tinta-3)}
+.tv-marco{overflow:auto;border:1px solid var(--linea);border-radius:var(--r);max-height:560px}
+table.viva{width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+table.viva thead th{position:sticky;top:0;z-index:1;background:var(--papel-2);
+  font-family:var(--display);font-size:9px;font-weight:600;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--tinta-3);text-align:left;padding:8px 11px;
+  border-bottom:1px solid var(--linea);white-space:nowrap}
+table.viva thead th.ord{cursor:pointer;user-select:none}
+table.viva thead th.ord:hover{color:var(--acento)}
+table.viva thead th .fl{opacity:.35;margin-left:3px}
+table.viva thead th[aria-sort] .fl{opacity:1;color:var(--acento)}
+table.viva td{padding:8px 11px;border-bottom:1px solid var(--linea-suave);color:var(--tinta-2);
+  vertical-align:middle}
+table.viva tbody tr:last-child td{border-bottom:0}
+table.viva th.n,table.viva td.n{text-align:right;font-family:var(--mono);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+table.viva td.cli{color:var(--tinta);font-weight:600}
+table.viva td.cli small{display:block;font-weight:400;font-size:10.5px;color:var(--tinta-3)}
+table.viva tr.suma td{position:sticky;bottom:0;background:var(--papel-3);font-weight:700;
+  color:var(--tinta);border-top:1px solid var(--eje);border-bottom:0}
+table.viva tr.nada td{text-align:center;color:var(--tinta-3);padding:26px 11px}
+/* mini-aging dentro de una celda */
+.mini{display:flex;gap:1.5px;height:12px;min-width:74px}
+.mini i{display:block;flex:1 1 0;border-radius:1px;background:var(--papel-3)}
+.chips-cel{display:flex;flex-wrap:wrap;gap:3px}
+.chips-cel span{font-family:var(--mono);font-size:9.5px;padding:1px 6px;border-radius:100px;
+  background:var(--papel-3);color:var(--tinta-3);white-space:nowrap}
+
+/* notas numeradas */
+.nota-c{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
+  padding:13px 16px;display:flex;flex-direction:column;gap:4px}
+.nota-c h3{font-size:13px;display:flex;gap:9px;align-items:baseline}
+.nota-c h3 span{font-family:var(--mono);font-size:11px;color:var(--tinta-3);font-weight:400}
+.nota-c p{margin:0;font-size:12.5px;line-height:1.6;color:var(--tinta-2);max-width:78ch}
+.plegable>.tap{cursor:pointer}
+.plegable>.tap::after{content:"▾";margin-left:4px;color:var(--tinta-3);font-size:11px}
+.plegable[data-abierto="no"]>.tap::after{content:"▸"}
+.plegable[data-abierto="no"]>*:not(.tap){display:none}
+@media (max-width:640px){
+  .aging-fila{grid-template-columns:minmax(72px,1fr) minmax(0,2fr) auto;gap:8px}
+  .tb-solapas{overflow-x:auto}
+}
 
 /* cabecera y pie corridos de cada hoja */
 .h-cab{flex:none;height:20mm;padding:0 16mm;display:flex;align-items:center;gap:12px;
@@ -457,7 +575,9 @@ pre.cod b{color:var(--acento);font-weight:600}
     --grilla:#E4EAEF; --eje:#C7D2DA;
   }
   html,body{height:auto;background:#fff}
-  .consola,.velo,.abre-consola,#tip,.ver-datos{display:none!important}
+  .consola,.velo,.abre-consola,#tip,.ver-datos,.tablero,.conmutador{display:none!important}
+  /* mirando el tablero o mirando el informe, lo que se imprime es el informe */
+  .mesa[data-modo="tablero"] .hoja{display:flex!important}
   .app{display:block;height:auto}
   .mesa{display:block;overflow:visible;padding:0;background:#fff}
   .hoja{zoom:1!important;box-shadow:none;margin:0;width:210mm;height:297mm;
@@ -507,24 +627,24 @@ pre.cod b{color:var(--acento);font-weight:600}
 
       <section class="grupo">
         <span class="rotulo">Informe</span>
-        <div class="campo">
+        <!-- El informe lo decide el tablero, no una lista: al elegir el modelo
+             semántico se arma el que ese modelo soporta. El selector queda
+             sólo para cuando hay más de uno posible. -->
+        <p class="linea-inf" id="lineaInforme">
+          <b id="nombreInforme">—</b><button type="button" id="btnCambiarInforme" hidden>cambiar</button>
+        </p>
+        <div class="campo" id="campoTipo" hidden>
           <label for="fTipo">Tipo de informe</label>
           <select id="fTipo"></select>
         </div>
-        <div class="fila">
-          <div class="campo" style="flex:1 1 118px">
-            <label for="fPeriodo">Período</label>
-            <input id="fPeriodo" type="month">
-          </div>
-          <div class="campo" style="flex:1 1 118px">
-            <label for="fSociedad">Sociedad</label>
-            <input id="fSociedad" placeholder="Todas" autocomplete="off">
-          </div>
-        </div>
         <div class="campo">
-          <label for="fVertical">Vertical</label>
-          <input id="fVertical" placeholder="Todas" autocomplete="off">
+          <label for="fPeriodo">Período</label>
+          <input id="fPeriodo" type="month">
         </div>
+        <!-- Sólo las dimensiones que de verdad tienen más de un valor. Lo que
+             el Power Query ya dejó filtrado aparece abajo como contexto. -->
+        <div id="filtrosTablero"></div>
+        <div id="chipsContexto"></div>
       </section>
 
       <section class="grupo">
@@ -1050,12 +1170,26 @@ function el(html) {
 
 function cPortada(meta, rep) {
   const f = meta.filtros || {};
+  // Lo que el modelo ya trae filtrado va en la portada con su valor real:
+  // decir «Sociedad: Todas» cuando el Power Query dejó una sola es mentir en
+  // el encabezado de un informe que alguien va a firmar.
+  const fijos = (CONTEXTO && CONTEXTO.fijos) || [];
+  const elegidos = Object.entries(f)
+    .filter(([, v]) => v && v !== "Todas")
+    .map(([k, v]) => [rotuloFiltro(k), v]);
+  const abiertas = ((CONTEXTO && CONTEXTO.elegibles) || [])
+    .filter((d) => !f[d.clave] || f[d.clave] === "Todas")
+    .map((d) => [d.rotulo, "Todas"]);
   const campos = [
     ["Período", meta.periodoEtiqueta || mesLargo(meta.periodo)],
-    ["Sociedad", f.sociedad || "Todas"],
-    ["Vertical", f.vertical || "Todas"],
+    ...fijos.map((x) => [x.rotulo, x.valor]),
+    ...elegidos,
+    ...abiertas,
+    // sin backend (datos de ejemplo) no hay contexto: queda lo que traiga el JSON
+    ...(fijos.length || elegidos.length || abiertas.length
+      ? [] : [["Sociedad", f.sociedad || "Todas"], ["Vertical", f.vertical || "Todas"]]),
     ["Unidad", meta.unidad || "millones de $"]
-  ].filter((x) => x[1]);
+  ].filter((x) => x[1]).slice(0, 6);
   return el(`<section class="portada">
     <span class="ojo">${esc(meta.organizacion || "Informe de gestión")}</span>
     <h1>${esc(meta.titulo || rep.titulo)}</h1>
@@ -1065,8 +1199,14 @@ function cPortada(meta, rep) {
   </section>`);
 }
 
-function cKpis(s) {
+/**
+ * `pleno` = montos enteros. En la hoja impresa la escala es millones, que es
+ * lo que hace legible una serie; en el tablero se trabaja con la cifra exacta,
+ * que es la que se copia a un mail o se contrasta con el sistema.
+ */
+function cKpis(s, pleno) {
   const items = s.items || [];
+  const num = pleno ? fmtPleno : fmt;
   const b = el(`<section class="bloque"></section>`);
   if (s.titulo) b.appendChild(tapa(s));
   const g = el(`<div class="kpis"></div>`);
@@ -1087,7 +1227,7 @@ function cKpis(s) {
     }
     g.appendChild(el(`<article class="kpi${k.titular ? " titular" : ""}">
       <span class="e">${esc(k.etiqueta)}</span>
-      <span class="v">${esc(fmt(k.valor, k.formato))}</span>
+      <span class="v">${esc(num(k.valor, k.formato))}</span>
       ${typeof d === "number"
         ? `<span class="d ${clase}"><span class="fl">${flecha}</span>${esc(fmtDelta(d, k.formatoDelta || k.formato))}<span class="ref">${esc(k.deltaEtiqueta || "vs BO")}</span></span>`
         : k.nota ? `<span class="d plano"><span class="ref">${esc(k.nota)}</span></span>` : ""}
@@ -1138,20 +1278,40 @@ function cGrafico(s) {
                 barrasHorizontales: gBarrasH, desvios: gDesvios }[s.tipo];
   b.appendChild(el(`<div>${dib(s)}</div>`));
   if (s.nota) b.appendChild(el(`<p class="b-nota">${esc(s.nota)}</p>`));
-  // gemela en tabla: todo valor del gráfico se puede leer también como número
-  const gem = tablaGemela(s);
+  // Lo que se despliega es la APERTURA que hay detrás del gráfico —quién
+  // compone cada barra, por qué concepto—, no los mismos números que el
+  // gráfico ya rotula al lado de cada barra. Si el backend no manda apertura,
+  // queda la gemela en tabla, que al menos hace legible un gráfico de líneas.
+  const gem = s.detalle ? tablaDetalle(s.detalle) : tablaGemela(s);
   if (gem) {
-    const btn = el(`<button class="ver-datos" type="button" aria-expanded="false">Ver datos</button>`);
+    const rotulo = s.detalle ? (s.detalle.titulo || "Ver detalle") : "Ver datos";
+    const btn = el(`<button class="ver-datos" type="button" aria-expanded="false">${esc(rotulo)}</button>`);
     gem.hidden = true;
     btn.addEventListener("click", () => {
       gem.hidden = !gem.hidden;
       btn.setAttribute("aria-expanded", String(!gem.hidden));
-      btn.textContent = gem.hidden ? "Ver datos" : "Ocultar datos";
+      btn.textContent = (gem.hidden ? "" : "Ocultar — ") + rotulo;
     });
     b.appendChild(btn);
     b.appendChild(gem);
   }
   return b;
+}
+
+/** La apertura que manda el backend: columnas tipadas y filas ya ordenadas. */
+function tablaDetalle(d) {
+  const cols = d.columnas || [];
+  if (!cols.length || !(d.filas || []).length) return null;
+  const num = (c) => c.tipo && c.tipo !== "texto";
+  const cel = (c, f) => {
+    const v = f[c.clave];
+    return `<td class="${num(c) ? "n" : ""}">${esc(
+      v === undefined || v === null || v === "" ? "—" : fmt(v, c.tipo || "texto"))}</td>`;
+  };
+  return el(`<div class="marco tabla-gemela"><table class="datos">
+    <thead><tr>${cols.map((c) => `<th class="${num(c) ? "n" : ""}">${esc(c.titulo)}</th>`).join("")}</tr></thead>
+    <tbody>${d.filas.map((f) => `<tr>${cols.map((c) => cel(c, f)).join("")}</tr>`).join("")}</tbody>
+  </table></div>`);
 }
 
 function tablaGemela(s) {
@@ -1281,6 +1441,353 @@ function partirTabla(bloque, ctx) {
   }
 }
 
+/* ═══════════════════════════════════════════════════════════════════════
+   TABLERO INTERACTIVO
+   Algunos informes traen, además de las hojas, una vista con la que se
+   trabaja: solapas, buscador, orden y filtros. Las dos salen de la MISMA
+   consulta, así que el PDF es exactamente lo que se estaba mirando.
+   Conviven en el mismo DOM y se alternan por atributo: imprimir siempre
+   imprime las hojas, sin importar en qué modo esté la pantalla.
+   ═══════════════════════════════════════════════════════════════════════ */
+let MODO = "tablero";   // "tablero" | "informe"
+let SOLAPA = null;
+
+function hayTablero(datos) {
+  return !!(datos && datos.tablero && (datos.tablero.solapas || []).length);
+}
+
+function conmutador(mesa, datos) {
+  const c = el(`<div class="conmutador">
+    <div class="seg" role="group" aria-label="Cómo ver el informe">
+      <button type="button" data-modo="tablero">Tablero</button>
+      <button type="button" data-modo="informe">Informe</button>
+    </div>
+    <span class="dato" id="conmDato"></span>
+  </div>`);
+  c.querySelectorAll("[data-modo]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.modo === MODO));
+    b.addEventListener("click", () => {
+      MODO = b.dataset.modo;
+      mesa.dataset.modo = MODO;
+      c.querySelectorAll("[data-modo]").forEach((x) =>
+        x.setAttribute("aria-pressed", String(x.dataset.modo === MODO)));
+      guardarPrefs();
+      if (MODO === "informe") ajustarZoom();
+    });
+  });
+  return c;
+}
+
+function pintarTablero(datos) {
+  const t = datos.tablero, meta = datos.meta || {};
+  const caja = el(`<div class="tablero"></div>`);
+
+  // Lo que el modelo ya trae filtrado encabeza la lista: es lo que define de
+  // qué cartera estamos hablando. Después, lo que la persona eligió.
+  const fijos = (CONTEXTO && CONTEXTO.fijos) || [];
+  const chips = [
+    ...fijos,
+    meta.periodo ? { rotulo: "Período", valor: meta.periodoEtiqueta || mesLargo(meta.periodo) } : null,
+    ...Object.entries(meta.filtros || {})
+      .filter(([, v]) => v && v !== "Todas")
+      .map(([k, v]) => ({ rotulo: rotuloFiltro(k), valor: v }))
+  ].filter(Boolean);
+
+  // El tablero se llama por su recorte, no por la empresa: «Corporaciones
+  // Petróleo» dice más que «Emergencias» cuando hay un tablero por cartera.
+  const apellido = (fijos.find((f) => f.rotulo === "Canal")
+                 || fijos.find((f) => f.rotulo === "Sociedad") || {}).valor
+                 || meta.organizacion;
+
+  caja.appendChild(el(`<div class="tb-tapa">
+    <h1>${esc(t.titulo || meta.titulo || "Tablero")}${
+      apellido ? " — " + esc(apellido) : ""}</h1>
+    <span class="baj">${esc(t.bajada || meta.bajada || "")}${
+      meta.actualizado ? " · información al " + esc(fechaCorta(meta.actualizado)) : ""}</span>
+    <div class="tb-chips">${chips.map((c) =>
+      `<span class="tb-chip">${esc(c.rotulo)}: <b>${esc(c.valor)}</b></span>`).join("")}</div>
+  </div>`));
+
+  const solapas = t.solapas || [];
+  const barra = el(`<div class="tb-solapas" role="tablist"></div>`);
+  const paneles = [];
+  if (!solapas.some((x) => x.clave === SOLAPA)) SOLAPA = solapas[0] && solapas[0].clave;
+
+  solapas.forEach((sol) => {
+    const activa = sol.clave === SOLAPA;
+    const bt = el(`<button type="button" role="tab" aria-selected="${activa}"
+      id="tab-${esc(sol.clave)}" aria-controls="panel-${esc(sol.clave)}">${esc(sol.rotulo)}</button>`);
+    const panel = el(`<div class="tb-panel" role="tabpanel" id="panel-${esc(sol.clave)}"
+      aria-labelledby="tab-${esc(sol.clave)}"></div>`);
+    panel.hidden = !activa;
+    (sol.bloques || []).forEach((b) => {
+      let nodo;
+      try { nodo = bloqueTablero(notaDeAlcance(b, fijos)); }
+      catch (e) { console.warn("Bloque no renderizado:", b.tipo, e); return; }
+      if (nodo) panel.appendChild(nodo);
+    });
+    bt.addEventListener("click", () => {
+      SOLAPA = sol.clave;
+      barra.querySelectorAll("button").forEach((x) =>
+        x.setAttribute("aria-selected", String(x === bt)));
+      paneles.forEach((pp) => { pp.hidden = pp.id !== "panel-" + sol.clave; });
+    });
+    barra.appendChild(bt);
+    paneles.push(panel);
+  });
+
+  caja.appendChild(barra);
+  paneles.forEach((pp) => caja.appendChild(pp));
+  return caja;
+}
+
+/**
+ * El recorte que trae el modelo encabeza las notas. Es la advertencia que más
+ * importa —esto no es toda la cartera de la empresa, es un canal— y sale de lo
+ * que el contexto detectó, no de un texto escrito a mano para un tablero.
+ */
+function notaDeAlcance(b, fijos) {
+  if (b.tipo !== "notas" || !fijos.length) return b;
+  const lista = fijos.map((f) => f.rotulo.toLowerCase() + " «" + f.valor + "»").join(", ");
+  const alcance = {
+    n: "00",
+    titulo: "Alcance: " + (fijos.length === 1 ? "un recorte" : "un recorte de la cartera"),
+    cuerpo: "El modelo viene filtrado por " + lista + ": tiene un solo valor en esa dimensión, " +
+            "así que el recorte ya está hecho en el origen. Este tablero muestra únicamente " +
+            "esa cartera — no la deuda total de la compañía."
+  };
+  return { ...b, items: [alcance, ...(b.items || [])] };
+}
+
+/** El rótulo que el contexto usa para esa dimensión, o la clave capitalizada. */
+function rotuloFiltro(clave) {
+  const d = CONTEXTO && (CONTEXTO.dimensiones || []).find((x) => x.clave === clave);
+  return d ? d.rotulo : clave[0].toUpperCase() + clave.slice(1);
+}
+
+const fechaCorta = (iso) => {
+  const d = iso ? new Date(iso) : new Date();
+  return isNaN(d) ? String(iso)
+    : d.toLocaleDateString("es-AR", { day: "numeric", month: "long", year: "numeric" });
+};
+
+/* ── bloques ────────────────────────────────────────────────────────── */
+function bloqueTablero(b) {
+  const f = { kpis: bKpis, aging: bAging, ranking: bAging, tablaViva: bTablaViva,
+              lineas: bGrafico, barras: bGrafico, barrasHorizontales: bGrafico,
+              notas: bNotas }[b.tipo];
+  return f ? f(b) : null;
+}
+
+function tarjeta(b, extra) {
+  const t = el(`<section class="tarjeta${extra ? " " + extra : ""}"></section>`);
+  if (b.titulo || b.subtitulo) {
+    t.appendChild(el(`<div class="tap">
+      ${b.titulo ? `<h2>${esc(b.titulo)}</h2>` : ""}
+      ${b.subtitulo ? `<span class="sub">${esc(b.subtitulo)}</span>` : ""}
+      ${b.medida ? `<span class="der">${esc(b.medida)}</span>` : ""}
+    </div>`));
+  }
+  if (b.plegable) {
+    t.classList.add("plegable");
+    t.dataset.abierto = "no";
+    const tap = t.querySelector(".tap");
+    if (tap) {
+      tap.setAttribute("role", "button");
+      tap.setAttribute("tabindex", "0");
+      const alterna = () => { t.dataset.abierto = t.dataset.abierto === "no" ? "si" : "no"; };
+      tap.addEventListener("click", alterna);
+      tap.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alterna(); }
+      });
+    }
+  }
+  return t;
+}
+
+// Las tarjetas de KPI ya traen su propio marco: meterlas dentro de otra
+// tarjeta sería una caja dentro de una caja.
+const bKpis = (b) => cKpis(b, true);
+
+/** Barras horizontales con monto y participación: el patrón del aging. */
+function bAging(b) {
+  const t = tarjeta(b, b.plegable ? "" : "");
+  const items = (b.items || []).filter((i) => typeof i.valor === "number");
+  if (!items.length) return null;
+  const total = items.reduce((a, i) => a + Math.abs(i.valor), 0) || 1;
+  const tope = Math.max(...items.map((i) => Math.abs(i.valor))) || 1;
+  const caja = el(`<div></div>`);
+  items.forEach((i) => {
+    const pct = (Math.abs(i.valor) / total) * 100;
+    caja.appendChild(el(`<div class="aging-fila">
+      <span class="et" title="${esc(i.etiqueta)}">${esc(i.etiqueta)}</span>
+      <span class="via"><i style="width:${(Math.abs(i.valor) / tope) * 100}%"></i></span>
+      <span class="val">${esc(fmtPleno(i.valor, b.formato))}
+        ${b.tipo === "aging" ? `<small>${esc(n1.format(pct))} %</small>` : ""}
+        ${i.nota ? `<em>${esc(i.nota)}</em>` : ""}</span>
+    </div>`));
+  });
+  t.appendChild(caja);
+  if (b.nota) t.appendChild(el(`<p class="b-nota">${esc(b.nota)}</p>`));
+  return t;
+}
+
+/**
+ * En el tablero los montos van enteros, no en millones: es la cifra que se
+ * copia a un mail o se contrasta con SAP. La escala de los gráficos del
+ * informe impreso es otra cosa y sigue como está.
+ */
+function fmtPleno(v, formato) {
+  if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "—";
+  if (formato === "moneda" || formato === "monto") return "$ " + n0.format(v);
+  return fmt(v, formato);
+}
+
+function bGrafico(b) {
+  const t = tarjeta(b);
+  const dib = { barras: gBarras, lineas: gLineas, barrasHorizontales: gBarrasH }[b.tipo];
+  if (!dib) return null;
+  t.appendChild(el(`<div>${dib(b)}</div>`));
+  if (b.nota) t.appendChild(el(`<p class="b-nota">${esc(b.nota)}</p>`));
+  return t;
+}
+
+function bNotas(b) {
+  const t = tarjeta(b);
+  (b.items || []).forEach((i) => t.appendChild(el(`<div class="nota-c">
+    <h3><span>${esc(i.n || "")}</span>${esc(i.titulo)}</h3>
+    <p>${esc(i.cuerpo)}</p>
+  </div>`)));
+  return t;
+}
+
+/* ── tabla viva: buscar, ordenar, filtrar ───────────────────────────── */
+function bTablaViva(b) {
+  const t = tarjeta(b);
+  const cols = b.columnas || [];
+  const filas = b.filas || [];
+  const orden = { clave: (b.orden || {}).clave, desc: (b.orden || {}).desc !== false };
+  let busca = "";
+  const activos = new Set();
+
+  const mandos = el(`<div class="tv-mandos"></div>`);
+  if (b.buscar) {
+    const i = el(`<input type="search" placeholder="${esc(b.buscar)}" aria-label="${esc(b.buscar)}">`);
+    i.addEventListener("input", () => { busca = i.value.trim().toLowerCase(); pintar(); });
+    mandos.appendChild(i);
+  }
+  (b.filtros || []).forEach((f, n) => {
+    const id = "flt-" + (b.titulo || "t").replace(/\W+/g, "") + n;
+    const l = el(`<label for="${id}"><input type="checkbox" id="${id}">${esc(f.rotulo)}</label>`);
+    l.querySelector("input").addEventListener("change", (e) => {
+      e.target.checked ? activos.add(n) : activos.delete(n);
+      pintar();
+    });
+    mandos.appendChild(l);
+  });
+  const cuenta = el(`<span class="cuenta"></span>`);
+  mandos.appendChild(cuenta);
+  if (b.buscar || (b.filtros || []).length) t.appendChild(mandos);
+
+  const marco = el(`<div class="tv-marco"></div>`);
+  t.appendChild(marco);
+
+  // el orden pedido por el backend, aplicado una vez
+  const esNum = (c) => c && c.tipo && !["texto", "cliente", "aging", "chips"].includes(c.tipo);
+
+  /** Un filtro declarativo: el backend manda campo/op/valor, nunca código. */
+  const pasa = (fila, f) => {
+    const v = fila[f.campo];
+    if (typeof v !== "number") return false;
+    switch (f.op) {
+      case ">":  return v > f.valor;
+      case ">=": return v >= f.valor;
+      case "<":  return v < f.valor;
+      case "<=": return v <= f.valor;
+      case "!=": return v !== f.valor;
+      default:   return v === f.valor;
+    }
+  };
+
+  function visibles() {
+    let xs = filas;
+    if (busca) {
+      const campos = b.buscarEn || cols.filter((c) => !esNum(c)).map((c) => c.clave);
+      xs = xs.filter((f) => campos.some((c) =>
+        String(f[c] == null ? "" : f[c]).toLowerCase().includes(busca)));
+    }
+    for (const n of activos) { const f = b.filtros[n]; if (f) xs = xs.filter((x) => pasa(x, f)); }
+    if (orden.clave) {
+      const c = cols.find((x) => x.clave === orden.clave);
+      xs = xs.slice().sort((a, z) => {
+        const va = a[orden.clave], vz = z[orden.clave];
+        if (va === undefined || va === null) return 1;
+        if (vz === undefined || vz === null) return -1;
+        const d = esNum(c) ? va - vz : String(va).localeCompare(String(vz), "es");
+        return orden.desc ? -d : d;
+      });
+    }
+    return xs;
+  }
+
+  function celda(c, fila) {
+    const v = fila[c.clave];
+    if (c.tipo === "cliente") {
+      const sub = c.sub ? fila[c.sub] : null;
+      return `<td class="cli">${esc(v)}${sub ? `<small>${esc(sub)}</small>` : ""}</td>`;
+    }
+    if (c.tipo === "aging") {
+      const xs = Array.isArray(v) ? v : [];
+      if (!xs.length) return `<td></td>`;
+      const tope = Math.max(...xs.map((x) => Math.abs(x.valor))) || 1;
+      return `<td><span class="mini" title="${esc(xs.map((x) =>
+        x.etiqueta + ": " + fmtPleno(x.valor, "moneda")).join(" · "))}">${xs.map((x, i) =>
+        `<i style="background:var(${ORDINAL[Math.min(i, ORDINAL.length - 1)]});opacity:${
+          (0.35 + 0.65 * (Math.abs(x.valor) / tope)).toFixed(2)}"></i>`).join("")}</span></td>`;
+    }
+    if (c.tipo === "chips") {
+      const xs = Array.isArray(v) ? v : [];
+      return `<td><span class="chips-cel">${xs.slice(0, 4).map((x) =>
+        `<span title="${esc(fmtPleno(x.valor, "moneda"))}">${esc(x.etiqueta)}</span>`).join("")}</span></td>`;
+    }
+    if (esNum(c)) return `<td class="n">${esc(fmtPleno(v, c.tipo))}</td>`;
+    return `<td>${esc(v == null ? "" : v)}</td>`;
+  }
+
+  function pintar() {
+    const xs = visibles();
+    cuenta.textContent = xs.length === filas.length
+      ? filas.length + (filas.length === 1 ? " fila" : " filas")
+      : xs.length + " / " + filas.length;
+    marco.innerHTML = "";
+    const tabla = el(`<table class="viva">
+      <thead><tr>${cols.map((c) => {
+        const n = esNum(c) ? " n" : "";
+        const act = orden.clave === c.clave;
+        return `<th class="ord${n}" data-col="${esc(c.clave)}"${
+          act ? ` aria-sort="${orden.desc ? "descending" : "ascending"}"` : ""
+        }>${esc(c.titulo)}<span class="fl">${act ? (orden.desc ? "▾" : "▴") : "▾"}</span></th>`;
+      }).join("")}</tr></thead>
+      <tbody>${xs.length
+        ? xs.map((f) => `<tr>${cols.map((c) => celda(c, f)).join("")}</tr>`).join("")
+        : `<tr class="nada"><td colspan="${cols.length}">Ninguna fila coincide con la búsqueda.</td></tr>`}
+      ${b.total && xs.length === filas.length
+        ? `<tr class="suma">${cols.map((c) => celda(c, b.total)).join("")}</tr>` : ""}</tbody>
+    </table>`);
+    tabla.querySelectorAll("th[data-col]").forEach((th) => th.addEventListener("click", () => {
+      const k = th.dataset.col;
+      if (orden.clave === k) orden.desc = !orden.desc;
+      else { orden.clave = k; orden.desc = true; }
+      pintar();
+    }));
+    marco.appendChild(tabla);
+  }
+
+  pintar();
+  if (b.nota) t.appendChild(el(`<p class="b-nota">${esc(b.nota)}</p>`));
+  return t;
+}
+
 function render(datos) {
   const mesa = document.getElementById("mesa");
   mesa.innerHTML = "";
@@ -1297,6 +1804,17 @@ function render(datos) {
   const meta = datos.meta || {};
   const rep = REPORTES[meta.informe] || REPORTES.ejecutivo;
   ESCALA = typeof meta.escala === "number" && meta.escala > 0 ? meta.escala : 1e6;
+
+  // El tablero y las hojas conviven: el conmutador decide cuál se ve, e
+  // imprimir siempre imprime las hojas.
+  // MODO es la preferencia de la persona y sobrevive a un informe sin tablero:
+  // pisarla acá dejaba el conmutador clavado en «Informe» para siempre.
+  const conTablero = hayTablero(datos);
+  mesa.dataset.modo = conTablero ? MODO : "informe";
+  if (conTablero) {
+    mesa.appendChild(conmutador(mesa, datos));
+    mesa.appendChild(pintarTablero(datos));
+  }
 
   const ctx = { mesa, meta, rep, hojas: [], cuerpo: null, demo: ES_DEMO };
   nuevaHoja(ctx);
@@ -1315,6 +1833,8 @@ function render(datos) {
   ctx.hojas.forEach((h, i) => {
     h.querySelector(".folio").textContent = `Página ${i + 1} de ${total}`;
   });
+  const dato = document.getElementById("conmDato");
+  if (dato) dato.textContent = total + (total === 1 ? " hoja" : " hojas") + " para imprimir";
   document.getElementById("btnPdf").disabled = false;
   document.getElementById("btnHtml").disabled = false;
   ajustarZoom();
@@ -1336,8 +1856,8 @@ function guardarPrefs() {
     localStorage.setItem(CLAVE, JSON.stringify({
       backend: $("fBackend").value, workspace: $("fWorkspace").value,
       dataset: $("fDataset").value, tipo: $("fTipo").value,
-      periodo: $("fPeriodo").value, sociedad: $("fSociedad").value,
-      vertical: $("fVertical").value, zoom: $("fZoom").value
+      periodo: $("fPeriodo").value, filtros: filtrosActuales(),
+      modo: MODO, zoom: $("fZoom").value
     }));
   } catch (e) { /* navegación privada o almacenamiento bloqueado */ }
 }
@@ -1359,11 +1879,67 @@ function estado(tipo, titulo, cuerpo) {
   }
 }
 
+/**
+ * Los filtros que el usuario eligió. No hay una lista fija de casillas: el
+ * panel dibuja una por cada dimensión que el tablero deja elegir, así que acá
+ * se leen las que existan.
+ */
 function filtrosActuales() {
   const f = {};
-  if ($("fSociedad").value.trim()) f.sociedad = $("fSociedad").value.trim();
-  if ($("fVertical").value.trim()) f.vertical = $("fVertical").value.trim();
+  document.querySelectorAll("[data-filtro]").forEach((sel) => {
+    const v = sel.value.trim();
+    if (v && v !== "Todas") f[sel.dataset.filtro] = v;
+  });
   return f;
+}
+
+/* ── contexto del tablero ──────────────────────────────────────────────
+   Power Query puede dejar el modelo ya recortado a una sociedad y un canal.
+   Eso no se pide de nuevo: se muestra. Y lo que sí tiene varios valores se
+   ofrece como lista, no como texto libre — escribir «IHSA SA» en vez de
+   «IHSA S.A.» devolvía un informe vacío sin decir por qué. */
+let CONTEXTO = null;
+let FILTROS_GUARDADOS = {};
+
+async function traerContexto() {
+  const ws = $("fWorkspace").value.trim(), ds = $("fDataset").value.trim();
+  if (!ES_GUID.test(ws) || !ES_GUID.test(ds)) { CONTEXTO = null; pintarContexto(); return; }
+  try {
+    CONTEXTO = await API.pedir(`/api/tablero/${ws}/${ds}/contexto`);
+  } catch (e) { CONTEXTO = null; }
+  pintarContexto();
+}
+
+const ES_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function pintarContexto() {
+  const caja = $("filtrosTablero"), chips = $("chipsContexto");
+  caja.innerHTML = ""; chips.innerHTML = "";
+  if (!CONTEXTO) return;
+
+  for (const d of CONTEXTO.elegibles || []) {
+    const campo = el(`<div class="campo">
+      <label for="filtro-${esc(d.clave)}">${esc(d.rotulo)}</label>
+      <select id="filtro-${esc(d.clave)}" data-filtro="${esc(d.clave)}">
+        <option value="">Todas</option>
+        ${d.valores.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("")}
+      </select>
+    </div>`);
+    const sel = campo.querySelector("select");
+    const guardado = FILTROS_GUARDADOS[d.clave];
+    if (guardado && d.valores.includes(guardado)) sel.value = guardado;
+    sel.addEventListener("change", guardarPrefs);
+    caja.appendChild(campo);
+  }
+
+  for (const f of CONTEXTO.fijos || []) {
+    chips.appendChild(el(`<span class="chip-ctx" title="Ya viene filtrado en el modelo">${
+      esc(f.rotulo)}: <b>${esc(f.valor)}</b></span>`));
+  }
+  if ((CONTEXTO.fijos || []).length) {
+    chips.appendChild(el(`<span class="chip-ctx" style="border-style:dashed"
+      title="Estas dimensiones tienen un solo valor en el modelo: el recorte ya viene del Power Query">ya filtrado en el tablero</span>`));
+  }
 }
 
 async function actualizar() {
@@ -1643,7 +2219,8 @@ async function cargarModelos(ws) {
         l.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", "false"));
         b.setAttribute("aria-pressed", "true");
         $("fDataset").value = d.id;
-        guardarPrefs();
+        // elegir el tablero es todo el trámite: de acá sale el informe
+        alElegirTablero();
       });
       l.appendChild(b);
     });
@@ -1683,7 +2260,36 @@ async function sincronizarInformes() {
   const sirve = (k) => DISPONIBLES[k] && DISPONIBLES[k].disponible;
   const primero = lista.find((r) => r.disponible !== false);
   sel.value = sirve(elegido) ? elegido : (primero ? primero.clave : lista[0].clave);
+  pintarLineaInforme();
   if (sel.value !== elegido) { guardarPrefs(); avisarInforme(); }
+}
+
+/**
+ * El informe lo decide el tablero. Elegir el modelo semántico ya dice cuál
+ * corresponde —es el único que sus medidas soportan— así que pedirlo otra vez
+ * en una lista era un paso de más. El selector aparece sólo si hay empate.
+ */
+function pintarLineaInforme() {
+  const k = $("fTipo").value;
+  $("nombreInforme").textContent = (REPORTES[k] || {}).nombre || k || "—";
+  const posibles = DISPONIBLES
+    ? Object.values(DISPONIBLES).filter((d) => d.disponible).length
+    : Object.keys(REPORTES).length;
+  const cambiar = $("btnCambiarInforme");
+  cambiar.hidden = posibles < 2;
+  if (cambiar.hidden) $("campoTipo").hidden = true;
+}
+
+/**
+ * Elegir el tablero es todo: se trae su contexto, se resuelve qué informe
+ * corresponde y se genera. Sin pasar por un selector.
+ */
+async function alElegirTablero() {
+  guardarPrefs();
+  await Promise.all([sincronizarInformes(), traerContexto()]);
+  const k = $("fTipo").value;
+  if (!k || !DISPONIBLES || !DISPONIBLES[k] || !DISPONIBLES[k].disponible) { avisarInforme(); return; }
+  await actualizar();
 }
 
 /** Dice, antes de consultar, si el informe elegido puede salir con este mapeo. */
@@ -1892,7 +2498,7 @@ async function leerUrlPbi() {
  * «Verificar contra el modelo» se quede sin contra qué probar.
  */
 async function traerTableroGuardado() {
-  if ($("fWorkspace").value.trim() && $("fDataset").value.trim()) return;
+  if ($("fWorkspace").value.trim() && $("fDataset").value.trim()) return;   // ya están
   try {
     const j = await API.pedir("/api/modelo");
     CAMPOS = j.campos; MAPEO = j.modelo;
@@ -2281,6 +2887,11 @@ function iniciarConectar() {
   $("btnDetectar").addEventListener("click", detectarMapeo);
   $("btnVerificar").addEventListener("click", verificarMapeo);
   $("btnReiniciarMapeo").addEventListener("click", reiniciarMapeo);
+  $("btnCambiarInforme").addEventListener("click", () => {
+    const c = $("campoTipo");
+    c.hidden = !c.hidden;
+    if (!c.hidden) $("fTipo").focus();
+  });
   $("btnGuardarMapeo").addEventListener("click", guardarMapeo);
   $("btnDax").addEventListener("click", () => correrDax());
   pintarAtajos();
@@ -2631,14 +3242,16 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("fDataset").value = p.dataset || "";
   $("fTipo").value = p.tipo && REPORTES[p.tipo] ? p.tipo : "ejecutivo";
   $("fPeriodo").value = p.periodo || "2026-07";
-  $("fSociedad").value = p.sociedad || "";
-  $("fVertical").value = p.vertical || "";
+  FILTROS_GUARDADOS = p.filtros || {};
+  if (p.modo === "tablero" || p.modo === "informe") MODO = p.modo;
   $("fZoom").value = p.zoom || "100";
   $("zoomVal").textContent = $("fZoom").value + "%";
 
-  ["fBackend","fWorkspace","fDataset","fTipo","fPeriodo","fSociedad","fVertical"]
+  ["fBackend","fWorkspace","fDataset","fTipo","fPeriodo"]
     .forEach((id) => $(id).addEventListener("change", guardarPrefs));
-  $("fTipo").addEventListener("change", avisarInforme);
+  $("fTipo").addEventListener("change", () => { pintarLineaInforme(); avisarInforme(); });
+  // cambiar de modelo a mano vale lo mismo que elegirlo de la lista
+  $("fDataset").addEventListener("change", () => { if (ES_GUID.test($("fDataset").value.trim())) traerContexto(); });
 
   $("btnActualizar").addEventListener("click", actualizar);
   $("btnDemo").addEventListener("click", () => aplicar(ejemploJson($("fTipo").value), true));
@@ -2687,8 +3300,9 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
 
   // el informe abre mostrando cómo queda: el ejemplo va marcado en cada hoja
   aplicar(ejemploJson($("fTipo").value), true);
+  pintarLineaInforme();
   // y si hay backend, el selector pasa a reflejar sus informes
   sincronizarInformes();
-  traerTableroGuardado();
+  traerTableroGuardado().then(traerContexto);
 })();
 </script>

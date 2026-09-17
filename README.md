@@ -309,8 +309,68 @@ pueda diferir del tablero.
 | `GET` / `PUT /api/modelo` | Leer y guardar el mapeo. |
 | `POST /api/modelo/verificar` | Probar cada referencia contra el modelo. |
 | `POST /api/modelo/reiniciar` | Borrar el mapeo local y volver a la semilla. |
+| `GET /api/tablero/:ws/:ds/contexto` | Qué dimensiones ya vienen filtradas y cuáles se pueden elegir. |
 | `GET /api/informes` | Qué informes puede dar el mapeo actual, y qué les falta. |
 | `POST /api/informe` | El informe ya normalizado. |
+
+## Dos vistas del mismo informe
+
+Un informe puede devolver, además de las hojas A4, un **tablero interactivo**.
+Hoy lo hace sólo *Deuda*; los demás siguen dando sólo hojas y nada cambia para
+ellos. Las dos vistas salen de la **misma consulta**, así que el PDF es
+exactamente lo que estabas mirando y no una segunda lectura que puede diferir.
+
+| | Tablero | Informe |
+|---|---|---|
+| Para qué | trabajar: buscar un cliente, ordenar, filtrar | mandar, firmar, archivar |
+| Montos | la cifra exacta (`$ 413.359.095`) | en millones, que es lo que hace legible una serie |
+| Se imprime | no | sí — **Exportar PDF** sale de acá siempre, estés donde estés |
+
+El tablero de Deuda tiene seis solapas: **Resumen** (tarjetas + los dos aging),
+**Cobranza** (tabla por cliente con buscador, orden y filtro de vencido, más la
+apertura por clase de documento, tipo de deuda, estado y gestor), **Facturación**
+(pendiente por cliente con sus principales conceptos, y apertura por concepto,
+tipo y estado), **Cliente 360°** (exposición combinada), **Días en calle**
+(serie mensual y promedio por año) y **Notas y alcance**, que se escribe desde
+lo que *este* modelo dice — nombra tus medidas, no un texto fijo.
+
+### El tablero decide el informe
+
+Elegir el modelo semántico es todo el trámite: el backend ya sabe qué informes
+soporta ese modelo (`GET /api/informes`), así que se arma el que corresponde y
+se genera. El selector de tipo aparece sólo si hay más de uno posible, detrás
+de un *cambiar*.
+
+### Lo que Power Query ya filtró no se vuelve a pedir
+
+`executeQueries` no deja leer los pasos de Power Query, pero sí mirar el dato:
+si una dimensión tiene **un solo valor distinto**, el recorte ya está hecho en
+el origen. `GET /api/tablero/:ws/:ds/contexto` prueba sociedad, canal, negocio
+y moneda, y clasifica cada una:
+
+- **un valor** → contexto. Aparece como chip (`Canal: 32 Corporaciones Petróleo`),
+  en la portada del PDF y como primera nota de alcance. No se ofrece como filtro.
+- **varios** → filtro. El panel dibuja una lista con los valores reales, no un
+  campo de texto: escribir `IHSA SA` en vez de `IHSA S.A.` devolvía un informe
+  vacío sin decir por qué.
+
+Por eso el panel muestra *Negocio* y no *Sociedad* en el tablero de Deuda: la
+sociedad ya viene recortada a una sola.
+
+### «Ver datos» abre, no repite
+
+Cada barra del informe ya lleva su número al lado, así que desplegar los mismos
+valores no agregaba nada. Ahora el botón muestra la **apertura** que hay detrás:
+el aging de cobranza se abre por clase de documento, tipo de deuda, estado de
+vencimiento y gestor; el de facturación por concepto, tipo y estado; los cortes
+por negocio y la concentración, por cliente. Cuando el modelo no tiene esas
+columnas mapeadas, queda la tabla gemela de siempre.
+
+Las columnas que habilitan esto son opcionales y se mapean como cualquier otra
+(*Conectar → Mapeo*): clase de documento, tipo de deuda, condición de pago,
+estado de vencimiento, moneda, concepto, tipo, estado de facturación, tramo de
+antigüedad de facturación y razón social. **Detectar automáticamente** las
+busca solas.
 
 ## El contrato de datos
 

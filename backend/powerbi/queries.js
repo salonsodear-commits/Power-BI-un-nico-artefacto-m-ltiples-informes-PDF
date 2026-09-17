@@ -104,7 +104,44 @@ function colsMedidas(claves) {
   return claves.filter((k) => m(k)).map((k) => `    "${k}", ${m(k)}`);
 }
 
+/**
+ * Una apertura: la medida abierta por una o más columnas.
+ *
+ * Es el ladrillo de todo el detalle del tablero de deuda. Devuelve null si el
+ * modelo no tiene alguna de las piezas, para que el informe saltee esa vista
+ * en vez de fallar.
+ *
+ *   desglose({ por: [c("concepto")], medidas: ["deudaFacturacion"], tope: 40 })
+ */
+function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = true }) {
+  const dims = (Array.isArray(por) ? por : [por]).filter(Boolean);
+  const cols = colsMedidas(medidas || []);
+  if (!dims.length || !cols.length) return null;
+
+  const cuerpo = [
+    ...dims.map((x) => "    " + x),
+    ...filtros.filter(Boolean).map((x) => "    " + x),
+    ...cols
+  ].join(",\n");
+
+  // el orden por defecto es la primera medida que el modelo sí tiene
+  const clave = orden || (medidas || []).find((k) => m(k));
+  const porOrden = clave ? `\n  ORDER BY [${clave}] ${desc ? "DESC" : "ASC"}` : "";
+
+  const tabla = `SUMMARIZECOLUMNS(\n${cuerpo}\n  )`;
+  return tope
+    ? `\nEVALUATE\n  TOPN(\n    ${tope},\n  ${tabla.replace(/\n/g, "\n  ")},\n    [${clave}], ${desc ? "DESC" : "ASC"}\n  )${porOrden}`
+    : `\nEVALUATE\n  ${tabla}${porOrden}`;
+}
+
+/** Los valores distintos de una columna, para saber si el tablero ya la filtró. */
+function valoresDe(col, tope = 12) {
+  if (!col) return null;
+  return `\nEVALUATE\n  TOPN(${tope}, SUMMARIZECOLUMNS(${col}))`;
+}
+
 module.exports = {
   m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
-  fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas
+  fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas,
+  desglose, valoresDe
 };

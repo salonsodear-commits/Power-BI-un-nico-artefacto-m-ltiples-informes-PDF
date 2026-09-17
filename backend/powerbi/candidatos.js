@@ -24,7 +24,11 @@ const TABLAS = {
     "Categoria de Gasto", "Categorias", "Conceptos", "Concepto"],
   aging: ["Aging - Actualizado", "Aging", "Aging Actualizado", "Vencimientos",
     "Vencimiento", "Tramos", "Tramo", "Antiguedad", "Antigüedad", "Dim_Aging",
-    "Provision", "Provisión"]
+    "Provision", "Provisión"],
+  // La provisión es una tabla aparte del aging: de acá salen el concepto y el
+  // estado de lo pendiente de facturar, que el aging de cobranza no tiene.
+  provision: ["Provision", "Provisión", "Provisiones", "Pendiente Facturar",
+    "Pendiente de Facturar", "Facturacion", "Facturación", "WIP"]
 };
 
 /**
@@ -115,7 +119,18 @@ const COLUMNA_DE = {
   clienteNombre:  { tabla: "cliente",    patron: "cliente",   alterna: "aging", altPatron: "cliente" },
   clienteKam:     { tabla: "cliente",    patron: "kam",       alterna: "aging", altPatron: "gestor" },
   canal:          { tabla: "cliente",    patron: "canal",     alterna: "aging", altPatron: "canal" },
-  riesgo:         { tabla: "aging",      patron: "riesgo",    alterna: "cliente", altPatron: "riesgo" }
+  riesgo:         { tabla: "aging",      patron: "riesgo",    alterna: "cliente", altPatron: "riesgo" },
+  // ── aperturas del detalle ────────────────────────────────────────
+  clienteRazon:     { tabla: "aging",     patron: "cliente",   alterna: "cliente", altPatron: "razon" },
+  claseDocumento:   { tabla: "aging",     patron: "clase" },
+  tipoDeuda:        { tabla: "aging",     patron: "tipo deuda" },
+  condicionPago:    { tabla: "aging",     patron: "condicion" },
+  estadoVencimiento:{ tabla: "aging",     patron: "estado venc" },
+  moneda:           { tabla: "aging",     patron: "moneda" },
+  concepto:         { tabla: "provision", patron: "concepto",  alterna: "gastos", altPatron: "concepto" },
+  tipoProvision:    { tabla: "provision", patron: "tipo" },
+  statusPendiente:  { tabla: "provision", patron: "status" },
+  tramoFacturacion: { tabla: "provision", patron: "tramo" }
 };
 
 module.exports = { TABLAS, COLUMNAS, MEDIDAS, COLUMNA_DE };
