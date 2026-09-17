@@ -198,6 +198,26 @@ npm run dev     # o npm start, sin recarga
 La app de Entra ya viene en `backend/entra.json`, así que no hay paso de
 configuración. Para apuntar a otro tenant: `npm run configurar`.
 
+### En Codespaces, «localhost:3000» no es la dirección
+
+El servidor corre en la nube, no en tu máquina, así que `localhost:3000` no
+lleva a ningún lado. La dirección es la del **puerto reenviado**, y el arranque
+ahora la imprime:
+
+```
+Artefacto:  https://<tu-codespace>-3000.app.github.dev/
+            ↑ ésa es la dirección, no localhost
+```
+
+Si no se abre solo: pestaña **PUERTOS** (abajo, al lado de TERMINAL) → fila
+del 3000 → el ícono del **globo** («Abrir en el navegador»).
+
+El repositorio trae `.devcontainer/devcontainer.json` para que eso pase solo:
+reenvía el 3000, lo abre en vista previa al levantarse y corre `npm install` al
+crear el Codespace. Aplica a los Codespaces **nuevos** o cuando reconstruyas el
+actual (*Codespaces: Rebuild Container*); en el que ya tenés abierto, andá por
+la pestaña PUERTOS.
+
 Después abrí `localhost:3000` → **Conectar a Power BI** → **Entrar con mi cuenta**.
 
 Después abrí `http://localhost:3000/`: el artefacto queda servido desde el mismo

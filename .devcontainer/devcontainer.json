@@ -1,0 +1,24 @@
+{
+  "name": "Tablero a Informe",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+
+  // Sin esto, Codespaces reenvía el puerto pero no abre nada: el servidor
+  // queda corriendo y parece que «no abre».
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "Tablero a Informe",
+      "onAutoForward": "openPreview"
+    }
+  },
+
+  // Que `npm run dev` funcione sin pensar: las dependencias se instalan al
+  // crear el Codespace.
+  "postCreateCommand": "npm install",
+
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint"]
+    }
+  }
+}

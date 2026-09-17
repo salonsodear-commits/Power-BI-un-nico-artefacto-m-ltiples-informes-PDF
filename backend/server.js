@@ -396,9 +396,27 @@ function rotulo(grupo, clave) {
 }
 
 const PORT = Number(process.env.PORT || 3000);
+
+/**
+ * En Codespaces el servidor corre en la nube, así que «localhost:3000» no es
+ * la dirección que hay que abrir: es la del puerto reenviado. Decir localhost
+ * ahí es la diferencia entre que algo funcione y que parezca que no abre.
+ */
+function donde() {
+  const { CODESPACE_NAME: cs, GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN: dom } = process.env;
+  if (cs && dom) return { url: `https://${cs}-${PORT}.${dom}`, codespaces: true };
+  return { url: "http://localhost:" + PORT, codespaces: false };
+}
+
 app.listen(PORT, () => {
-  console.log("Backend de informes escuchando en http://localhost:" + PORT);
-  console.log("Artefacto:  http://localhost:" + PORT + "/");
+  const d = donde();
+  console.log("Backend de informes escuchando en el puerto " + PORT);
+  console.log("Artefacto:  " + d.url + "/");
+  if (d.codespaces) {
+    console.log("            ↑ ésa es la dirección, no localhost: en Codespaces el");
+    console.log("              servidor corre en la nube. Si no se abre solo, andá a");
+    console.log("              la pestaña PUERTOS y abrí el 3000 con el globo.");
+  }
   console.log("Informes:   " + Object.keys(INFORMES).join(", "));
   const mp = MODELO.resumen();
   console.log("Mapeo:      " + mp.medidas + " medidas y " + mp.columnas +
