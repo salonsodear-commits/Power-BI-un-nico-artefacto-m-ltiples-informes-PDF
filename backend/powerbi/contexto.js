@@ -32,7 +32,9 @@ const DIMENSIONES = [
 const rotuloDe = (clave) => (DIMENSIONES.find((d) => d.clave === clave) || {}).rotulo ||
   ({ claseDocumento: "Clase de documento", tipoDeuda: "Tipo de deuda",
      condicionPago: "Condición de pago", estadoVencimiento: "Estado de vencimiento",
-     concepto: "Concepto", agingTramo: "Tramo de aging" }[clave] || clave);
+     concepto: "Concepto", agingTramo: "Tramo de aging", clienteNumero: "Cliente",
+     documentoId: "Documento", documentoId2: "Documento", clienteNombre: "Cliente",
+     textoCabecera: "Texto de cabecera" }[clave] || clave);
 
 const TOPE = 40;          // valores por dimensión; más no entra en un desplegable
 const CERCA = 0.005;      // 0,5 % de holgura al comparar totales
@@ -124,7 +126,8 @@ async function contexto(workspaceId, datasetId, medidas) {
     medidas: usables,
     nombresMedida: NOMBRE_MEDIDA,
     // las exclusiones fijas del tablero, ya legibles
-    exclusiones: (m.exclusiones || []).map((r) => Q.textoExclusion(r, rotuloDe(r.campo))),
+    exclusiones: (m.exclusiones || []).map((r) => Q.textoExclusion(r,
+      rotuloDe(r.campo || (r.campos || [])[0]))),
     tieneAging: !!m.columnas.agingTramo,
     // lo que el tablero ya trae recortado: se informa, no se pide
     fijos: salida.filter((x) => x.fijo)

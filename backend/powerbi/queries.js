@@ -158,6 +158,24 @@ function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = t
 function fExclusiones(reglas) {
   const partes = [];
   for (const r of reglas || []) {
+    /* La orden de pago: la clase «AB» sólo cuenta si la tiene, y las demás
+       clases sólo si NO la tienen. Es una sola condición con dos ramas, no dos
+       filtros: separarlas dejaría fuera todo. */
+    if (r.tipo === "ordenDePago") {
+      const clase = c(r.campo), txt = c(r.texto);
+      if (!clase || !txt) continue;
+      partes.push(`FILTER(ALL(${tablaDe(clase)}), IF(${clase} = ${lit(r.claseConMarca)}, ` +
+        `CONTAINSSTRING(${txt}, ${lit(r.marca)}), NOT(CONTAINSSTRING(${txt}, ${lit(r.marca)}))))`);
+      continue;
+    }
+    // el mismo id puede estar en una columna o en otra: se excluye si aparece
+    if (Array.isArray(r.campos)) {
+      const cols = r.campos.map(c).filter(Boolean);
+      if (!cols.length) continue;
+      const cond = cols.map((x) => `${x} IN {${r.excluir.map(lit).join(", ")}}`).join(" || ");
+      partes.push(`FILTER(ALL(${tablaDe(cols[0])}), NOT(${cond}))`);
+      continue;
+    }
     const col = c(r.campo);
     if (!col) continue;
     const t = tablaDe(col);
@@ -178,6 +196,12 @@ function fExclusiones(reglas) {
 
 /** Cómo se lee una exclusión, para mostrarla en el informe. */
 function textoExclusion(r, rotulo) {
+  if (r.tipo === "ordenDePago") {
+    return `Documentos ${r.claseConMarca}: sólo con ${r.marca} · el resto: sólo sin ${r.marca}`;
+  }
+  if (Array.isArray(r.campos)) {
+    return `${rotulo || "Documento"} excluido: ${r.excluir.join(", ")}`;
+  }
   const q = rotulo || r.campo;
   if (r.igual != null && r.igual !== "") return `${q}: ${r.igual}`;
   if (r.contiene) return `${q}: contiene «${r.contiene}»`;

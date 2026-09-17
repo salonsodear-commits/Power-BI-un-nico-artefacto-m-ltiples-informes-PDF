@@ -130,6 +130,24 @@ function consultas(p, tramosAVencer) {
   q.clienteConcepto = Q.desglose({ por: [Q.c("clienteNombre"), Q.c("concepto")], filtros: f,
     medidas: ["deudaFacturacion"], tope: 400 });
 
+  /* La apertura mensual: en qué mes cayó cada peso pendiente de facturar.
+     Es lo que el tablero abre al tocar «+» en un cliente, y la única forma de
+     ver que el 74 % del acumulado es trabajo del mes corriente y no atraso. */
+  if (Q.c("anioProvision") && Q.c("mesProvision")) {
+    q.clienteMes = Q.desglose({
+      por: [Q.c("clienteNombre"), Q.c("anioProvision"), Q.c("mesProvision")],
+      filtros: f, medidas: ["deudaFacturacion"], tope: 900 });
+  }
+
+  /* Las observaciones viven en una hoja de SharePoint sin relación con el
+     modelo, así que se traen enteras y se unen por nombre de cliente acá.
+     Sin medida: SUMMARIZECOLUMNS sobre dos columnas devuelve las combinaciones
+     que existen, que es justo la lista. */
+  if (Q.c("obsCliente") && Q.c("obsTexto")) {
+    q.observaciones = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("obsCliente")},\n` +
+      `    ${Q.c("obsTexto")}\n  )`;
+  }
+
   // ── DSO: suele vivir en su propia tabla, sin relación con el calendario ─
   if (Q.m("dso") && Q.c("dsoPeriodo")) {
     q.dso = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("dsoPeriodo")},\n` +
@@ -257,9 +275,11 @@ async function construir(p) {
   };
 
   /* Hay documentos sin cliente asignado, y el tablero los muestra como una
-     fila en blanco con su propio saldo (a veces negativo). Descartarlos hacía
-     que la tabla no sumara al total y nadie pudiera explicar la diferencia. */
-  const SIN_CLIENTE = "(sin cliente asignado)";
+     fila con su propio saldo (a veces negativo): son las cobranzas sin número
+     de contrato, que es la clave de la relación con clientes. El tablero las
+     rotula «(En blanco)». Descartarlas hacía que la tabla no sumara al total y
+     nadie pudiera explicar la diferencia. */
+  const SIN_CLIENTE = "(En blanco)";
   for (const f of d.clientesCobranza || []) {
     const nombre = etiquetaDe(f[colCli]) || SIN_CLIENTE;
     const c = dame(nombre);
@@ -276,6 +296,57 @@ async function construir(p) {
       c.facturacion += f.deudaFacturacion; c.hay.facturacion = true;
     }
   }
+
+  /* ── apertura mensual, por cliente ──────────────────────────────────
+     Los años cerrados se agrupan enteros y el año en curso se abre mes por
+     mes: es como lo muestra el tablero, y un año viejo en doce columnas no
+     aporta nada. */
+  const mesesPorCliente = {};
+  if (Q.c("anioProvision") && Q.c("mesProvision")) {
+    const colAnio = nombreCorto(Q.c("anioProvision"));
+    const colMes  = nombreCorto(Q.c("mesProvision"));
+    const anios = new Set();
+    for (const f of d.clienteMes || []) {
+      const a = Number(f[colAnio]);
+      if (Number.isFinite(a) && a > 1990) anios.add(a);
+    }
+    const enCurso = anios.size ? Math.max(...anios) : null;
+    for (const f of d.clienteMes || []) {
+      const cli = etiquetaDe(f[colCli]) || SIN_CLIENTE;
+      const a = Number(f[colAnio]), mes = Number(f[colMes]);
+      const v = f.deudaFacturacion;
+      if (typeof v !== "number" || !Number.isFinite(a)) continue;
+      const casillas = mesesPorCliente[cli] || (mesesPorCliente[cli] = { anios: {}, meses: {} });
+      if (a === enCurso && mes >= 1 && mes <= 12) {
+        casillas.meses[mes] = (casillas.meses[mes] || 0) + v;
+      } else {
+        casillas.anios[a] = (casillas.anios[a] || 0) + v;
+      }
+    }
+    for (const c of Object.values(mesesPorCliente)) c.enCurso = enCurso;
+  }
+
+  /* ── observaciones ─────────────────────────────────────────────────
+     La hoja escribe el cliente a mano («VISTA OIL», «Vista OIL»), así que la
+     unión es por nombre normalizado. La fecha viene dentro del texto, al
+     final y a veces entre paréntesis: se extrae para mostrarla aparte. */
+  const obsPorCliente = {};
+  if (Q.c("obsCliente") && Q.c("obsTexto")) {
+    const colOC = nombreCorto(Q.c("obsCliente"));
+    const colOT = nombreCorto(Q.c("obsTexto"));
+    for (const f of d.observaciones || []) {
+      const quien = etiquetaDe(f[colOC]);
+      const texto = etiquetaDe(f[colOT]);
+      if (!quien || !texto) continue;
+      (obsPorCliente[pelar(quien)] = obsPorCliente[pelar(quien)] || []).push(texto);
+    }
+  }
+  const observacionDe = (cliente) => {
+    const xs = obsPorCliente[pelar(cliente)];
+    if (!xs || !xs.length) return undefined;
+    const texto = xs.join(" · ");
+    return { texto, fecha: fechaDeObservacion(texto) };
+  };
 
   const clientes = [...porCliente.values()]
     .map((c) => {
@@ -294,7 +365,10 @@ async function construir(p) {
               : undefined,
         aging: agingPorCliente[c.cliente] ? ordenarTramos(
           Object.entries(agingPorCliente[c.cliente]).map(([e, v]) => ({ etiqueta: e, valor: v }))) : undefined,
-        conceptos: conceptoPorCliente[c.cliente]
+        conceptos: conceptoPorCliente[c.cliente],
+        meses: mesesPorCliente[c.cliente]
+          ? aperturaMensual(mesesPorCliente[c.cliente]) : undefined,
+        observacion: observacionDe(c.cliente)
       };
       for (const campo of ["cobranza", "facturacion", "vencida"]) {
         if (c.hay[campo]) salida[campo] = c[campo];
@@ -304,6 +378,8 @@ async function construir(p) {
       if (c.hay.cobranza || c.hay.facturacion) salida.total = t;
       salida.pctVencida = typeof salida.vencida === "number" && t
         ? (salida.vencida / t) * 100 : undefined;
+      salida.pctFacturacion = typeof salida.facturacion === "number" && k.deudaFacturacion
+        ? (salida.facturacion / k.deudaFacturacion) * 100 : undefined;
       return salida;
     })
     .filter((f) => [f.total, f.cobranza, f.facturacion].some((v) => typeof v === "number" && v !== 0))
@@ -494,12 +570,13 @@ function tablero(x) {
   /* ── Resumen ─────────────────────────────────────────────────────── */
   solapas.push({ clave: "resumen", rotulo: "Resumen", bloques: limpiar([
     { tipo: "kpis", items: tarjetas },
+    // severidad: el color del tramo es parte del dato, como en el tablero
     tramos.length ? { tipo: "aging", titulo: "Aging — Deuda de cobranza",
       subtitulo: "Saldo del aging por tramo de vencimiento",
-      items: tramos, formato: "moneda" } : null,
+      items: tramos, formato: "moneda", severidad: true } : null,
     tramosFact.length ? { tipo: "aging", titulo: "Aging — Pendiente de facturar",
       subtitulo: "Antigüedad de la provisión no facturada",
-      items: tramosFact, formato: "moneda" } : null,
+      items: tramosFact, formato: "moneda", severidad: true } : null,
     negocio.length ? { tipo: "aging", titulo: "Exposición por negocio",
       items: negocio, formato: "moneda" } : null,
     prioridad(clientes)
@@ -544,12 +621,20 @@ function tablero(x) {
         // otra solapa para confirmarlo.
         filtros: [{ clave: "conPendiente", rotulo: "Solo con pendiente",
                     campo: "facturacion", op: ">", valor: 0 }],
+        // Las columnas del tablero: el pendiente, su peso en la cartera, la
+        // apertura mensual que se abre con «+» y la observación de gestión.
         columnas: colsCliente([
           { clave: "facturacion", titulo: "Pendiente de facturar", tipo: "monto" },
-          { clave: "conceptos", titulo: "Principales conceptos", tipo: "chips" }
-        ]),
+          { clave: "pctFacturacion", titulo: "% del total", tipo: "pct" },
+          clientes.some((c) => c.conceptos)
+            ? { clave: "conceptos", titulo: "Conceptos", tipo: "chips" } : null,
+          clientes.some((c) => c.observacion)
+            ? { clave: "observacion", titulo: "Observación", tipo: "observacion" } : null
+        ].filter(Boolean)),
+        // la apertura que se despliega por fila
+        expandir: clientes.some((c) => c.meses) ? "meses" : undefined,
         filas: clientes,
-        total: { cliente: "Total", facturacion: k.deudaFacturacion } },
+        total: { cliente: "Total", facturacion: k.deudaFacturacion, pctFacturacion: 100 } },
       ...aperturasFacturacion.map((a) => ({ tipo: "aging", titulo: "Facturación por " + a.rotulo.toLowerCase(),
         items: a.items, formato: "moneda", plegable: true }))
     ])});
@@ -648,10 +733,10 @@ function notas({ tramos, tramosFact, clientes, k }) {
   }
   if (clientes.some((c) => c.sinCliente)) {
     n.push({ titulo: "Hay saldo sin cliente asignado",
-      cuerpo: "Algunos documentos del aging no traen cliente. Se listan como «(sin cliente " +
-              "asignado)» al final de la tabla, con su saldo —que puede ser negativo—, para " +
-              "que la suma de la tabla cierre con el total. El tablero los muestra igual, " +
-              "como una fila en blanco." });
+      cuerpo: "Las cobranzas sin número de contrato no se pueden atar a un cliente, porque " +
+              "ese número es la clave de la relación. Se listan como «(En blanco)» al final " +
+              "de la tabla, con su saldo —que puede ser negativo—, igual que en el tablero: " +
+              "así la suma de la tabla cierra con el total." });
   }
   n.push({ titulo: "La cartera es una foto, no un acumulado",
     cuerpo: "Los totales y el aging no llevan filtro de período: muestran el saldo " +
@@ -697,6 +782,39 @@ function notas({ tramos, tramosFact, clientes, k }) {
 }
 
 /* ══ utilidades ══════════════════════════════════════════════════════════ */
+
+const MES_AB = ["Ene", "Feb", "Mar", "Abr", "May", "Jun",
+                "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+
+/** Los años cerrados primero, después los meses del año en curso. */
+function aperturaMensual({ anios, meses, enCurso }) {
+  const celdas = [];
+  for (const a of Object.keys(anios).map(Number).sort((x, y) => x - y)) {
+    celdas.push({ etiqueta: String(a), valor: anios[a], anio: true });
+  }
+  for (let m = 1; m <= 12; m++) {
+    if (!(m in meses)) continue;
+    celdas.push({ etiqueta: MES_AB[m - 1], valor: meses[m], mes: m });
+  }
+  return celdas.length ? { celdas, enCurso } : undefined;
+}
+
+/** Sin tildes ni puntuación: «VISTA OIL» y «Vista OIL» son el mismo cliente. */
+const pelar = (x) => String(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * La fecha de gestión viene pegada al final del texto, con o sin paréntesis:
+ * «… todo solicitado (1/9)» o «… entran en Ago26. 8/9». Se extrae para
+ * mostrarla como marca aparte, que es lo que hace útil la columna.
+ */
+function fechaDeObservacion(texto) {
+  const m = String(texto).match(/\(?\b(\d{1,2})\s*\/\s*(\d{1,2})\b\)?\s*$/);
+  if (!m) return undefined;
+  const dia = Number(m[1]), mes = Number(m[2]);
+  if (dia < 1 || dia > 31 || mes < 1 || mes > 12) return undefined;
+  return dia + "/" + mes;
+}
 
 /** Un valor de dimensión legible, o null si no lo es. */
 function etiquetaDe(v) {

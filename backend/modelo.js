@@ -78,7 +78,23 @@ const CAMPOS = {
     { clave: "tipoProvision",    rotulo: "Tipo (facturación)" },
     { clave: "statusPendiente",  rotulo: "Estado de la facturación" },
     { clave: "tramoFacturacion", rotulo: "Tramo de antigüedad (facturación)",
-      ayuda: "El aging de lo no facturado, que suele ser otra columna que el de cobranza" }
+      ayuda: "El aging de lo no facturado, que suele ser otra columna que el de cobranza" },
+    // ── identificadores, para las exclusiones del tablero ───────────
+    { clave: "textoCabecera",  rotulo: "Texto de cabecera del documento",
+      ayuda: "Donde el tablero busca la marca de orden de pago (OP)" },
+    { clave: "clienteNumero",  rotulo: "Número de cliente" },
+    { clave: "documentoId",    rotulo: "Número de documento",
+      ayuda: "Para excluir un documento puntual" },
+    { clave: "documentoId2",   rotulo: "Número de documento (alterno)",
+      ayuda: "Si el ID puede estar en dos columnas, la segunda va acá" },
+    // ── apertura mensual de la provisión ───────────────────────────
+    { clave: "anioProvision",  rotulo: "Año de la provisión" },
+    { clave: "mesProvision",   rotulo: "Mes de la provisión",
+      ayuda: "El número de mes, para abrir el pendiente de facturar mes por mes" },
+    // ── observaciones por cliente ──────────────────────────────────
+    { clave: "obsCliente",     rotulo: "Cliente de las observaciones",
+      ayuda: "En la hoja de observaciones: la columna con el nombre del cliente" },
+    { clave: "obsTexto",       rotulo: "Texto de la observación" }
   ]
 };
 
@@ -101,7 +117,9 @@ const POR_DEFECTO = {
     clienteKam: "Cliente[KAM]", canal: "", riesgo: "", dsoPeriodo: "",
     clienteRazon: "", claseDocumento: "", tipoDeuda: "", condicionPago: "",
     estadoVencimiento: "", moneda: "", concepto: "", tipoProvision: "",
-    statusPendiente: "", tramoFacturacion: ""
+    statusPendiente: "", tramoFacturacion: "",
+    textoCabecera: "", clienteNumero: "", documentoId: "", documentoId2: "",
+    anioProvision: "", mesProvision: "", obsCliente: "", obsTexto: ""
   },
   periodoFormato: "numero",
   organizacion: "",
@@ -196,10 +214,29 @@ function normalizar(entrada) {
   // Cada regla apunta a una columna mapeada y trae UNA de las cuatro formas.
   for (const r of Array.isArray(e.exclusiones) ? e.exclusiones : []) {
     const campo = String((r || {}).campo || "");
-    if (!salida.columnas[campo]) continue;
+    if (campo && !salida.columnas[campo]) continue;
     const lista = (xs) => (Array.isArray(xs) ? xs : [])
       .map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 60);
     const regla = { campo };
+    // La regla de la orden de pago es condicional, no un filtro suelto: una
+    // clase de documento la EXIGE y las demás la prohíben. Se declara con
+    // nombre propio en vez de dejar escribir DAX en un archivo de config.
+    if (r.tipo === "ordenDePago") {
+      if (!salida.columnas[r.texto] || !r.marca || !r.claseConMarca) continue;
+      salida.exclusiones.push({ tipo: "ordenDePago", campo,
+        texto: String(r.texto), marca: String(r.marca).slice(0, 40),
+        claseConMarca: String(r.claseConMarca).slice(0, 40) });
+      continue;
+    }
+    // un mismo id puede vivir en dos columnas: se excluye si coincide en alguna
+    if (Array.isArray(r.campos)) {
+      const cols = r.campos.map(String).filter((k) => salida.columnas[k]);
+      if (!cols.length || !r.excluir) continue;
+      salida.exclusiones.push({ campos: cols,
+        excluir: (Array.isArray(r.excluir) ? r.excluir : [r.excluir])
+          .map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 60) });
+      continue;
+    }
     if (r.igual != null && String(r.igual).trim()) regla.igual = String(r.igual).trim().slice(0, 120);
     else if (r.contiene) regla.contiene = String(r.contiene).trim().slice(0, 120);
     else if (lista(r.incluir).length) regla.incluir = lista(r.incluir);

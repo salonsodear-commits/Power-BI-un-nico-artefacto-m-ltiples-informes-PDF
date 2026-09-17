@@ -26,6 +26,10 @@
   --s1:#00909B; --s2:#C75300; --s3:#6B3FA0; --s4:#B0116B;
   /* rampa ordinal (tramos de aging) — un solo tono, claro→oscuro */
   --o1:#6BC0C9; --o2:#2FA3AE; --o3:#00808B; --o4:#0A5660;
+  /* rampa de vencimiento — acá el color ES el dato: lo corriente cobra verde
+     y lo viejo rojo, como en el tablero. Es la única serie que usa colores de
+     estado, porque la severidad es justamente lo que ordena los tramos. */
+  --v1:#1A7F4A; --v2:#4D9E2A; --v3:#B08600; --v4:#C75300; --v5:#A9291B; --v6:#7A1710;
   /* cromo de gráfico */
   --grilla:#E4EAEF; --eje:#C7D2DA;
   /* consola: el riel oscuro es lo que separa la herramienta del documento */
@@ -47,6 +51,7 @@
   --avi:#DFB055; --avi-suave:#2C2412; --avi-linea:#5B491E;
   --s1:#1E9AA6; --s2:#C96422; --s3:#8C72CF; --s4:#CC4A8D;
   --o1:#0F5C65; --o2:#15818C; --o3:#28A3AE; --o4:#6FCAD2;
+  --v1:#4FB878; --v2:#7CC24E; --v3:#D6AC2E; --v4:#DE7B3A; --v5:#E0685A; --v6:#C9584C;
   --grilla:#243039; --eje:#33424D;
   --consola:#080E13; --consola-2:#111C24; --consola-3:#1A2831;
   --consola-tinta:#C2D1DB; --consola-tinta-2:#7E94A2;
@@ -62,6 +67,7 @@
   --avi:#DFB055; --avi-suave:#2C2412; --avi-linea:#5B491E;
   --s1:#1E9AA6; --s2:#C96422; --s3:#8C72CF; --s4:#CC4A8D;
   --o1:#0F5C65; --o2:#15818C; --o3:#28A3AE; --o4:#6FCAD2;
+  --v1:#4FB878; --v2:#7CC24E; --v3:#D6AC2E; --v4:#DE7B3A; --v5:#E0685A; --v6:#C9584C;
   --grilla:#243039; --eje:#33424D;
   --consola:#080E13; --consola-2:#111C24; --consola-3:#1A2831;
   --consola-tinta:#C2D1DB; --consola-tinta-2:#7E94A2;
@@ -291,6 +297,29 @@ table.viva tr.nada td{text-align:center;color:var(--tinta-3);padding:26px 11px}
 /* mini-aging dentro de una celda */
 .mini{display:flex;gap:1.5px;height:12px;min-width:74px}
 .mini i{display:block;flex:1 1 0;border-radius:1px;background:var(--papel-3)}
+/* la fila que se despliega con «+»: en qué mes cayó cada peso */
+table.viva th.mas,table.viva td.mas{width:34px;text-align:center;padding:4px}
+table.viva td.mas button{width:22px;height:22px;border-radius:var(--r-chico);cursor:pointer;
+  border:1px solid var(--linea);background:var(--papel);color:var(--tinta-2);
+  font-family:var(--mono);font-size:13px;line-height:1;padding:0}
+table.viva td.mas button:hover{border-color:var(--acento);color:var(--acento)}
+table.viva tr.apert>td{background:var(--papel-2);padding:7px 11px}
+.apert-caja{display:flex;flex-wrap:wrap;gap:3px 16px;align-items:baseline}
+.apert-caja .celda{font-family:var(--mono);font-size:11px;font-variant-numeric:tabular-nums;
+  color:var(--tinta);white-space:nowrap}
+.apert-caja .celda em{font-style:normal;color:var(--tinta-3);margin-right:5px;
+  font-family:var(--display);font-weight:600;font-size:10px;letter-spacing:.04em}
+.apert-caja .celda.anio em{color:var(--acento)}
+.apert-caja .celda.cero{color:var(--tinta-3)}
+/* observación de gestión, con su fecha */
+table.viva td.obs{max-width:340px;white-space:normal}
+.obs-f{display:inline-block;font-family:var(--mono);font-size:9.5px;padding:1px 6px;
+  border-radius:100px;background:var(--papel-3);color:var(--tinta-3);margin-bottom:3px}
+.obs-t{display:block;font-size:11.5px;line-height:1.5;color:var(--tinta-2)}
+.obs-t.recortada{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden}
+.obs-mas{background:none;border:0;padding:0;margin-top:2px;cursor:pointer;
+  font-family:var(--display);font-size:10.5px;font-weight:600;color:var(--acento)}
 .chips-cel{display:flex;flex-wrap:wrap;gap:3px}
 .chips-cel span{font-family:var(--mono);font-size:9.5px;padding:1px 6px;border-radius:100px;
   background:var(--papel-3);color:var(--tinta-3);white-space:nowrap}
@@ -609,6 +638,7 @@ pre.cod b{color:var(--acento);font-weight:600}
     --avi:#835C00; --avi-suave:#FBF2DE; --avi-linea:#DCC694;
     --s1:#00909B; --s2:#C75300; --s3:#6B3FA0; --s4:#B0116B;
     --o1:#6BC0C9; --o2:#2FA3AE; --o3:#00808B; --o4:#0A5660;
+    --v1:#1A7F4A; --v2:#4D9E2A; --v3:#B08600; --v4:#C75300; --v5:#A9291B; --v6:#7A1710;
     --grilla:#E4EAEF; --eje:#C7D2DA;
   }
   html,body{height:auto;background:#fff}
@@ -971,6 +1001,16 @@ const REPORTES = {
    ═══════════════════════════════════════════════════════════════════════ */
 const SERIES = ["--s1", "--s2", "--s3", "--s4"];
 const ORDINAL = ["--o1", "--o2", "--o3", "--o4"];
+// Vencimiento: el color es el dato. Se toma de a tantos como tramos haya, de
+// los extremos hacia adentro, para que el primero siempre sea verde y el
+// último siempre rojo sin importar cuántos tramos tenga el modelo.
+const VENCIMIENTO = ["--v1", "--v2", "--v3", "--v4", "--v5", "--v6"];
+function rampaVencimiento(n) {
+  if (n <= 1) return [VENCIMIENTO[0]];
+  if (n >= VENCIMIENTO.length) return VENCIMIENTO.slice(0, n);
+  const paso = (VENCIMIENTO.length - 1) / (n - 1);
+  return Array.from({ length: n }, (_, i) => VENCIMIENTO[Math.round(i * paso)]);
+}
 const cvar = (t) => "var(" + t + ")";
 
 /** Números redondos para el eje: 0 / 50 / 100 / 150 … */
@@ -1681,11 +1721,14 @@ function bAging(b) {
   const total = items.reduce((a, i) => a + Math.abs(i.valor), 0) || 1;
   const tope = Math.max(...items.map((i) => Math.abs(i.valor))) || 1;
   const caja = el(`<div></div>`);
-  items.forEach((i) => {
+  // un aging se lee por severidad, así que la barra lleva el color del tramo
+  const rampa = b.severidad ? rampaVencimiento(items.length) : null;
+  items.forEach((i, n) => {
     const pct = (Math.abs(i.valor) / total) * 100;
+    const color = rampa ? `background:var(${rampa[n]})` : "";
     caja.appendChild(el(`<div class="aging-fila">
       <span class="et" title="${esc(i.etiqueta)}">${esc(i.etiqueta)}</span>
-      <span class="via"><i style="width:${(Math.abs(i.valor) / tope) * 100}%"></i></span>
+      <span class="via"><i style="width:${(Math.abs(i.valor) / tope) * 100}%;${color}"></i></span>
       <span class="val">${esc(fmtPleno(i.valor, b.formato))}
         ${b.tipo === "aging" ? `<small>${esc(n1.format(pct))} %</small>` : ""}
         ${i.nota ? `<em>${esc(i.nota)}</em>` : ""}</span>
@@ -1803,11 +1846,22 @@ function bTablaViva(b) {
     if (c.tipo === "aging") {
       const xs = Array.isArray(v) ? v : [];
       if (!xs.length) return `<td></td>`;
-      const tope = Math.max(...xs.map((x) => Math.abs(x.valor))) || 1;
+      /* Barra apilada por proporción, con el color del tramo: de un vistazo se
+         ve si el saldo de ese cliente es corriente o viejo. Ancho por peso,
+         no por escala global — lo que importa es la MEZCLA del cliente. */
+      const suma = xs.reduce((a, x) => a + Math.abs(x.valor), 0) || 1;
+      const rampa = rampaVencimiento(xs.length);
       return `<td><span class="mini" title="${esc(xs.map((x) =>
         x.etiqueta + ": " + fmtPleno(x.valor, "moneda")).join(" · "))}">${xs.map((x, i) =>
-        `<i style="background:var(${ORDINAL[Math.min(i, ORDINAL.length - 1)]});opacity:${
-          (0.35 + 0.65 * (Math.abs(x.valor) / tope)).toFixed(2)}"></i>`).join("")}</span></td>`;
+        `<i style="flex:${(Math.abs(x.valor) / suma).toFixed(4)} 1 0;background:var(${rampa[i]})"></i>`
+        ).join("")}</span></td>`;
+    }
+    if (c.tipo === "observacion") {
+      if (!v || !v.texto) return `<td></td>`;
+      const largo = v.texto.length > 120;
+      return `<td class="obs">${v.fecha ? `<span class="obs-f">${esc(v.fecha)}</span>` : ""}` +
+        `<span class="obs-t${largo ? " recortada" : ""}">${esc(v.texto)}</span>` +
+        (largo ? `<button type="button" class="obs-mas">Ver completo</button>` : "") + `</td>`;
     }
     if (c.tipo === "chips") {
       const xs = Array.isArray(v) ? v : [];
@@ -1816,6 +1870,23 @@ function bTablaViva(b) {
     }
     if (esNum(c)) return `<td class="n">${esc(fmtPleno(v, c.tipo))}</td>`;
     return `<td>${esc(v == null ? "" : v)}</td>`;
+  }
+
+  // qué filas están abiertas, por clave de cliente: sobrevive al reordenar
+  const abiertas = new Set();
+
+  /**
+   * La apertura de una fila: en qué mes cayó cada peso. Se pide con «+», como
+   * en el tablero, y sólo entonces — mostrarla siempre llenaría la tabla de
+   * ceros, porque la mayoría de los clientes tienen un mes o dos.
+   */
+  function filaApertura(fila, ancho) {
+    const ap = fila[b.expandir];
+    if (!ap || !ap.celdas || !ap.celdas.length) return "";
+    return `<tr class="apert"><td colspan="${ancho}"><span class="apert-caja">${
+      ap.celdas.map((x) => `<span class="celda${x.anio ? " anio" : ""}${
+        x.valor ? "" : " cero"}"><em>${esc(x.etiqueta)}</em>${
+        esc(fmtPleno(x.valor, "moneda"))}</span>`).join("")}</span></td></tr>`;
   }
 
   function pintar() {
@@ -1831,13 +1902,35 @@ function bTablaViva(b) {
         return `<th class="ord${n}" data-col="${esc(c.clave)}"${
           act ? ` aria-sort="${orden.desc ? "descending" : "ascending"}"` : ""
         }>${esc(c.titulo)}<span class="fl">${act ? (orden.desc ? "▾" : "▴") : "▾"}</span></th>`;
-      }).join("")}</tr></thead>
+      }).join("")}${b.expandir ? `<th class="mas" aria-label="Apertura"></th>` : ""}</tr></thead>
       <tbody>${xs.length
-        ? xs.map((f) => `<tr>${cols.map((c) => celda(c, f)).join("")}</tr>`).join("")
-        : `<tr class="nada"><td colspan="${cols.length}">Ninguna fila coincide con la búsqueda.</td></tr>`}
+        ? xs.map((f) => {
+            const k = String(f.cliente);
+            const tiene = b.expandir && f[b.expandir] && (f[b.expandir].celdas || []).length;
+            const abierta = abiertas.has(k);
+            return `<tr${tiene ? ` data-fila="${esc(k)}"` : ""}>${
+              cols.map((c) => celda(c, f)).join("")}${
+              b.expandir ? `<td class="mas">${tiene
+                ? `<button type="button" class="abrir" data-fila="${esc(k)}"
+                     aria-expanded="${abierta}" aria-label="Apertura por mes de ${esc(k)}">${
+                     abierta ? "−" : "+"}</button>` : ""}</td>` : ""}</tr>` +
+              (tiene && abierta ? filaApertura(f, cols.length + 1) : "");
+          }).join("")
+        : `<tr class="nada"><td colspan="${cols.length + (b.expandir ? 1 : 0)}">Ninguna fila coincide con la búsqueda.</td></tr>`}
       ${b.total && xs.length === filas.length
-        ? `<tr class="suma">${cols.map((c) => celda(c, b.total)).join("")}</tr>` : ""}</tbody>
+        ? `<tr class="suma">${cols.map((c) => celda(c, b.total)).join("")}${
+            b.expandir ? "<td></td>" : ""}</tr>` : ""}</tbody>
     </table>`);
+    tabla.querySelectorAll("button.abrir").forEach((bt) => bt.addEventListener("click", () => {
+      const k = bt.dataset.fila;
+      abiertas.has(k) ? abiertas.delete(k) : abiertas.add(k);
+      pintar();
+    }));
+    tabla.querySelectorAll("button.obs-mas").forEach((bt) => bt.addEventListener("click", () => {
+      const t = bt.previousElementSibling;
+      const corta = t.classList.toggle("recortada");
+      bt.textContent = corta ? "Ver completo" : "Ver menos";
+    }));
     tabla.querySelectorAll("th[data-col]").forEach((th) => th.addEventListener("click", () => {
       const k = th.dataset.col;
       if (orden.clave === k) orden.desc = !orden.desc;

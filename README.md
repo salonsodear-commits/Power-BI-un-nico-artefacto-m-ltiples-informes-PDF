@@ -449,14 +449,28 @@ segmentadores, nadie las cambia desde el panel:
 ```jsonc
 "exclusiones": [
   { "campo": "canal", "contiene": "32 Corporaciones" },
-  { "campo": "claseDocumento", "incluir": ["AB","DB","DG","DR","DT","DX","DZ","SA"] }
+  { "campo": "claseDocumento", "incluir": ["AB","DB","DG","DR","DT","DX","DZ","SA"] },
+  { "tipo": "ordenDePago", "campo": "claseDocumento",
+    "texto": "textoCabecera", "marca": "OP", "claseConMarca": "AB" },
+  { "campo": "clienteNumero", "excluir": ["4000659845"] },
+  { "campos": ["documentoId", "documentoId2"], "excluir": ["6860001611"] }
 ]
 ```
 
-Cada regla acepta `igual`, `contiene`, `incluir` o `excluir`. El canal va por
-`contiene` a propósito: el rótulo exacto baila entre «Petroleras» y «Petróleo»
-según dónde se lea, y una tilde no debe vaciar el informe. Todos los valores
-pasan por `lit()`, así que nada entra crudo en el DAX.
+Las formas simples son `igual`, `contiene`, `incluir` y `excluir`. El canal va
+por `contiene` a propósito: el rótulo exacto baila entre «Petroleras» y
+«Petróleo» según dónde se lea, y una tilde no debe vaciar el informe. `campos`
+excluye si el valor aparece en **cualquiera** de varias columnas, para cuando
+un id puede estar en dos lados.
+
+`ordenDePago` es la única con nombre propio, porque no es un filtro suelto sino
+una condición con dos ramas: la clase `AB` sólo cuenta si tiene la marca `OP`
+en el texto de cabecera, y **las demás clases sólo si no la tienen**. Escrito
+como dos filtros independientes dejaría fuera todo. Tiene nombre y parámetros
+en vez de aceptar DAX, para que un archivo de configuración no pueda inyectar
+una consulta.
+
+Todos los valores pasan por `lit()`, así que nada entra crudo en el DAX.
 
 El panel las lista en **Exclusiones aplicadas**, igual que Power BI, y quedan
 como primera nota de alcance del informe.
@@ -473,11 +487,39 @@ Los rótulos no están escritos a mano. Se reconocen sobre los valores que
 devolvió *tu* aging, porque cada modelo los escribe distinto («A Vencer», «No
 vencido», «Por vencer»).
 
+### La apertura por mes, y sólo si se pide
+
+En la solapa **Facturación**, el `+` de cada fila abre en qué mes cayó ese
+pendiente: los años cerrados enteros y el año en curso mes por mes, como el
+tablero. Sale de `Provision[Año Provi]` y `[Mes Provi]`.
+
+Se abre a pedido y no siempre, porque la mayoría de los clientes tienen uno o
+dos meses con saldo: mostrarlo desplegado llenaría la tabla de ceros y taparía
+lo que importa, que es el puñado con arrastre de años anteriores.
+
+### Las observaciones de gestión
+
+La hoja **Observaciones Pendiente Facturar** llega de un Excel en SharePoint y
+**no tiene relación con el modelo**: es una isla. Así que se trae entera y se
+une por nombre de cliente ya normalizado —sin tildes ni puntuación— porque la
+planilla lo escribe a mano y alterna «VISTA OIL» con «Vista OIL».
+
+La fecha de gestión viene dentro del texto, al final y a veces entre
+paréntesis: se extrae y se muestra como marca aparte, que es lo que hace útil
+la columna. Un texto largo se recorta a dos renglones con **Ver completo**.
+
+### El color del aging es el dato
+
+Los tramos de vencimiento no usan la paleta categórica sino una rampa de
+severidad, verde a rojo, igual que el tablero: en la tabla por cliente eso da
+una barra apilada donde de un vistazo se ve si el saldo es corriente o viejo.
+Es la única serie del proyecto que usa colores de estado, y se justifica porque
+la severidad es justamente lo que ordena los tramos.
+
 ### Saldo sin cliente
 
-Hay documentos del aging sin cliente asignado, con su propio saldo —a veces
-negativo—. Se listan como «(sin cliente asignado)» al final de la tabla, no se
-descartan: si no, la suma de la tabla no cierra con el total y la diferencia no
+Las cobranzas sin número de contrato no se pueden atar a un cliente, porque ese
+número es la clave de la relación. Tienen su propio saldo, a veces negativo. Se listan como «(En blanco)» al final de la tabla, no se descartan: si no, la suma de la tabla no cierra con el total y la diferencia no
 tiene explicación. El tablero los muestra igual, como una fila en blanco.
 
 ### El tablero decide el informe

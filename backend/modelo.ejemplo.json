@@ -45,7 +45,15 @@
     "concepto": "Provision[Concepto]",
     "tipoProvision": "Provision[TIPO]",
     "statusPendiente": "Provision[STATUS PENDIENTE]",
-    "tramoFacturacion": "Provision[Tramo_Antiguedad]"
+    "tramoFacturacion": "Provision[Tramo_Antiguedad]",
+    "textoCabecera": "'Aging - Actualizado'[Texto Cabecera]",
+    "clienteNumero": "'Aging - Actualizado'[Numero Cliente]",
+    "documentoId": "'Aging - Actualizado'[Numero Documento Legal]",
+    "documentoId2": "'Aging - Actualizado'[Numero Documento SD]",
+    "anioProvision": "Provision[Año Provi]",
+    "mesProvision": "Provision[Mes Provi]",
+    "obsCliente": "'Observaciones Pendiente Facturar'[Column1]",
+    "obsTexto": "'Observaciones Pendiente Facturar'[Column15]"
   },
   "periodoFormato": "texto",
   "organizacion": "Emergencias",
@@ -70,6 +78,28 @@
         "DX",
         "DZ",
         "SA"
+      ]
+    },
+    {
+      "tipo": "ordenDePago",
+      "campo": "claseDocumento",
+      "texto": "textoCabecera",
+      "marca": "OP",
+      "claseConMarca": "AB"
+    },
+    {
+      "campo": "clienteNumero",
+      "excluir": [
+        "4000659845"
+      ]
+    },
+    {
+      "campos": [
+        "documentoId",
+        "documentoId2"
+      ],
+      "excluir": [
+        "6860001611"
       ]
     }
   ]
