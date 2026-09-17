@@ -1,0 +1,17 @@
+{
+  "_comentario": [
+    "Registro de la app en Microsoft Entra. Estos DOS valores son identificadores",
+    "públicos, no secretos: viajan en la URL de cualquier login de Microsoft y en",
+    "el binario de cualquier app de escritorio o celular. Por eso pueden estar acá",
+    "y versionarse, y por eso el equipo no tiene que configurar nada.",
+    "",
+    "Lo que NUNCA va acá ni a ningún archivo versionado es CLIENT_SECRET. El modo",
+    "delegado —el que usa este backend— no lleva secreto: cada persona entra con su",
+    "cuenta y la API la ve con SUS permisos.",
+    "",
+    "Para apuntar a otro tenant sin tocar este archivo: backend/.env le gana.",
+    "         npm run configurar"
+  ],
+  "clientId": "3a39651b-05db-4cc2-9c25-026fac51abf6",
+  "tenantId": "c5e75564-c62e-4966-bb56-22b57c6aa68e"
+}

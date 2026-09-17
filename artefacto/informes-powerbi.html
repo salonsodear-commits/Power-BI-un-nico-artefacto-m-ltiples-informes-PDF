@@ -2191,6 +2191,13 @@ async function cargarWorkspaces() {
       l.appendChild(b);
     });
     if (j.nota) aviso("avisoTablero", "info", esc(j.nota));
+    // Con un solo workspace no hay nada que elegir: se abre solo y queda a la
+    // vista lo único que de verdad hay que decidir, que es qué tablero mirar.
+    if (!$("fWorkspace").value && ws.length === 1) {
+      $("fWorkspace").value = ws[0].id;
+      l.querySelector("button").setAttribute("aria-pressed", "true");
+      guardarPrefs();
+    }
     if ($("fWorkspace").value) cargarModelos($("fWorkspace").value);
   } catch (e) {
     l.innerHTML = '<p class="cargando">—</p>';

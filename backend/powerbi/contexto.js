@@ -27,6 +27,7 @@ const TOPE = 12;   // con 12 alcanza para decidir; más sería traer la dimensi�
 async function contexto(workspaceId, datasetId) {
   const m = MODELO.leer();
   const salida = [];
+  let sinSesion = false;
 
   await Promise.all(DIMENSIONES.map(async (d) => {
     const col = m.columnas[d.clave];
@@ -47,11 +48,15 @@ async function contexto(workspaceId, datasetId) {
         truncado: filas.length >= TOPE
       });
     } catch (e) {
+      // Sin sesión no hay nada que detectar, y las cuatro fallan igual: se
+      // corta en la primera en vez de llenar la consola de lo mismo.
+      if (e.necesitaIngreso) { sinSesion = true; return; }
       // una dimensión que no responde no rompe el contexto: simplemente no está
       console.warn("[contexto] " + d.clave + ": " + e.message);
     }
   }));
 
+  if (sinSesion) { const e = new Error("No hay sesión iniciada"); e.necesitaIngreso = true; throw e; }
   const orden = DIMENSIONES.map((d) => d.clave);
   salida.sort((a, b) => orden.indexOf(a.clave) - orden.indexOf(b.clave));
   return {

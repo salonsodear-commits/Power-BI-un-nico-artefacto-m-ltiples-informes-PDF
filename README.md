@@ -78,11 +78,48 @@ el registro de aplicaciones y ahí sí hay que pedirle a IT — pero es un pedid
 chico: *registrar una app como cliente público, sólo lectura sobre Power BI*.
 No el ajuste de Service Principals a nivel de toda la empresa.
 
-Después, desde la raíz del repositorio:
+La app de este proyecto ya está registrada y sus dos identificadores viven en
+**`backend/entra.json`**, versionado. No hay que configurar nada: `npm run dev`
+y a entrar con tu cuenta.
 
-```bash
-npm run configurar        # pregunta los dos IDs y escribe backend/.env
+```jsonc
+{ "clientId": "…", "tenantId": "…" }
 ```
+
+### Por qué esos dos pueden estar en el repositorio
+
+`clientId` y `tenantId` **no son secretos**. Viajan en la URL de cualquier login
+de Microsoft y van dentro del binario de cualquier app de escritorio o celular:
+así está diseñado el flujo de *cliente público*. El `tenantId`, además, lo
+devuelve un endpoint abierto de Microsoft a partir del dominio de mail.
+
+Lo que nunca va acá ni a ningún archivo versionado es **`CLIENT_SECRET`**, y el
+modo delegado no usa ninguno: cada persona entra con su cuenta y la API la ve
+con **sus** permisos, RLS incluido.
+
+> **Si este repositorio es público**, publicar el `clientId` facilita una
+> estafa concreta: el *device code phishing*. Alguien inicia un ingreso con tu
+> `clientId` y le manda el código a un empleado; si lo pega, quien estafa
+> obtiene un token **como esa persona**, y la pantalla de Microsoft muestra el
+> nombre de tu app, que la víctima reconoce. No es una fuga de credenciales
+> —nadie entra con el `clientId` solo— pero sí una superficie que conviene no
+> regalar. Dos formas de cerrarla, en orden de esfuerzo:
+> 1. Poner el repositorio en **privado** (*Settings → General → Danger Zone →
+>    Change visibility*). Es un clic y no cambia nada más.
+> 2. Pedirle a IT una directiva de **Acceso condicional** que bloquee el flujo
+>    de código de dispositivo salvo para quien lo necesite.
+>
+> Si preferís no versionarlos, borrá `backend/entra.json` y usá
+> `npm run configurar` o los secretos de Codespaces: el orden de precedencia
+> los toma igual.
+
+### El orden de precedencia
+
+Gana lo primero que aparezca, igual que hace dotenv:
+
+1. Variables de entorno (secretos de Codespaces, `export`, etc.)
+2. `backend/.env` (lo escribe `npm run configurar`)
+3. `backend/entra.json` (versionado)
 
 Los **dos** hacen falta. Con una app de inquilino único no se puede usar el
 comodín `organizations`: Microsoft responde `AADSTS50059` porque no sabe contra
@@ -90,10 +127,11 @@ qué organización autenticar.
 
 ### `backend/.env` no sobrevive a un Codespace nuevo
 
-Está fuera del repositorio a propósito (manual, paso 20): vive sólo en el disco
-de tu máquina o de tu Codespace. Si el contenedor se recrea, el archivo se va
-con él y **no hay nada que restaurar desde git** — sólo queda `.env.example`,
-que es la plantilla.
+Desde que la app vive en `entra.json` esto ya no bloquea a nadie, pero sigue
+valiendo si apuntás a otro tenant: `.env` está fuera del repositorio a
+propósito (manual, paso 20) y vive sólo en el disco de tu máquina o de tu
+Codespace. Si el contenedor se recrea, el archivo se va con él y **no hay nada
+que restaurar desde git**.
 
 Rehacerlo cuesta un comando:
 
@@ -134,6 +172,7 @@ componentes. **Cambiar de tablero cambia los números, nunca el diseño.**
 | `backend/informes/` | Un archivo por informe: sus consultas DAX y cómo se arma su JSON. |
 | `backend/prueba-api.js` | La primera prueba: token + workspace + dataset + un `EVALUATE` mínimo. |
 | `backend/configurar.js` | Rehace `backend/.env` sin abrir un editor. |
+| `backend/entra.json` | La app de Entra del proyecto: dos identificadores públicos, versionados. |
 
 ## Cómo se usa
 
@@ -152,10 +191,12 @@ Después, **Exportar PDF**.
 Desde la raíz del repositorio:
 
 ```bash
-npm install            # instala backend/ (workspace)
-npm run configurar     # escribe backend/.env con tu CLIENT_ID y TENANT_ID
-npm run dev            # o npm start, sin recarga
+npm install     # instala backend/ (workspace)
+npm run dev     # o npm start, sin recarga
 ```
+
+La app de Entra ya viene en `backend/entra.json`, así que no hay paso de
+configuración. Para apuntar a otro tenant: `npm run configurar`.
 
 Después abrí `localhost:3000` → **Conectar a Power BI** → **Entrar con mi cuenta**.
 

@@ -9,11 +9,49 @@
 const fs = require("fs");
 const path = require("path");
 
+const GUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
 const ARCHIVO = path.join(__dirname, ".env");
 const EJEMPLO = path.join(__dirname, ".env.example");
+const REGISTRO = path.join(__dirname, "entra.json");
 
 // Ruta absoluta: así no importa desde dónde se arranque el proceso.
 require("dotenv").config({ path: ARCHIVO });
+
+/**
+ * El registro de app versionado, como último recurso.
+ *
+ * clientId y tenantId son identificadores públicos —viajan en la URL de
+ * cualquier login de Microsoft— así que pueden vivir en el repositorio y que
+ * nadie del equipo tenga que configurar nada. El secreto, que sí lo es, no
+ * entra nunca: el modo delegado no usa ninguno.
+ *
+ * El orden es el mismo que usa dotenv: lo que ya está en el entorno gana, así
+ * que un .env, un secreto de Codespaces o una variable exportada a mano siguen
+ * pisando esto sin tocar el archivo.
+ */
+let origenRegistro = null;
+(function registroVersionado() {
+  let j;
+  try { j = JSON.parse(fs.readFileSync(REGISTRO, "utf8")); }
+  catch (e) {
+    if (e.code !== "ENOENT") console.warn("[entorno] entra.json ignorado:", e.message);
+    return;
+  }
+  const puestas = [];
+  for (const [clave, valor] of [["CLIENT_ID", j.clientId], ["TENANT_ID", j.tenantId]]) {
+    if (process.env[clave] || !valor) continue;
+    if (!GUID.test(String(valor))) {
+      console.warn("[entorno] " + clave + " de entra.json no es un GUID; se ignora");
+      continue;
+    }
+    process.env[clave] = String(valor);
+    puestas.push(clave);
+  }
+  if (puestas.length) origenRegistro = puestas;
+})();
+
+
 
 /** Lee un .env y devuelve qué claves trae y cuáles quedaron comentadas. */
 function inspeccionar(ruta) {
@@ -103,4 +141,7 @@ const ENV_SE_PIERDE = [
   "El backend los lee del entorno aunque backend/.env no exista."
 ];
 
-module.exports = { ARCHIVO, diagnostico, inspeccionar };
+/** De dónde salieron CLIENT_ID y TENANT_ID, para el mensaje de arranque. */
+const deDondeSalen = () => origenRegistro;
+
+module.exports = { ARCHIVO, REGISTRO, diagnostico, inspeccionar, deDondeSalen };

@@ -391,6 +391,10 @@ app.listen(PORT, () => {
   } else {
     console.log("Sesión:     Service Principal" + (a.conectado ? " · configurado" : " · incompleto"));
   }
+  const reg = ENTORNO.deDondeSalen();
+  if (reg) {
+    console.log("App Entra:  " + reg.join(" y ") + " de backend/entra.json (versionado)");
+  }
   if (a.faltan && a.faltan.length) {
     console.log("\n── Falta configurar " + a.faltan.join(" y ") + " ──");
     for (const l of ENTORNO.diagnostico(a.faltan)) console.log("  " + l);
