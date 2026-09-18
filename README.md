@@ -457,6 +457,53 @@ producía el producto cruzado —cada cliente mostrando las razones sociales de
 todos los demás— porque `SUMMARIZECOLUMNS` conserva toda fila con alguna medida
 no vacía, y la facturación nunca venía vacía.
 
+### Muchos EVALUATE, pocos pedidos
+
+El informe de Deuda son 22 consultas y el contexto otras 7. Disparadas de a
+una eso es una ráfaga de 29 pedidos, y Power BI la estrangula: **429** y no
+carga nada.
+
+La API admite **varios `EVALUATE` en una sola consulta** y devuelve una tabla
+por cada uno; Microsoft recomienda justamente eso para no chocar con el
+límite. Van de a 8, así que 29 pedidos pasan a ser 4. Encima: como mucho 3
+pedidos simultáneos, y reintento con espera al 429 respetando `Retry-After`.
+
+Si una tanda falla por otra cosa, se reintenta consulta por consulta: un
+`EVALUATE` roto no se lleva puestos a los otros siete, y el error nombra al
+culpable en vez de a la tanda.
+
+### Una exclusión que no coincide con nada vacía el informe en silencio
+
+En DAX, filtrar por un valor que no existe no es un error: son cero filas. La
+regla decía «canal contiene *32 Corporaciones*» y el tablero rotula el canal
+«Corporaciones - Petróleo», sin el 32. Resultado: todo en blanco y nada que lo
+explicara.
+
+Ahora las reglas de texto se resuelven **contra los valores que el modelo tiene
+de verdad** antes de armar la consulta, con tolerancia de tildes y puntuación.
+Si coinciden, la regla se reescribe con los valores exactos. Si no coincide
+ninguna, **la regla no se aplica** y queda un aviso arriba del tablero con los
+valores reales — es preferible un informe de más que uno vacío sin explicación.
+
+### El período es «todo» o son meses
+
+Una foto de deuda se mira entera: cuánto se debe hoy. Recortarla por mes
+responde otra pregunta —qué venció en ese mes— así que el valor por defecto es
+**toda la cartera** y elegir meses es explícito. Se pueden marcar varios.
+
+Los meses que se ofrecen son los que el calendario tiene de verdad, no un campo
+libre donde tipear uno que el modelo no conoce. El **DSO** sigue mostrando el
+último período salvo que se elijan meses, porque su tabla no tiene relación con
+el calendario y la pregunta «cuántos días en calle» no se recorta sola.
+
+### El mapeo se ajusta al tablero que elegís
+
+Apuntar a otro modelo —o a la v4 de uno que cambió nombres— deja el mapeo viejo
+señalando columnas que ya no existen. Al elegir un tablero se comprueba lo
+guardado contra ese modelo; si algo no está, se detecta de nuevo y se guarda,
+vaciando lo que ni siquiera la detección encontró. Nadie tiene que saber que
+existe una pantalla de mapeo.
+
 ### Las exclusiones del tablero se replican
 
 Un tablero de producción casi nunca mira el modelo entero. El de Deuda declara

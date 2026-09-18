@@ -245,6 +245,17 @@ details.exclu ul{margin:5px 0 0;padding-left:16px;line-height:1.55;font-family:v
   margin-bottom:-1px;white-space:nowrap}
 .tb-solapas button:hover{color:var(--tinta-2)}
 .tb-solapas button[aria-selected="true"]{color:var(--acento);border-bottom-color:var(--acento)}
+.avisos{width:min(1060px,100%);background:var(--avi-suave);border:1px solid var(--avi-linea);
+  border-radius:var(--r);padding:11px 15px;color:var(--avi);font-size:12.5px;line-height:1.55}
+.avisos b{display:block;font-family:var(--display);font-size:12.5px;margin-bottom:3px}
+.avisos ul{margin:0;padding-left:17px}
+/* meses del período */
+.meses{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.meses .mes{font-family:var(--mono);font-size:11px;padding:3px 8px;border-radius:var(--r-chico);
+  cursor:pointer;background:var(--consola-2);border:1px solid var(--consola-3);
+  color:var(--consola-tinta-2)}
+.meses .mes:hover{border-color:var(--acento-linea);color:#fff}
+.meses .mes.puesto{background:var(--acento);border-color:var(--acento);color:#fff;font-weight:600}
 .tb-panel{display:flex;flex-direction:column;gap:14px}
 .tb-panel[hidden]{display:none}
 .tarjeta{background:var(--papel);border:1px solid var(--linea);border-radius:var(--r);
@@ -691,10 +702,13 @@ pre.cod b{color:var(--acento);font-weight:600}
         <!-- El tablero decide el informe: no se elige. -->
         <p class="linea-inf"><b id="nombreInforme">—</b></p>
         <select id="fTipo" hidden></select>
+        <!-- La cartera es una foto: por defecto se mira entera, a la fecha.
+             Elegir meses es una decisión explícita. -->
         <div class="campo">
-          <label for="fPeriodo">Período</label>
-          <input id="fPeriodo" type="month">
+          <label>Período</label>
+          <div id="periodo"></div>
         </div>
+        <input id="fPeriodo" type="month" hidden>
         <!-- Sólo los segmentadores que el backend probó que funcionan. -->
         <div id="filtrosTablero"></div>
         <div id="opcionesInforme"></div>
@@ -1572,11 +1586,17 @@ function pintarTablero(datos) {
   // Lo que el modelo ya trae filtrado encabeza la lista: es lo que define de
   // qué cartera estamos hablando. Después, lo que la persona eligió.
   const fijos = (CONTEXTO && CONTEXTO.fijos) || [];
+  // Una dimensión con un solo valor ya sale como contexto: repetirla como
+  // filtro aplicado la mostraba dos veces seguidas diciendo lo mismo.
+  const yaEsta = new Set(fijos.map((f) => f.clave || pelarTxt(f.rotulo)));
   const chips = [
     ...fijos,
-    meta.periodo ? { rotulo: "Período", valor: meta.periodoEtiqueta || mesLargo(meta.periodo) } : null,
+    { rotulo: "Período", valor: (meta.meses || []).length
+        ? (meta.meses.length === 1 ? mesCorto(meta.meses[0])
+           : meta.meses.length + " meses: " + meta.meses.map(mesCorto).join(", "))
+        : "Toda la cartera" },
     ...Object.entries(meta.filtros || {})
-      .filter(([, v]) => v && v !== "Todas")
+      .filter(([k, v]) => v && v !== "Todas" && !yaEsta.has(k))
       .map(([k, v]) => ({ rotulo: rotuloFiltro(k), valor: v }))
   ].filter(Boolean);
 
@@ -1662,6 +1682,9 @@ function calzar(quiero, valores) {
       || valores.find((v) => pelar(v).startsWith(q) || q.startsWith(pelar(v)))
       || null;
 }
+
+const pelarTxt = (x) => String(x).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  .toLowerCase().replace(/[^a-z0-9]/g, "");
 
 /** El rótulo que el contexto usa para esa dimensión, o la clave capitalizada. */
 function rotuloFiltro(clave) {
@@ -1992,6 +2015,7 @@ function render(datos) {
   });
   const dato = document.getElementById("conmDato");
   if (dato) dato.textContent = total + (total === 1 ? " hoja" : " hojas") + " para imprimir";
+  pintarAvisos(meta.avisos);
   document.getElementById("btnPdf").disabled = false;
   document.getElementById("btnHtml").disabled = false;
   $("grupoSalida").hidden = false;
@@ -2014,7 +2038,7 @@ function guardarPrefs() {
     localStorage.setItem(CLAVE, JSON.stringify({
       backend: $("fBackend").value, workspace: $("fWorkspace").value,
       dataset: $("fDataset").value, tipo: $("fTipo").value,
-      periodo: $("fPeriodo").value, filtros: filtrosActuales(),
+      periodo: $("fPeriodo").value, meses: MESES, filtros: filtrosActuales(),
       aVencer: INCLUIR_A_VENCER, modo: MODO, zoom: $("fZoom").value
     }));
   } catch (e) { /* navegación privada o almacenamiento bloqueado */ }
@@ -2171,6 +2195,66 @@ const mostrarInforme = () => {
 let CONTEXTO = null;
 let FILTROS_GUARDADOS = {};
 let INCLUIR_A_VENCER = true;
+let MESES = [];          // vacío = toda la cartera, a la fecha
+
+/**
+ * El período no es un mes: es «todo» o un conjunto de meses.
+ *
+ * Una foto de deuda se mira entera —cuánto se debe hoy— y recortarla por mes
+ * responde otra pregunta: qué venció en ese mes. Por eso el valor por defecto
+ * es toda la cartera, y los meses que se ofrecen son los que el calendario
+ * tiene de verdad, no un campo libre donde tipear uno que no existe.
+ */
+function pintarPeriodo() {
+  const caja = $("periodo");
+  caja.innerHTML = "";
+  const hay = (CONTEXTO && CONTEXTO.periodos) || [];
+
+  const todo = el(`<label class="interruptor" style="padding-top:0">
+    <input type="radio" name="modoPeriodo" value="todo" ${MESES.length ? "" : "checked"}>
+    <span>Toda la cartera<em>El saldo a la fecha, sin corte de mes</em></span></label>`);
+  const porMes = el(`<label class="interruptor">
+    <input type="radio" name="modoPeriodo" value="meses" ${MESES.length ? "checked" : ""}>
+    <span>Meses puntuales${hay.length ? `<em>${hay.length} en el calendario</em>` : ""}</span></label>`);
+  caja.appendChild(todo);
+  caja.appendChild(porMes);
+
+  const lista = el(`<div class="meses"${MESES.length ? "" : " hidden"}></div>`);
+  if (!hay.length) {
+    lista.appendChild(el(`<p class="nota" style="margin:0">El calendario todavía no se leyó.</p>`));
+  }
+  hay.slice(0, 36).forEach((m) => {
+    const b = el(`<button type="button" class="mes${MESES.includes(m) ? " puesto" : ""}"
+      aria-pressed="${MESES.includes(m)}">${esc(mesCorto(m))}</button>`);
+    b.addEventListener("click", () => {
+      MESES = MESES.includes(m) ? MESES.filter((x) => x !== m) : [...MESES, m].sort();
+      guardarPrefs(); pintarPeriodo(); actualizar();
+    });
+    lista.appendChild(b);
+  });
+  caja.appendChild(lista);
+
+  caja.querySelectorAll('input[name="modoPeriodo"]').forEach((r) =>
+    r.addEventListener("change", () => {
+      if (r.value === "todo" && r.checked) {
+        const habia = MESES.length;
+        MESES = [];
+        lista.hidden = true;
+        guardarPrefs();
+        if (habia) actualizar();
+      } else if (r.value === "meses" && r.checked) {
+        lista.hidden = false;
+      }
+    }));
+}
+
+/** «2026-07» → «Jul 26» */
+function mesCorto(p) {
+  const m = String(p).match(/^(\d{4})-(\d{2})$/);
+  if (!m) return p;
+  const n = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"][Number(m[2]) - 1];
+  return n ? n + " " + m[1].slice(2) : p;
+}
 
 async function traerContexto() {
   const ws = $("fWorkspace").value.trim(), ds = $("fDataset").value.trim();
@@ -2181,6 +2265,7 @@ async function traerContexto() {
       (k ? "?informe=" + encodeURIComponent(k) : ""));
   } catch (e) { CONTEXTO = null; }
   pintarContexto();
+  pintarPeriodo();
 }
 
 const ES_GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -2257,6 +2342,7 @@ async function actualizar() {
     workspaceId: $("fWorkspace").value.trim(),
     datasetId: $("fDataset").value.trim(),
     periodo: $("fPeriodo").value,
+    meses: MESES,
     filtros: filtrosActuales(),
     incluirAVencer: INCLUIR_A_VENCER
   };
@@ -2316,6 +2402,23 @@ async function irAlCampo(grupo, clave) {
   i.focus(); i.select();
   i.classList.add("senalado");
   setTimeout(() => i.classList.remove("senalado"), 4000);
+}
+
+/**
+ * Lo que el backend no pudo aplicar. Una exclusión que no coincide con nada no
+ * es un error en DAX —es cero filas— así que si no se dice, el informe sale
+ * raro y nadie sabe por qué.
+ */
+function pintarAvisos(avisos) {
+  const viejo = document.getElementById("avisosInforme");
+  if (viejo) viejo.remove();
+  if (!avisos || !avisos.length) return;
+  const caja = el(`<div class="avisos" id="avisosInforme">
+    <b>${avisos.length === 1 ? "Un filtro no se pudo aplicar" : avisos.length + " filtros no se pudieron aplicar"}</b>
+    <ul>${avisos.map((a) => `<li>${esc(a.texto)}</li>`).join("")}</ul></div>`);
+  const mesa = document.getElementById("mesa");
+  const tab = mesa.querySelector(".tablero");
+  tab ? tab.insertBefore(caja, tab.children[1] || null) : mesa.insertBefore(caja, mesa.firstChild);
 }
 
 function aplicar(json) {
@@ -2618,7 +2721,26 @@ function pintarLineaInforme() {
 async function alElegirTablero() {
   guardarPrefs();
   mostrarInforme();
-  estado("", "Leyendo el tablero…", "Averiguando qué informe soporta y qué segmentadores tiene.");
+  estado("", "Leyendo el tablero…", "Comprobando si el mapeo guardado sirve para este modelo.");
+
+  /* Apuntar a otro tablero —o a la v4 de uno que cambió nombres— deja el
+     mapeo viejo señalando columnas que ya no existen, y el informe sale
+     vacío. Se comprueba y, si no cierra, se detecta solo: nadie tiene que
+     saber que existe una pantalla de mapeo. */
+  const ws = $("fWorkspace").value.trim(), ds = $("fDataset").value.trim();
+  try {
+    const a = await API.pedir(`/api/tablero/${ws}/${ds}/ajustar`, { method: "POST" });
+    if (a.ajustado) {
+      estado("", "Mapeo ajustado a este tablero",
+        esc(a.motivo) + ". " + (a.puestas || 0) + " referencia(s) nuevas" +
+        (a.vaciadas ? ", " + a.vaciadas + " que ya no existen se vaciaron" : "") + "." +
+        (a.frenado ? " <b>Power BI limitó la detección</b>: puede faltar alguna." : ""));
+    }
+  } catch (e) {
+    estado("error", "No se pudo leer el tablero", esc(e.message));
+    return;
+  }
+
   await sincronizarInformes();
   await traerContexto();
   const k = $("fTipo").value;
@@ -3288,6 +3410,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("fPeriodo").value = p.periodo || "2026-07";
   FILTROS_GUARDADOS = p.filtros || {};
   if (p.aVencer === false) INCLUIR_A_VENCER = false;
+  if (Array.isArray(p.meses)) MESES = p.meses;
   if (p.modo === "tablero" || p.modo === "informe") MODO = p.modo;
   $("fZoom").value = p.zoom || "100";
   $("zoomVal").textContent = $("fZoom").value + "%";
@@ -3344,6 +3467,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
 
   render(null);
   pintarLineaInforme();
+  pintarPeriodo();
   iniciarPasos();
   // el backend manda: qué informes hay, y en qué punto del camino estamos
   sincronizarInformes();

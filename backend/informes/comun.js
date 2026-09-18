@@ -10,10 +10,18 @@ const { m } = require("../powerbi/queries");
 
 const MES_CORTO = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 
-/** 202607 o "2026-07" → "Jul 26" */
+/**
+ * 202607 · "2026-07" · "2026-07-01T00:00:00" → "Jul 26"
+ *
+ * La fecha completa entra porque no todo modelo guarda el período como texto:
+ * el de DSO, por ejemplo, lo tiene como fecha, y sin esto la tarjeta decía
+ * «Último período: 1/7/2026», que no es un período.
+ */
 function etiquetaMes(clave) {
   const s = String(clave == null ? "" : clave).trim();
-  const m = s.match(/^(\d{4})-?(\d{2})$/);
+  let m = s.match(/^(\d{4})-?(\d{2})$/) || s.match(/^(\d{4})-(\d{2})-\d{2}/);
+  // Sólo formas donde el año va primero. «1/7/2026» es ambiguo —¿1 de julio o
+  // 7 de enero?— y adivinar mal es peor que dejarlo como vino.
   if (!m) return s;
   const mes = Number(m[2]);
   if (mes < 1 || mes > 12) return s;

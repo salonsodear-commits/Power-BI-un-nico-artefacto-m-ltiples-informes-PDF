@@ -56,6 +56,18 @@ async function contexto(workspaceId, datasetId, medidas) {
   const salida = [];
   let sinSesion = false;
 
+  // Los meses que el calendario tiene de verdad: el panel ofrece ésos y no un
+  // campo libre donde se puede tipear un mes que el modelo no conoce.
+  let periodos = [];
+  if (m.columnas.periodo) {
+    try {
+      const filas = await consultar(workspaceId, datasetId, Q.valoresDe(m.columnas.periodo, 400));
+      periodos = [...new Set(filas
+        .map((f) => normalizarMes(Object.values(f)[0]))
+        .filter(Boolean))].sort().reverse();
+    } catch (e) { console.warn("[contexto] períodos: " + e.message); }
+  }
+
   await Promise.all(DIMENSIONES.map(async (d) => {
     const col = m.columnas[d.clave];
     if (!col || (m.rotos || []).includes("columnas." + d.clave)) return;
@@ -125,6 +137,7 @@ async function contexto(workspaceId, datasetId, medidas) {
     dimensiones: salida,
     medidas: usables,
     nombresMedida: NOMBRE_MEDIDA,
+    periodos,
     // las exclusiones fijas del tablero, ya legibles
     exclusiones: (m.exclusiones || []).map((r) => Q.textoExclusion(r,
       rotuloDe(r.campo || (r.campos || [])[0]))),
@@ -135,6 +148,25 @@ async function contexto(workspaceId, datasetId, medidas) {
     // y lo que se puede elegir, ya probado
     elegibles: salida.filter((x) => !x.fijo && x.sirve)
   };
+}
+
+/**
+ * Un valor de la columna de período llevado a «AAAA-MM».
+ *
+ * Cada modelo la guarda distinto: el entero 202607, el texto «2026-07» o una
+ * fecha completa. Las tres tienen que terminar en lo mismo, o el selector de
+ * meses ofrece cosas que la consulta después no reconoce.
+ */
+function normalizarMes(v) {
+  if (v === null || v === undefined) return null;
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-?(0[1-9]|1[0-2])$/);        // 202607 · 2026-07
+  if (m) return m[1] + "-" + m[2];
+  m = s.match(/^(\d{4})-(\d{2})-\d{2}/);                // 2026-07-01T00:00:00
+  if (m) return m[1] + "-" + m[2];
+  // sólo formas con el año primero: «1/7/2026» es ambiguo y adivinar mal
+  // llenaría el selector de meses que no existen
+  return null;
 }
 
 /** Los valores de la primera columna —la dimensión— sin repetir ni vacíos. */

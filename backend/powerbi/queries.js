@@ -64,6 +64,20 @@ function fPeriodo(periodo) {
   return `FILTER(ALL(${tablaDe(col)}), ${col} = ${valorPeriodo(claveMes(periodo))})`;
 }
 
+/**
+ * Filtro de los meses elegidos, o ninguno si no se eligió.
+ *
+ * La cartera es una FOTO: por defecto se mira entera, a la fecha, sin corte de
+ * período. Elegir uno o varios meses es una decisión explícita —«qué venció en
+ * julio»— y sólo entonces aparece el filtro.
+ */
+function fMeses(meses) {
+  const col = c("periodo");
+  if (!col || !Array.isArray(meses) || !meses.length) return null;
+  const vals = meses.map((m) => valorPeriodo(claveMes(m))).join(", ");
+  return `FILTER(ALL(${tablaDe(col)}), ${col} IN {${vals}})`;
+}
+
 /** Filtro de la ventana de n meses que termina en `periodo`. */
 function fVentana(periodo, n) {
   const col = c("periodo");
@@ -233,5 +247,5 @@ function valoresDe(col, tope = 12) {
 module.exports = {
   m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
   fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas,
-  desglose, valoresDe, fSinTramo, fExclusiones, textoExclusion
+  desglose, valoresDe, fSinTramo, fMeses, fExclusiones, textoExclusion
 };

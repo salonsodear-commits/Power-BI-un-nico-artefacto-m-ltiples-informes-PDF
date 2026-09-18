@@ -65,7 +65,7 @@
   "exclusiones": [
     {
       "campo": "canal",
-      "contiene": "32 Corporaciones"
+      "contiene": "Corporaciones"
     },
     {
       "campo": "claseDocumento",

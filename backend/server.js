@@ -14,6 +14,7 @@ const { consultar, GUID } = require("./powerbi/client");
 const DESCUBRIR = require("./powerbi/descubrir");
 const DETECTAR = require("./powerbi/detectar");
 const CONTEXTO = require("./powerbi/contexto");
+const EXCLUSIONES = require("./powerbi/exclusiones");
 const AUTH = require("./powerbi/auth");
 const SESIONES = require("./sesiones");
 const MODELO = require("./modelo");
@@ -142,6 +143,68 @@ app.post("/api/powerbi/detectar", atajo(async (req) => {
  * pedirse otra vez: el panel sólo ofrece las dimensiones que de verdad tienen
  * más de un valor.
  */
+/**
+ * ¿El mapeo guardado sirve para ESTE tablero?
+ *
+ * Apuntar a otro modelo —o a la v4 de uno que cambió nombres— deja el mapeo
+ * viejo apuntando a columnas que ya no existen, y el informe sale vacío o a
+ * medias. Acá se prueba, y si no cierra se detecta solo.
+ */
+app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
+  const { ws, ds } = req.params;
+  if (!GUID.test(ws) || !GUID.test(ds)) {
+    throw Object.assign(new Error("Workspace y modelo deben ser GUID"), { status: 400 });
+  }
+  const antes = MODELO.leer();
+  const informe = INFORMES[informeQueCorresponde()] || {};
+  const claves = [
+    ...((informe.requiere || {}).medidas || []).map((k) => ["medidas", k]),
+    ...((informe.requiere || {}).columnas || []).map((k) => ["columnas", k]),
+    ["columnas", "periodo"], ["columnas", "clienteNombre"], ["columnas", "agingTramo"]
+  ];
+  const refs = {};
+  for (const [g, k] of claves) if (antes[g][k]) refs[g + "." + k] = antes[g][k];
+
+  // Primero se comprueba lo que ya está: si sirve, no se toca nada.
+  let malas = 0;
+  if (Object.keys(refs).length) {
+    const r = await DESCUBRIR.verificar(ws, ds, refs);
+    malas = Object.values(r).filter((x) => x.estado === "error").length;
+    MODELO.marcar(Object.fromEntries(Object.entries(r)
+      .filter(([, x]) => x.estado !== "sin-mapear")
+      .map(([k, x]) => [k, x.estado === "error"])));
+  }
+  if (Object.keys(refs).length && !malas) {
+    return { ajustado: false, motivo: "el mapeo guardado sirve para este tablero" };
+  }
+
+  // No cierra: se detecta contra el modelo y se guarda lo que aparezca.
+  const d = await DETECTAR.detectar(ws, ds);
+  const prop = d.propuesta || { medidas: {}, columnas: {} };
+  const propuesto = { ...antes, workspaceId: ws, datasetId: ds,
+    medidas: { ...antes.medidas }, columnas: { ...antes.columnas },
+    periodoFormato: prop.periodoFormato || antes.periodoFormato };
+
+  let puestas = 0, vaciadas = 0;
+  for (const grupo of ["medidas", "columnas"]) {
+    for (const [k, v] of Object.entries(prop[grupo] || {})) {
+      const roto = (antes.rotos || []).includes(grupo + "." + k);
+      if (v && propuesto[grupo][k] !== v) {
+        // lo detectado gana sobre lo roto; sobre lo que anda, sólo si faltaba
+        if (roto || !propuesto[grupo][k]) { propuesto[grupo][k] = v; puestas++; }
+      } else if (!v && roto && propuesto[grupo][k]) {
+        // no se encontró y estaba roto: mejor vacío que una consulta que falla
+        propuesto[grupo][k] = ""; vaciadas++;
+      }
+    }
+  }
+  propuesto.rotos = [];
+  MODELO.guardar(propuesto);
+  return { ajustado: true, puestas, vaciadas, malas, frenado: !!d.frenado,
+           motivo: malas + " referencia(s) del mapeo no existen en este tablero; se detectó de nuevo",
+           resumen: MODELO.resumen() };
+}));
+
 app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
   const { ws, ds } = req.params;
   if (!GUID.test(ws) || !GUID.test(ds)) {
@@ -287,15 +350,32 @@ app.post("/api/informe", async (req, res) => {
   for (const [k, v] of Object.entries(filtros)) {
     if (!v || v === "Todas") delete filtros[k];
   }
+  // Los meses elegidos. Vacío = la cartera entera, a la fecha, que es como
+  // se mira una foto de deuda; elegir meses es una decisión explícita.
+  const meses = (Array.isArray(cuerpo.meses) ? cuerpo.meses : [])
+    .filter((m) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m)))
+    .slice(0, 24)
+    .sort();
+
   const p = {
     workspaceId, datasetId,
-    periodo: cuerpo.periodo,
+    periodo: cuerpo.periodo, meses,
     filtros,
     // «a vencer» entra salvo que digan que no
     incluirAVencer: cuerpo.incluirAVencer !== false
   };
 
   try {
+    // Las exclusiones se resuelven contra los valores que el modelo tiene de
+    // verdad: una regla que no coincide con nada no es un error en DAX, es un
+    // informe vacío sin explicación.
+    let avisos = [];
+    try {
+      const r = await EXCLUSIONES.resolver(workspaceId, datasetId, guardado.exclusiones);
+      p.exclusiones = r.reglas;
+      avisos = r.avisos;
+    } catch (e) { console.warn("[informe] exclusiones sin resolver: " + e.message); }
+
     // Un informe puede devolver sólo las hojas, o {secciones, tablero} cuando
     // además tiene vista interactiva. Deuda es hoy el único con las dos.
     const salida = await informe.construir(p);
@@ -319,8 +399,10 @@ app.post("/api/informe", async (req, res) => {
         bajada: informe.meta.bajada,
         fuente: informe.meta.fuente,
         periodo: p.periodo,
+        meses: p.meses,
         filtros,
         incluirAVencer: p.incluirAVencer,
+        avisos,
         unidad: "millones de $",
         escala: 1e6,
         workspaceId, datasetId,

@@ -40,9 +40,11 @@ const TOPE_IMPRESO = 8;      // lo que entra en una hoja sin volverse ilegible
  * exclusiones fijas, los totales no coinciden con la pantalla de Power BI.
  */
 const cortes = (p) => [
-  ...Q.fExclusiones(MODELO.leer().exclusiones),
-  ...Q.fDimensiones(p)
-];
+  ...Q.fExclusiones(p.exclusiones || MODELO.leer().exclusiones),
+  ...Q.fDimensiones(p),
+  // sin meses elegidos, la cartera va entera: es una foto a la fecha
+  Q.fMeses(p.meses)
+].filter(Boolean);
 
 /**
  * Cómo se reconoce el tramo «a vencer» sin escribirlo a mano: cada modelo lo
@@ -150,7 +152,12 @@ function consultas(p, tramosAVencer) {
 
   // ── DSO: suele vivir en su propia tabla, sin relación con el calendario ─
   if (Q.m("dso") && Q.c("dsoPeriodo")) {
+    // El DSO vive en su propia tabla, sin relación con el calendario: la serie
+    // viene entera y el informe se queda con el último período. Elegir meses
+    // sí lo acota, porque ahí se está preguntando por esos meses.
+    const fDso = (p.meses || []).length ? Q.fMeses(p.meses) : null;
     q.dso = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("dsoPeriodo")},\n` +
+      (fDso ? `    ${fDso},\n` : "") +
       `    "dso", ${Q.m("dso")}\n  )\n  ORDER BY ${Q.c("dsoPeriodo")}`;
   } else if (Q.m("dso")) {
     q.dsoSuelto = `\nEVALUATE\n  ROW("dso", ${Q.m("dso")})`;
