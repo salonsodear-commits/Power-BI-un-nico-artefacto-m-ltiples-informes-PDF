@@ -452,6 +452,7 @@ table.datos tr.suma td{font-weight:700;color:var(--tinta);background:var(--papel
   border-top:1px solid var(--eje);border-bottom:0}
 table.datos td .marca-est{font-family:var(--mono);font-size:9px;margin-right:3px}
 table.datos td.bien{color:var(--ok)} table.datos td.mal{color:var(--mal)}
+table.viva td.bien{color:var(--ok)} table.viva td.mal{color:var(--mal)}
 
 /* gráficos */
 .grafico{width:100%}
@@ -1124,7 +1125,12 @@ function gLineas(s) {
   const cats = s.ejeX || [];
   const ser = s.series || [];
   const todos = ser.flatMap((x) => x.datos).filter((v) => typeof v === "number");
-  const { lo, hi, ticks } = escalaEje(Math.min(...todos), Math.max(...todos));
+  /* La referencia entra en la escala: si el objetivo queda fuera del rango de
+     la serie, dibujarlo igual lo pondría pegado al borde y no se entendería
+     cuánto falta. */
+  const obj = s.objetivo && typeof s.objetivo.valor === "number" ? s.objetivo : null;
+  const conObj = obj ? todos.concat(obj.valor) : todos;
+  const { lo, hi, ticks } = escalaEje(Math.min(...conObj), Math.max(...conObj));
   const y = (v) => mT + ph - ((v - lo) / (hi - lo)) * ph;
   const x = (i) => mL + (cats.length < 2 ? pw / 2 : (pw * i) / (cats.length - 1));
 
@@ -1133,6 +1139,11 @@ function gLineas(s) {
     o += `<line x1="${mL}" y1="${y(t).toFixed(1)}" x2="${W - mR}" y2="${y(t).toFixed(1)}" stroke="${t === 0 ? "var(--eje)" : "var(--grilla)"}" stroke-width="1"/>`;
     o += `<text x="${mL - 7}" y="${(y(t) + 3).toFixed(1)}" text-anchor="end" style="${TXT.eje}">${esc(fmt(t, s.formatoEje || s.formato))}</text>`;
   });
+  if (obj) {
+    const yo = y(obj.valor);
+    o += `<line x1="${mL}" y1="${yo.toFixed(1)}" x2="${W - mR}" y2="${yo.toFixed(1)}" stroke="var(--tinta-3)" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+    o += `<text x="${W - mR}" y="${(yo - 5).toFixed(1)}" text-anchor="end" style="${TXT.cat}">${esc(obj.rotulo || "Objetivo")}</text>`;
+  }
   ser.forEach((se, j) => {
     const col = se.color || cvar(SERIES[j % 4]);
     const pts = se.datos.map((v, i) => (typeof v === "number" ? `${x(i).toFixed(1)},${y(v).toFixed(1)}` : null)).filter(Boolean);
@@ -1823,7 +1834,7 @@ function bTablaViva(b) {
   t.appendChild(marco);
 
   // el orden pedido por el backend, aplicado una vez
-  const esNum = (c) => c && c.tipo && !["texto", "cliente", "aging", "chips"].includes(c.tipo);
+  const esNum = (c) => c && c.tipo && !["texto", "cliente", "aging", "chips", "observacion"].includes(c.tipo);
 
   /** Un filtro declarativo: el backend manda campo/op/valor, nunca código. */
   const pasa = (fila, f) => {
@@ -1890,6 +1901,13 @@ function bTablaViva(b) {
       const xs = Array.isArray(v) ? v : [];
       return `<td><span class="chips-cel">${xs.slice(0, 4).map((x) =>
         `<span title="${esc(fmtPleno(x.valor, "moneda"))}">${esc(x.etiqueta)}</span>`).join("")}</span></td>`;
+    }
+    /* Un desvío contra un objetivo se lee con el signo adelante y teñido:
+       en días en calle, por debajo del objetivo es bueno. */
+    if (c.tipo === "diasDelta") {
+      if (typeof v !== "number") return `<td class="n"></td>`;
+      const clase = v > 0 ? "mal" : v < 0 ? "bien" : "";
+      return `<td class="n ${clase}">${esc(fmtDelta(v, "dias"))}</td>`;
     }
     if (esNum(c)) return `<td class="n">${esc(fmtPleno(v, c.tipo))}</td>`;
     return `<td>${esc(v == null ? "" : v)}</td>`;

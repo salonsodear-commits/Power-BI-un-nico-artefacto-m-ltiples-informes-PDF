@@ -128,6 +128,58 @@ function colsMedidas(claves) {
 }
 
 /**
+ * De qué tabla es un filtro. Todos los que arma este módulo tienen la forma
+ * `FILTER(ALL(Tabla), ...)`, así que sale de leerlo; si algún día no la tiene,
+ * devuelve null y el filtro se conserva siempre, que es lo prudente.
+ */
+function tablaDeFiltro(dax) {
+  const m = /^\s*FILTER\(\s*ALL\(\s*('(?:[^']|'')+'|[A-Za-z\u00C0-\u00ff_][\w\u00C0-\u00ff]*)\s*\)/.exec(String(dax || ""));
+  return m ? pelarTabla(m[1]) : null;
+}
+
+/**
+ * El nombre desnudo de una tabla. En DAX, `'Aging - Actualizado'` y
+ * `Ventas` son la misma clase de cosa escritas distinto, y el modelo
+ * semántico las nombra sin comillas: sin igualar las dos formas, ningún
+ * filtro llegaba a compararse con su tabla y no se descartaba nada.
+ */
+function pelarTabla(n) {
+  const s = String(n || "").trim();
+  return /^'.*'$/.test(s) ? s.slice(1, -1).replace(/''/g, "'") : s;
+}
+
+/**
+ * Los filtros que esta consulta tiene derecho a aplicar.
+ *
+ * Un filtro sobre una tabla que no llega a la medida no la cambia: en el mejor
+ * caso es un escaneo caro de más, y en el peor vacía el resultado. El caso que
+ * lo hizo evidente: las exclusiones del aging —clase de documento, orden de
+ * pago, documentos sueltos— metidas en las consultas de facturación, que salen
+ * de otra tabla y no tienen relación con esa.
+ *
+ * Se conserva el filtro cuando:
+ *   · mueve a alguna de las medidas de la consulta, según midió `semantica`; o
+ *   · es de la misma tabla por la que se está agrupando, porque ahí no filtra
+ *     el número sino la lista de filas; o
+ *   · no hay medición, y entonces no se toca nada.
+ */
+function aplicables(filtros, medidas, alcance, columnasGrupo) {
+  const lista = (filtros || []).filter(Boolean);
+  if (!alcance || !Object.keys(alcance).length) return lista;
+  const claves = (medidas || []).filter((k) => m(k) && alcance[k]);
+  if (!claves.length) return lista;
+
+  const tablasGrupo = new Set((columnasGrupo || []).filter(Boolean).map((x) => pelarTabla(tablaDe(x))));
+  return lista.filter((dax) => {
+    const t = tablaDeFiltro(dax);
+    if (!t) return true;
+    if (tablasGrupo.has(t)) return true;
+    // si de alguna medida no sabemos nada, no descartamos
+    return claves.some((k) => alcance[k][t] !== false);
+  });
+}
+
+/**
  * Una apertura: la medida abierta por una o más columnas.
  *
  * Es el ladrillo de todo el detalle del tablero de deuda. Devuelve null si el
@@ -136,19 +188,23 @@ function colsMedidas(claves) {
  *
  *   desglose({ por: [c("concepto")], medidas: ["deudaFacturacion"], tope: 40 })
  */
-function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = true }) {
+function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = true,
+                    alcance = null, expresiones = null }) {
   const dims = (Array.isArray(por) ? por : [por]).filter(Boolean);
-  const cols = colsMedidas(medidas || []);
+  // `expresiones` reemplaza la referencia de una medida por otro DAX: sirve
+  // para abrir por una tabla que la medida ignora, sumando su columna.
+  const cols = (medidas || []).filter((k) => (expresiones && expresiones[k]) || m(k))
+    .map((k) => `    "${k}", ${(expresiones && expresiones[k]) || m(k)}`);
   if (!dims.length || !cols.length) return null;
 
   const cuerpo = [
     ...dims.map((x) => "    " + x),
-    ...filtros.filter(Boolean).map((x) => "    " + x),
+    ...aplicables(filtros, medidas, alcance, dims).map((x) => "    " + x),
     ...cols
   ].join(",\n");
 
   // el orden por defecto es la primera medida que el modelo sí tiene
-  const clave = orden || (medidas || []).find((k) => m(k));
+  const clave = orden || (medidas || []).find((k) => (expresiones && expresiones[k]) || m(k));
   const porOrden = clave ? `\n  ORDER BY [${clave}] ${desc ? "DESC" : "ASC"}` : "";
 
   const tabla = `SUMMARIZECOLUMNS(\n${cuerpo}\n  )`;
@@ -247,5 +303,6 @@ function valoresDe(col, tope = 12) {
 module.exports = {
   m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
   fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas,
-  desglose, valoresDe, fSinTramo, fMeses, fExclusiones, textoExclusion
+  desglose, valoresDe, fSinTramo, fMeses, fExclusiones, textoExclusion,
+  aplicables, tablaDeFiltro, pelarTabla
 };

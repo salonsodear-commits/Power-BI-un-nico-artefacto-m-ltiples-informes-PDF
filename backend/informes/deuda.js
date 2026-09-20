@@ -18,6 +18,7 @@
  *     canal— no se vuelve a ofrecer como filtro: se muestra como contexto.
  */
 const { consultarVarias } = require("../powerbi/client");
+const SEMANTICA = require("../powerbi/semantica");
 const MODELO = require("../modelo");
 const Q = require("../powerbi/queries");
 const { limpiar, kpi, etiquetaMes } = require("./comun");
@@ -30,6 +31,9 @@ const meta = {
   fuente: "Power BI — Deuda"
 };
 
+
+const MED_COB = ["deudaCobranza", "deudaVencida", "clientesActivos"];
+const MED_FAC = ["deudaFacturacion", "importeFacturado"];
 
 const TOPE_CONSULTA = 300;   // lo que viaja
 const TOPE_IMPRESO = 8;      // lo que entra en una hoja sin volverse ilegible
@@ -69,44 +73,48 @@ function cortesCobranza(p, tramosAVencer) {
 /* ══ consultas ═══════════════════════════════════════════════════════════
    Cada una es opcional: si el modelo no tiene la columna, `desglose`
    devuelve null y la vista correspondiente no se arma. */
-function consultas(p, tramosAVencer) {
+function consultas(p, tramosAVencer, alcance, columna, tablas) {
   const q = {};
+  // Cada apertura declara sus medidas; con el alcance medido, `desglose`
+  // descarta sola los filtros de tablas que no llegan a esas medidas.
+  const desglose = (o) => Q.desglose({ ...o, alcance });
+  const tablaDe = (ref) => (ref ? Q.pelarTabla(Q.tablaDe(ref)) : null);
   const f = cortes(p);                                   // vale para todo
   const fCob = cortesCobranza(p, tramosAVencer || []);   // + el corte de «a vencer»
 
   // Las tarjetas se arman con DOS consultas, no una: el total de cobranza
   // tiene que poder excluir «a vencer» y el de facturación no se entera de
   // ese tramo, porque la provisión no lo tiene.
-  const filaCob = Q.filaMedidas(["deudaCobranza", "deudaVencida", "clientesActivos"]);
-  if (filaCob) q.kpisCobranza = envuelto(filaCob, fCob);
-  const filaFac = Q.filaMedidas(["deudaFacturacion", "importeFacturado"]);
-  if (filaFac) q.kpisFacturacion = envuelto(filaFac, f);
+  const filaCob = Q.filaMedidas(MED_COB);
+  if (filaCob) q.kpisCobranza = envuelto(filaCob, fCob, MED_COB, alcance);
+  const filaFac = Q.filaMedidas(MED_FAC);
+  if (filaFac) q.kpisFacturacion = envuelto(filaFac, f, MED_FAC, alcance);
 
   // ── aging: el de cobranza y el de facturación son medidas distintas ──
   //    uno sale del aging de cobranzas, el otro de la provisión.
   //    Lleva el corte de «a vencer» como todo lo demás: en el tablero, sacar
   //    ese tramo le saca también la columna al aging, y el informe tiene que
   //    mostrar lo mismo que la pantalla.
-  q.tramos = Q.desglose({ por: Q.c("agingTramo"), filtros: fCob,
+  q.tramos = desglose({ por: Q.c("agingTramo"), filtros: fCob,
     medidas: ["deudaCobranza", "deudaVencida"] });
-  q.tramosFact = Q.desglose({ por: Q.c("tramoFacturacion"), filtros: f,
+  q.tramosFact = desglose({ por: Q.c("tramoFacturacion"), filtros: f,
     medidas: ["deudaFacturacion"] });
 
   // ── cortes de cartera ────────────────────────────────────────────────
-  q.negocioCob = Q.desglose({ por: Q.c("vertical"), filtros: fCob, medidas: ["deudaCobranza"] });
-  q.negocioFac = Q.desglose({ por: Q.c("vertical"), filtros: f,    medidas: ["deudaFacturacion"] });
-  q.canal   = Q.desglose({ por: Q.c("canal"),      filtros: fCob, medidas: ["deudaCobranza"] });
-  q.gestor  = Q.desglose({ por: Q.c("clienteKam"), filtros: fCob, medidas: ["deudaCobranza", "deudaVencida"] });
+  q.negocioCob = desglose({ por: Q.c("vertical"), filtros: fCob, medidas: ["deudaCobranza"] });
+  q.negocioFac = desglose({ por: Q.c("vertical"), filtros: f,    medidas: ["deudaFacturacion"] });
+  q.canal   = desglose({ por: Q.c("canal"),      filtros: fCob, medidas: ["deudaCobranza"] });
+  q.gestor  = desglose({ por: Q.c("clienteKam"), filtros: fCob, medidas: ["deudaCobranza", "deudaVencida"] });
 
   // ── aperturas del detalle: lo que «ver datos» tiene para mostrar ─────
   //    cada una con los filtros de SU universo
-  q.claseDoc  = Q.desglose({ por: Q.c("claseDocumento"),   filtros: fCob, medidas: ["deudaCobranza"] });
-  q.tipoDeuda = Q.desglose({ por: Q.c("tipoDeuda"),        filtros: fCob, medidas: ["deudaCobranza"] });
-  q.estadoVto = Q.desglose({ por: Q.c("estadoVencimiento"),filtros: fCob, medidas: ["deudaCobranza"] });
-  q.condPago  = Q.desglose({ por: Q.c("condicionPago"),    filtros: fCob, medidas: ["deudaCobranza"] });
-  q.concepto  = Q.desglose({ por: Q.c("concepto"),         filtros: f, medidas: ["deudaFacturacion", "importeFacturado"], tope: 40 });
-  q.tipoProv  = Q.desglose({ por: Q.c("tipoProvision"),    filtros: f, medidas: ["deudaFacturacion"] });
-  q.statusFac = Q.desglose({ por: Q.c("statusPendiente"),  filtros: f, medidas: ["deudaFacturacion"] });
+  q.claseDoc  = desglose({ por: Q.c("claseDocumento"),   filtros: fCob, medidas: ["deudaCobranza"] });
+  q.tipoDeuda = desglose({ por: Q.c("tipoDeuda"),        filtros: fCob, medidas: ["deudaCobranza"] });
+  q.estadoVto = desglose({ por: Q.c("estadoVencimiento"),filtros: fCob, medidas: ["deudaCobranza"] });
+  q.condPago  = desglose({ por: Q.c("condicionPago"),    filtros: fCob, medidas: ["deudaCobranza"] });
+  q.concepto  = desglose({ por: Q.c("concepto"),         filtros: f, medidas: ["deudaFacturacion", "importeFacturado"], tope: 40 });
+  q.tipoProv  = desglose({ por: Q.c("tipoProvision"),    filtros: f, medidas: ["deudaFacturacion"] });
+  q.statusFac = desglose({ por: Q.c("statusPendiente"),  filtros: f, medidas: ["deudaFacturacion"] });
 
   /* ── por cliente ───────────────────────────────────────────────────────
      Las dos caras van en consultas SEPARADAS, y es la diferencia entre un
@@ -119,26 +127,39 @@ function consultas(p, tramosAVencer) {
      combinación, y SUMMARIZECOLUMNS conserva toda fila con alguna medida no
      vacía: salía el producto cruzado, con cada cliente mostrando las razones
      sociales de todos los demás. */
-  q.clientesCobranza = Q.desglose({
+  q.clientesCobranza = desglose({
     por: [Q.c("clienteNombre"), Q.c("clienteRazon"), Q.c("clienteKam")].filter(Boolean),
     filtros: fCob, medidas: ["deudaCobranza", "deudaVencida"], tope: TOPE_CONSULTA });
-  q.clientesFacturacion = Q.desglose({
+  q.clientesFacturacion = desglose({
     por: Q.c("clienteNombre"), filtros: f,
     medidas: ["deudaFacturacion", "importeFacturado"], tope: TOPE_CONSULTA });
   // el aging de cada cliente, para la barrita de la tabla
-  q.clienteTramo = Q.desglose({ por: [Q.c("clienteNombre"), Q.c("agingTramo")], filtros: fCob,
+  q.clienteTramo = desglose({ por: [Q.c("clienteNombre"), Q.c("agingTramo")], filtros: fCob,
     medidas: ["deudaCobranza"] });
   // lo pendiente de facturar, abierto por cliente y concepto
-  q.clienteConcepto = Q.desglose({ por: [Q.c("clienteNombre"), Q.c("concepto")], filtros: f,
+  q.clienteConcepto = desglose({ por: [Q.c("clienteNombre"), Q.c("concepto")], filtros: f,
     medidas: ["deudaFacturacion"], tope: 400 });
 
   /* La apertura mensual: en qué mes cayó cada peso pendiente de facturar.
      Es lo que el tablero abre al tocar «+» en un cliente, y la única forma de
      ver que el 74 % del acumulado es trabajo del mes corriente y no atraso. */
   if (Q.c("anioProvision") && Q.c("mesProvision")) {
-    q.clienteMes = Q.desglose({
-      por: [Q.c("clienteNombre"), Q.c("anioProvision"), Q.c("mesProvision")],
-      filtros: f, medidas: ["deudaFacturacion"], tope: 900 });
+    /* Con qué se abre el mes. Si la medida no reacciona a la tabla del año y
+       el mes —pasa cuando lleva un argumento de tabla que le saca sus propios
+       filtros— devolvería el total entero en cada mes y los meses no sumarían
+       al total. En ese caso se abre sumando la columna que hay detrás, que sí
+       responde. Si no se pudo averiguar cuál es, no se ofrece la apertura:
+       mejor sin ella que con números que no cierran. */
+    const suTabla = tablaDe(Q.c("anioProvision"));
+    const sorda = alcance && alcance.deudaFacturacion &&
+                  alcance.deudaFacturacion[suTabla] === false;
+    const crudo = (columna || {}).deudaFacturacion;
+    if (!sorda || crudo) {
+      q.clienteMes = desglose({
+        por: [Q.c("clienteNombre"), Q.c("anioProvision"), Q.c("mesProvision")],
+        filtros: f, medidas: ["deudaFacturacion"], tope: 900,
+        expresiones: sorda ? { deudaFacturacion: "SUM(" + crudo + ")" } : null });
+    }
   }
 
   /* Las observaciones viven en una hoja de SharePoint sin relación con el
@@ -163,16 +184,48 @@ function consultas(p, tramosAVencer) {
     q.dsoSuelto = `\nEVALUATE\n  ROW("dso", ${Q.m("dso")})`;
   }
 
+  /* El objetivo de días en calle, si el modelo lo trae. No se configura: se
+     busca una columna numérica que se llame como un objetivo. Cuando no hay,
+     el informe usa el de gestión y lo dice. */
+  const colObj = columnaObjetivo(tablas);
+  if (colObj) q.objetivoDso = `\nEVALUATE\n  ROW("objetivo", MAX(${colObj}))`;
+
   for (const k of Object.keys(q)) if (!q[k]) delete q[k];
   return q;
 }
 
 /** ROW(...) con o sin CALCULATETABLE, según haya filtros que aplicar. */
-function envuelto(fila, filtros) {
-  const dims = (filtros || []).map((x) => "    " + x);
+function envuelto(fila, filtros, medidas, alcance) {
+  const dims = Q.aplicables(filtros, medidas, alcance).map((x) => "    " + x);
   return dims.length
     ? `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${dims.join(",\n")}\n  )`
     : `\nEVALUATE\n  ROW(\n${fila}\n  )`;
+}
+
+/* Lo que en la industria se llama DSO tiene un objetivo de gestión; el print
+   lo muestra como línea de puntos. Si el modelo trae la columna, manda el
+   modelo. Si no, se usa el valor habitual y el informe aclara cuál es. */
+const OBJETIVO_DSO = 60;
+const ES_OBJETIVO = /objetivo|target\b|\bmeta\b|goal/i;
+
+/** La columna del objetivo, buscada en el inventario y no en un mapeo. */
+function columnaObjetivo(tablas) {
+  for (const t of Object.values(tablas || {})) {
+    for (const c of t.columnas || []) {
+      if (c.tipo === "numero" && ES_OBJETIVO.test(c.nombre)) return c.ref;
+    }
+  }
+  return null;
+}
+
+/** Las medidas que este informe pide, para que `semantica` mida su alcance. */
+function medidasDelInforme() {
+  const salida = {};
+  for (const k of [...MED_COB, ...MED_FAC, "dso"]) {
+    const ref = Q.m(k);
+    if (ref) salida[k] = ref;
+  }
+  return salida;
 }
 
 /* ══ armado ══════════════════════════════════════════════════════════════ */
@@ -191,7 +244,16 @@ async function construir(p) {
       .filter((x) => x && ES_A_VENCER.test(x));
   }
 
-  const d = await consultarVarias(p.workspaceId, p.datasetId, consultas(p, tramosAVencer));
+  /* Antes de pedir nada, se lee el modelo: qué tablas hay y, sobre todo, qué
+     tabla mueve a qué medida. Sin eso, las exclusiones del aging viajaban
+     también en las consultas de la provisión —otra tabla, sin relación con
+     ésa— y el pendiente de facturar volvía vacío. */
+  const sem = await SEMANTICA.leer(p.workspaceId, p.datasetId, medidasDelInforme());
+  const avisos = [];
+  if (sem.aviso) avisos.push(sem.aviso);
+
+  const d = await consultarVarias(p.workspaceId, p.datasetId,
+    consultas(p, tramosAVencer, sem.alcance, sem.columna, sem.tablas));
   // Las tarjetas se juntan de los dos universos; la exposición total es la
   // suma de lo que quedó, no una medida aparte que ignoraría el corte.
   const k = Object.assign({}, (d.kpisCobranza || [])[0], (d.kpisFacturacion || [])[0]);
@@ -221,6 +283,15 @@ async function construir(p) {
   const dsoValor = ultimoDso ? ultimoDso.dso : undefined;
   const dsoPeriodo = serieDso.length ? etiquetaMes(ultimoDso[colDso]) : null;
   const dsoPorAnio = promediosPorAnio(serieDso, colDso);
+  const delModelo = ((d.objetivoDso || [])[0] || {}).objetivo;
+  const objetivoDso = typeof delModelo === "number" && delModelo > 0 ? delModelo : OBJETIVO_DSO;
+
+  /* Si la medida está mapeada pero la serie no vino, hay que decirlo: una
+     solapa que desaparece sin explicación es el peor de los avisos. */
+  if (Q.m("dso") && !serieDso.length && dsoValor === undefined) {
+    avisos.push("El modelo tiene la medida de días en calle (" + Q.m("dso") +
+      ") pero no devolvió ningún período; la solapa no se arma.");
+  }
 
   /* ── rankings simples ────────────────────────────────────────────── */
   // Se suma por etiqueta: si el modelo devuelve la misma categoría en varias
@@ -440,7 +511,8 @@ async function construir(p) {
                        serieDso, colDso, k, vencidaPct, aperturasCobranza, aperturasFacturacion }),
     tablero: tablero({ tarjetas, tramos, tramosFact, negocio, canal, clientes,
                        conCobranza, conFacturacion, aperturasCobranza, aperturasFacturacion,
-                       serieDso, colDso, dsoPorAnio, dsoValor, dsoPeriodo, k, vencidaPct, colKam })
+                       serieDso, colDso, dsoPorAnio, dsoValor, dsoPeriodo, k, vencidaPct, colKam,
+                       objetivoDso })
   };
 }
 
@@ -564,7 +636,7 @@ function hojas(x) {
 function tablero(x) {
   const { tarjetas, tramos, tramosFact, negocio, canal, clientes, conCobranza,
           conFacturacion, aperturasCobranza, aperturasFacturacion, serieDso, colDso,
-          dsoPorAnio, dsoValor, dsoPeriodo, k, vencidaPct, colKam } = x;
+          dsoPorAnio, dsoValor, dsoPeriodo, k, vencidaPct, colKam, objetivoDso } = x;
 
   const colsCliente = (campos) => [
     { clave: "cliente", titulo: "Cliente", tipo: "cliente", sub: "razon" },
@@ -672,28 +744,60 @@ function tablero(x) {
   }
 
   /* ── Días en calle ───────────────────────────────────────────────── */
-  if (serieDso.length > 2) {
+  /* La solapa del tablero: el último mes relevado, el promedio del año en
+     curso y el del anterior, el histórico, la evolución contra el objetivo y
+     el promedio por año con su diferencia. Con un solo punto no hay línea que
+     dibujar, pero las tarjetas ya dicen algo, así que la solapa aparece igual. */
+  if (serieDso.length) {
     const valores = serieDso.map((f) => f.dso);
     const anios = Object.keys(dsoPorAnio).sort();
-    const ultimo = anios[anios.length - 1];
+    const enCurso = anios[anios.length - 1];
+    const previo = anios[anios.length - 2];
+    const mesesDe = (a) => serieDso.filter((f) => String(f[colDso]).startsWith(a)).length;
+    // el objetivo sale del modelo si el modelo lo tiene; si no, el de gestión
+    const obj = objetivoDso;
+
+    const tarjetasDso = [
+      { etiqueta: "Último mes relevado", valor: dsoValor, formato: "dias", titular: true,
+        nota: dsoPeriodo || undefined,
+        sentido: typeof obj === "number" && dsoValor > obj ? "negativo" : undefined },
+      enCurso ? { etiqueta: "Promedio " + enCurso + " acum.", valor: dsoPorAnio[enCurso],
+        formato: "dias", nota: mesesDe(enCurso) + " meses" } : null,
+      previo ? { etiqueta: "Promedio " + previo, valor: dsoPorAnio[previo], formato: "dias",
+        nota: mesesDe(previo) + " meses" } : null,
+      { etiqueta: "Promedio histórico", valor: promedio(valores), formato: "dias",
+        nota: serieDso.length + " meses relevados" }
+    ].filter(Boolean);
+
+    const filasAnio = anios.map((a) => {
+      const prom = dsoPorAnio[a];
+      return { anio: a, promedio: prom,
+               objetivo: typeof obj === "number" ? obj : undefined,
+               delta: typeof obj === "number" && typeof prom === "number" ? prom - obj : undefined };
+    });
+
     solapas.push({ clave: "diasEnCalle", rotulo: "Días en calle", bloques: limpiar([
-      { tipo: "kpis", items: [
-        { etiqueta: "Último período" + (dsoPeriodo ? " (" + dsoPeriodo + ")" : ""),
-          valor: dsoValor, formato: "dias", titular: true,
-          nota: dsoValor === Math.min(...valores) ? "Mínimo de toda la serie" : undefined },
-        ultimo ? { etiqueta: "Promedio " + ultimo, valor: dsoPorAnio[ultimo], formato: "dias" } : null,
-        { etiqueta: "Promedio histórico", valor: promedio(valores), formato: "dias",
-          nota: serieDso.length + " meses" }
-      ].filter(Boolean) },
-      { tipo: "lineas", titulo: "Evolución mensual",
-        subtitulo: "Días de venta pendientes de cobro", medida: refs(["dso"]),
-        formato: "dias", formatoEje: "entero", ejeEtiqueta: "Período",
+      { tipo: "kpis", items: tarjetasDso },
+      serieDso.length > 1 ? { tipo: "lineas", titulo: "Evolución mensual",
+        subtitulo: "Días de venta pendientes de cobro" +
+          (typeof obj === "number" ? " · objetivo " + unDecimal(obj) + " d" : ""),
+        medida: refs(["dso"]), formato: "dias", formatoEje: "entero", ejeEtiqueta: "Período",
         ejeX: serieDso.map((f) => etiquetaMes(f[colDso])),
-        series: [{ nombre: "Días en calle", datos: valores }] },
-      anios.length > 1 ? { tipo: "tablaViva", titulo: "Promedio por año",
-        columnas: [{ clave: "anio", titulo: "Año", tipo: "texto" },
-                   { clave: "promedio", titulo: "Promedio", tipo: "dias" }],
-        filas: anios.map((a) => ({ anio: a, promedio: dsoPorAnio[a] })) } : null
+        // la línea de puntos del print: la referencia contra la que se mira todo
+        objetivo: typeof obj === "number"
+          ? { valor: obj, rotulo: "Objetivo " + unDecimal(obj) + " d" } : undefined,
+        series: [{ nombre: "Días en calle", datos: valores }] } : null,
+      anios.length > 1 ? { tipo: "tablaViva", titulo: "Promedio anual vs. objetivo",
+        subtitulo: typeof obj === "number"
+          ? "Diferencia contra el objetivo de " + unDecimal(obj) + " días"
+          : "Promedio de los meses relevados de cada año",
+        columnas: [
+          { clave: "anio", titulo: "Año", tipo: "texto" },
+          { clave: "promedio", titulo: "Promedio", tipo: "dias" },
+          typeof obj === "number" ? { clave: "objetivo", titulo: "Objetivo", tipo: "dias" } : null,
+          typeof obj === "number" ? { clave: "delta", titulo: "Δ vs. objetivo", tipo: "diasDelta" } : null
+        ].filter(Boolean),
+        filas: filasAnio } : null
     ])});
   }
 
