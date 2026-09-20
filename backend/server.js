@@ -199,9 +199,29 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
     }
   }
   propuesto.rotos = [];
+
+  /* Las exclusiones y los filtros por defecto son de UN tablero: «sólo el
+     canal Corporaciones, sociedad IHSA, estas clases de documento» no
+     significa nada en otro modelo. Si el mapeo hubo que rehacerlo, éste no es
+     el mismo tablero, y arrastrarlas filtraba el nuevo por valores de otro
+     —en silencio, porque en DAX filtrar por un valor que no existe no es un
+     error sino cero filas. */
+  const heredadas = (antes.exclusiones || []).length +
+                    Object.keys(antes.filtrosPorDefecto || {}).length;
+  const cambioDeTablero = antes.datasetId && antes.datasetId !== ds;
+  if (cambioDeTablero) { propuesto.exclusiones = []; propuesto.filtrosPorDefecto = {}; }
+
   MODELO.guardar(propuesto);
   return { ajustado: true, puestas, vaciadas, malas, frenado: !!d.frenado,
-           motivo: malas + " referencia(s) del mapeo no existen en este tablero; se detectó de nuevo",
+           via: d.via,
+           // lo que el Power Query de ESTE tablero ya dejó recortado
+           yaFiltrado: d.yaFiltrado || [],
+           soltadas: cambioDeTablero ? heredadas : 0,
+           motivo: malas + " referencia(s) del mapeo no existen en este tablero; se detectó de nuevo" +
+             (cambioDeTablero && heredadas
+               ? ". Se soltaron " + heredadas + " exclusión/filtro del tablero anterior: " +
+                 "no corresponden a éste"
+               : ""),
            resumen: MODELO.resumen() };
 }));
 

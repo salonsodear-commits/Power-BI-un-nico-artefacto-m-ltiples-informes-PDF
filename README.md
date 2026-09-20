@@ -270,13 +270,31 @@ código. Tiene tres pestañas:
    saltea. **Empezar de cero** borra el mapeo guardado y vuelve a la semilla
    del repositorio, sin abrir una terminal.
 
-   Como `executeQueries` no admite funciones `INFO` ni DMV, no hay forma de
-   pedirle al modelo que se liste. Lo que sí se puede es probar:
-   `EVALUATE TOPN(1, Tabla)` acierta o falla, y cuando acierta devuelve todas
-   las columnas de esa tabla de una sola vez; con las medidas pasa lo mismo
-   con `EVALUATE ROW("v", [Medida])`. El recorrido entero cabe en el
-   presupuesto de 120 consultas por minuto de la API, y si Power BI corta por
-   frecuencia lo avisa en vez de dar por ausente algo que sí está.
+   La detección va por dos caminos, y el bueno es el primero:
+
+   - **Por inventario.** `EVALUATE COLUMNSTATISTICS()` devuelve, en **una sola
+     consulta**, todas las tablas y columnas del modelo con su cardinalidad,
+     su mínimo y su máximo. Con eso no hay nada que adivinar:
+     `backend/powerbi/mapeo.js` clasifica lo que realmente hay. Cada papel —el
+     cliente, el tramo de aging, el período— se resuelve como una búsqueda con
+     puntaje sobre todas las columnas a la vez, pesando el nombre, el tipo, la
+     cardinalidad y la tabla donde ya cayeron papeles vecinos. Un tablero cuyas
+     tablas se llamen de cualquier otra forma se detecta igual.
+   - **Por sondeo**, si el modelo no deja correr esa función: se vuelve a
+     probar `EVALUATE TOPN(1, Tabla)` contra un diccionario de nombres
+     habituales en español e inglés, cortando en el primer acierto.
+
+   Las **medidas** son el único caso que sigue necesitando nombres: ni
+   `COLUMNSTATISTICS` ni ninguna otra función DAX las enumera, y las funciones
+   `INFO`, que serían lo natural, están explícitamente fuera de
+   `executeQueries` (error `3239575574`). La API Arrow sí las admite pero es
+   sólo Premium/Fabric, así que no se puede depender de ella. Lo que no
+   aparece por nombre **se arma sumando la columna que corresponda**, así un
+   modelo sin una sola medida escrita también funciona; una medida del modelo
+   siempre gana, porque lleva reglas de negocio que una suma no puede
+   adivinar. La búsqueda empieza por las medidas que el informe elegido va a
+   usar: el presupuesto de 120 consultas por minuto es finito y antes se
+   gastaba buscando medidas de otro informe.
 3. **Consola DAX** — ejecuta cualquier consulta de lectura contra el modelo. Es
    la forma de descubrir como se llaman tus medidas antes de mapearlas.
 
@@ -457,6 +475,60 @@ producía el producto cruzado —cada cliente mostrando las razones sociales de
 todos los demás— porque `SUMMARIZECOLUMNS` conserva toda fila con alguna medida
 no vacía, y la facturación nunca venía vacía.
 
+### Qué tabla mueve a qué medida, preguntado al motor
+
+Las relaciones declaradas del modelo no alcanzan para saber qué filtro afecta
+a qué número, y creerles lleva a informes vacíos.
+
+El caso que lo dejó claro en este proyecto:
+
+```dax
+[Deuda Facturacion] = CALCULATE( SUM( Provision[PENDIENTE FACTURAR] ), Provision )
+```
+
+Ese argumento de tabla le saca a la medida los filtros de su **propia** tabla.
+Un grafo de relaciones diría que `Provision` la filtra; el motor dice que no. Y
+al revés: `Aging - Actualizado` no llega a `Provision` por ninguna relación, así
+que meterle las exclusiones del aging a una consulta de facturación es, en el
+mejor caso, un escaneo caro de más.
+
+`backend/powerbi/semantica.js` no lo deduce: lo mide. Filtra cada tabla —`<>`
+su valor mínimo, que siempre recorta algo— y mira qué medidas se movieron. Son
+seis o siete consultas, se guardan por diez minutos, y el resultado se ve así:
+
+|  | Clientes | Aging | Provision | DSO |
+|---|---|---|---|---|
+| `deudaCobranza` | sí | sí | · | · |
+| `deudaFacturacion` | sí | · | · | · |
+| `importeFacturado` | sí | · | sí | · |
+| `dso` | · | · | · | sí |
+
+Con esa tabla el generador hace dos cosas:
+
+1. **Cada consulta lleva sólo los filtros que le corresponden.** Un filtro sobre
+   una tabla que no llega a la medida no la cambia, y puede vaciarla.
+2. **Una medida sorda a la tabla por la que se la abre no se usa para abrirla.**
+   Agrupar `[Deuda Facturacion]` por `Provision[Concepto]` devuelve el total
+   entero en *cada* fila: cuarenta y cinco conceptos con el mismo número, como
+   si fueran cuarenta y cinco datos distintos. En ese caso se suma la columna
+   que hay detrás de la medida —que se encuentra comparando totales, sin
+   nombres a mano— y si no se sabe cuál es, la apertura no se ofrece. Mejor sin
+   ella que mintiendo.
+
+### La visualización sale de la forma del dato
+
+Ninguna apertura tiene su gráfico fijo en el código. Se elige por lo que volvió:
+
+| Valores distintos | Qué se dibuja |
+|---|---|
+| hasta 12 | barras horizontales con monto y participación |
+| 13 a 40 | las 12 de mayor monto y el resto agrupado en «Otros (n)» |
+| más de 40 | tabla con buscador y orden |
+
+Y si la columna es **ordinal** —un tramo de vencimiento, un estado— el color
+pasa a significar severidad y va de verde a rojo, porque ahí el orden *es* el
+dato.
+
 ### Muchos EVALUATE, pocos pedidos
 
 El informe de Deuda son 22 consultas y el contexto otras 7. Disparadas de a
@@ -541,6 +613,24 @@ Todos los valores pasan por `lit()`, así que nada entra crudo en el DAX.
 
 El panel las lista en **Exclusiones aplicadas**, igual que Power BI, y quedan
 como primera nota de alcance del informe.
+
+**Esto es lo único que no se detecta solo, y conviene saber por qué.** El
+mapeo, las medidas y lo que el Power Query ya dejó recortado salen del modelo
+semántico, que la API sí deja leer. Las exclusiones, en cambio, son filtros del
+**informe** —viven en el `.pbix`, no en el modelo— y ninguna ruta de
+`executeQueries` los expone. Leerlos exigiría bajar el `.pbix` entero
+(`reports/{id}/ExportTo`) o la API de Fabric `getDefinition`, las dos con
+permisos que van bastante más allá de leer datos. Así que se declaran, y a
+cambio el sistema no te deja quedarte con una exclusión silenciosamente rota:
+
+- Una regla que **no coincide con ningún valor real** no se aplica: se ignora,
+  el informe sale igual, y el aviso dice qué se buscaba y cuáles son los
+  valores que sí existen. Antes vaciaba el informe sin decir nada, porque en
+  DAX filtrar por un valor que no existe no es un error sino cero filas.
+- Al **cambiar de tablero**, las exclusiones y los filtros por defecto del
+  anterior se sueltan. «Sólo el canal Corporaciones, sociedad IHSA» no
+  significa nada en otro modelo, y arrastrarlas filtraba el tablero nuevo por
+  valores de otro.
 
 ### «A vencer» entra o no, y se nota
 
