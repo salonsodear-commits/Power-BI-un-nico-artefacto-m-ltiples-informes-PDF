@@ -48,7 +48,7 @@ const CAMPOS = {
     { clave: "indiceRiesgo",      rotulo: "Índice de riesgo" }
   ],
   columnas: [
-    { clave: "periodo",       rotulo: "Período del calendario", req: true,
+    { clave: "periodo",       rotulo: "Período del calendario",
       ayuda: "Una columna a nivel MES: el número 202607 o el texto 2026-07. " +
              "Una columna de fecha no sirve, porque DAX no agrupa por expresiones." },
     { clave: "sociedad",      rotulo: "Sociedad" },
@@ -197,13 +197,13 @@ function normalizar(entrada) {
   for (const c of CAMPOS.columnas) {
     salida.columnas[c.clave] = validarRef((e.columnas || {})[c.clave], "columna");
   }
-  // Sólo el período es imprescindible: es lo que ordena cualquier serie.
-  // Qué medidas hacen falta lo decide cada informe, no el mapeo.
-  const faltan = [...CAMPOS.medidas, ...CAMPOS.columnas]
-    .filter((c) => c.req)
-    .filter((c) => !(salida.medidas[c.clave] || salida.columnas[c.clave]))
-    .map((c) => c.rotulo);
-  if (faltan.length) throw new Error("Falta mapear: " + faltan.join(", "));
+  /* Nada es imprescindible acá. Qué hace falta lo decide cada informe, que
+     para eso declara lo que usa; el mapeo sólo dice qué hay.
+
+     El período era la excepción —«es lo que ordena cualquier serie»— y estaba
+     mal: un tablero de cartera es una foto a la fecha y puede no tener tabla
+     de calendario. Exigirlo hacía que un modelo perfectamente usable se
+     rechazara entero y el informe cayera al mapeo de ejemplo sin avisar. */
   // sólo identificadores conocidos, y sólo de campos que tienen algo escrito
   // sólo dimensiones conocidas, y el valor como texto llano
   for (const [clave, valor] of Object.entries(e.filtrosPorDefecto || {})) {

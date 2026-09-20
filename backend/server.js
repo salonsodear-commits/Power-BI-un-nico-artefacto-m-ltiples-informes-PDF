@@ -134,7 +134,7 @@ app.post("/api/powerbi/detectar", atajo(async (req) => {
   if (!GUID.test(ws || "") || !GUID.test(ds || "")) {
     throw Object.assign(new Error("Elegí antes el workspace y el modelo."), { status: 400 });
   }
-  return DETECTAR.detectar(ws, ds);
+  return DETECTAR.detectar(ws, ds, medidasDelInformeActivo());
 }));
 
 /**
@@ -179,7 +179,7 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
   }
 
   // No cierra: se detecta contra el modelo y se guarda lo que aparezca.
-  const d = await DETECTAR.detectar(ws, ds);
+  const d = await DETECTAR.detectar(ws, ds, medidasDelInformeActivo());
   const prop = d.propuesta || { medidas: {}, columnas: {} };
   const propuesto = { ...antes, workspaceId: ws, datasetId: ds,
     medidas: { ...antes.medidas }, columnas: { ...antes.columnas },
@@ -218,6 +218,16 @@ app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
   const ctx = await CONTEXTO.contexto(ws, ds, medidas);
   return { ...ctx, informe: req.query.informe || informeQueCorresponde() };
 }));
+
+/**
+ * Las medidas que el informe activo va a usar. La detección tiene un
+ * presupuesto de consultas acotado: sin este orden se gastaba buscando
+ * medidas de otros informes y las de éste quedaban sin encontrar.
+ */
+function medidasDelInformeActivo() {
+  const i = INFORMES[informeQueCorresponde()] || {};
+  return [...new Set([...((i.usa || {}).medidas || []), ...((i.requiere || {}).medidas || [])])];
+}
 
 /** El informe que el mapeo actual soporta. Es lo que el tablero va a mostrar. */
 function informeQueCorresponde() {

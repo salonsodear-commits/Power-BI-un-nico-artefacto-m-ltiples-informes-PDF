@@ -2,17 +2,25 @@
 /**
  * Deduce el mapeo del modelo sin que nadie escriba nombres a mano.
  *
- * executeQueries sólo admite DAX estándar: ni funciones INFO ni DMV, así que
- * no hay forma de pedir "listame las tablas". Lo que sí se puede es probar:
- * `EVALUATE TOPN(1, Tabla)` acierta o falla, y cuando acierta devuelve TODAS
- * las columnas de esa tabla de una sola vez. Con las medidas pasa lo mismo
- * con `EVALUATE ROW("v", [Medida])`.
+ * Por dos caminos, y el bueno es el primero:
  *
- * Así que se prueba contra un diccionario de nombres habituales, ordenado de
- * más probable a menos, cortando en el primer acierto de cada campo.
+ *   · POR INVENTARIO. `COLUMNSTATISTICS()` devuelve, en una sola consulta,
+ *     todas las tablas y columnas del modelo con su cardinalidad. Con eso no
+ *     hay nada que adivinar: `mapeo.js` clasifica lo que REALMENTE hay. Un
+ *     tablero cuyas tablas se llamen de cualquier forma funciona igual.
+ *
+ *   · POR SONDEO, si el modelo no deja correr esa función. Ahí se vuelve a lo
+ *     de antes: probar `EVALUATE TOPN(1, Tabla)` contra un diccionario de
+ *     nombres habituales y cortar en el primer acierto.
+ *
+ * Las medidas se buscan por nombre en los dos casos —no hay forma de
+ * listarlas sin XMLA— y lo que no aparece se arma sumando la columna que
+ * corresponda, así un modelo sin una sola medida escrita también sirve.
  */
 const { consultar } = require("./client");
 const { TABLAS, COLUMNAS, MEDIDAS, COLUMNA_DE } = require("./candidatos");
+const SEMANTICA = require("./semantica");
+const MAPEO = require("./mapeo");
 
 const CONCURRENCIA = 4;
 // La API corta en 120 consultas por minuto y por usuario. Un recorrido entero
@@ -103,11 +111,86 @@ function elegirColumna(tabla, patron, exigirMes) {
   return null;
 }
 
+/** Las medidas del modelo, buscadas por nombre. Es lo único que no se puede
+ *  listar: ni COLUMNSTATISTICS ni ninguna función DAX enumera medidas. */
+async function buscarMedidas(ws, ds, gasto, prioridad) {
+  const encontradas = {}, sinEncontrar = [];
+  /* El presupuesto de consultas es finito, así que el orden decide qué se
+     alcanza a mirar. Primero lo que el informe elegido va a usar: buscar en
+     orden alfabético hacía que se gastara entero en medidas de otro informe
+     y las de éste quedaran sin encontrar. */
+  const pedidos = (prioridad || []).filter((k) => MEDIDAS[k]);
+  const papeles = [...new Set([...pedidos, ...Object.keys(MEDIDAS)])];
+  await enTanda(papeles.map((papel) => async () => {
+    for (const nombre of MEDIDAS[papel]) {
+      const m = await probarMedida(ws, ds, nombre, gasto);
+      if (m) { encontradas[papel] = m.nombre; return; }
+    }
+    sinEncontrar.push(papel);
+  }), CONCURRENCIA);
+  return { encontradas, sinEncontrar };
+}
+
+/**
+ * El camino bueno: con el inventario en la mano no se adivina nada.
+ */
+async function porInventario(ws, ds, tablas, prioridad) {
+  const gasto = { n: 0, frenado: false };
+  const deColumnas = MAPEO.columnas(tablas);
+  const { encontradas, sinEncontrar } = await buscarMedidas(ws, ds, gasto, prioridad);
+
+  const medidas = {};
+  for (const papel of Object.keys(MEDIDAS)) {
+    medidas[papel] = encontradas[papel] ? "[" + encontradas[papel] + "]" : "";
+  }
+  // lo que no apareció, se arma sumando la columna que corresponda
+  const armadas = MAPEO.medidasSinteticas(tablas, deColumnas.perfil, encontradas, deColumnas.columnas);
+  for (const [k, expr] of Object.entries(armadas)) if (!medidas[k]) medidas[k] = expr;
+
+  const propuesta = { medidas, columnas: {}, periodoFormato: deColumnas.periodoFormato };
+  for (const clave of Object.keys(COLUMNA_DE)) propuesta.columnas[clave] = "";
+  for (const [k, v] of Object.entries(deColumnas.columnas)) propuesta.columnas[k] = v;
+
+  return {
+    via: "inventario",
+    propuesta,
+    consultas: gasto.n + 1,
+    frenado: gasto.frenado,
+    tope: false,
+    // lo que el Power Query ya dejó recortado: contexto, no segmentador
+    yaFiltrado: deColumnas.yaFiltrado,
+    armadas: Object.keys(armadas),
+    encontrado: {
+      tablas: Object.fromEntries(Object.entries(deColumnas.perfil)
+        .map(([n, p]) => [n, { nombre: n, columnas: p.columnas }])),
+      medidas: encontradas
+    },
+    sinEncontrar: { tablas: [], medidas: sinEncontrar },
+    columnasPorTabla: Object.fromEntries(Object.values(tablas)
+      .map((t) => [t.nombre, t.columnas.map((c) => c.nombre)]))
+  };
+}
+
 /**
  * El recorrido completo. Devuelve un mapeo propuesto y el detalle de qué se
  * encontró, para que la pantalla pueda mostrarlo y el usuario confirme.
  */
-async function detectar(ws, ds) {
+async function detectar(ws, ds, prioridad) {
+  let tablas = null;
+  try { tablas = await SEMANTICA.inventario(ws, ds); }
+  catch (e) {
+    console.warn("[detectar] el modelo no deja leer el inventario (" + e.message +
+      "); voy por sondeo de nombres");
+  }
+  if (tablas && Object.keys(tablas).length) return porInventario(ws, ds, tablas, prioridad);
+  const r = await porSondeo(ws, ds, prioridad);
+  return { ...r, via: "sondeo" };
+}
+
+/**
+ * El camino de respaldo: probar nombres habituales de tabla hasta acertar.
+ */
+async function porSondeo(ws, ds, prioridad) {
   const gasto = { n: 0, frenado: false };
   const hallazgos = { tablas: {}, medidas: {}, sinEncontrar: { tablas: [], medidas: [] } };
 
@@ -121,8 +204,9 @@ async function detectar(ws, ds) {
     hallazgos.sinEncontrar.tablas.push(papel);
   }), CONCURRENCIA);
 
-  // ── medidas: idem, cortando en el primer acierto
-  const papelesMedida = Object.keys(MEDIDAS);
+  // ── medidas: idem, cortando en el primer acierto, lo del informe primero
+  const papelesMedida = [...new Set([...(prioridad || []).filter((k) => MEDIDAS[k]),
+                                     ...Object.keys(MEDIDAS)])];
   await enTanda(papelesMedida.map((papel) => async () => {
     for (const nombre of MEDIDAS[papel]) {
       const m = await probarMedida(ws, ds, nombre, gasto);

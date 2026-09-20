@@ -972,5 +972,10 @@ function ordenarTramos(items) {
 }
 
 const requiere = { medidas: ["deudaCobranza", "deudaFacturacion"], columnas: [] };
+/* Lo imprescindible es una cosa y lo que el informe aprovecha si está, otra.
+   La detección necesita la segunda lista: si busca sólo lo imprescindible
+   deja sin mirar las medidas que arman media pantalla. */
+const usa = { medidas: [...MED_COB, ...MED_FAC, "dso", "indiceRiesgo",
+                        "deudaTotal", "deudaNoVencida"] };
 
-module.exports = { meta, consultas, construir, requiere };
+module.exports = { meta, consultas, construir, requiere, usa };
