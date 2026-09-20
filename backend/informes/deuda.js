@@ -77,8 +77,7 @@ function consultas(p, tramosAVencer, alcance, columna, tablas) {
   const q = {};
   // Cada apertura declara sus medidas; con el alcance medido, `desglose`
   // descarta sola los filtros de tablas que no llegan a esas medidas.
-  const desglose = (o) => Q.desglose({ ...o, alcance });
-  const tablaDe = (ref) => (ref ? Q.pelarTabla(Q.tablaDe(ref)) : null);
+  const desglose = (o) => Q.desglose({ ...o, alcance, columna });
   const f = cortes(p);                                   // vale para todo
   const fCob = cortesCobranza(p, tramosAVencer || []);   // + el corte de «a vencer»
 
@@ -144,22 +143,9 @@ function consultas(p, tramosAVencer, alcance, columna, tablas) {
      Es lo que el tablero abre al tocar «+» en un cliente, y la única forma de
      ver que el 74 % del acumulado es trabajo del mes corriente y no atraso. */
   if (Q.c("anioProvision") && Q.c("mesProvision")) {
-    /* Con qué se abre el mes. Si la medida no reacciona a la tabla del año y
-       el mes —pasa cuando lleva un argumento de tabla que le saca sus propios
-       filtros— devolvería el total entero en cada mes y los meses no sumarían
-       al total. En ese caso se abre sumando la columna que hay detrás, que sí
-       responde. Si no se pudo averiguar cuál es, no se ofrece la apertura:
-       mejor sin ella que con números que no cierran. */
-    const suTabla = tablaDe(Q.c("anioProvision"));
-    const sorda = alcance && alcance.deudaFacturacion &&
-                  alcance.deudaFacturacion[suTabla] === false;
-    const crudo = (columna || {}).deudaFacturacion;
-    if (!sorda || crudo) {
-      q.clienteMes = desglose({
-        por: [Q.c("clienteNombre"), Q.c("anioProvision"), Q.c("mesProvision")],
-        filtros: f, medidas: ["deudaFacturacion"], tope: 900,
-        expresiones: sorda ? { deudaFacturacion: "SUM(" + crudo + ")" } : null });
-    }
+    q.clienteMes = desglose({
+      por: [Q.c("clienteNombre"), Q.c("anioProvision"), Q.c("mesProvision")],
+      filtros: f, medidas: ["deudaFacturacion"], tope: 900 });
   }
 
   /* Las observaciones viven en una hoja de SharePoint sin relación con el
@@ -473,8 +459,10 @@ async function construir(p) {
   const apertura = (filas, clave, medida, rotulo) => {
     const col = Q.c(clave);
     if (!col) return null;
-    const items = ranking(filas, col, medida);
-    return items.length ? { clave, rotulo, items } : null;
+    const ordinal = ORDINALES.has(clave);
+    const items = ordinal ? ordenarTramos(ranking(filas, col, medida))
+                          : ranking(filas, col, medida);
+    return items.length ? { clave, rotulo, items, ordinal } : null;
   };
   const aperturasCobranza = [
     apertura(d.claseDoc,  "claseDocumento",    "deudaCobranza", "Clase de documento"),
@@ -514,6 +502,48 @@ async function construir(p) {
                        serieDso, colDso, dsoPorAnio, dsoValor, dsoPeriodo, k, vencidaPct, colKam,
                        objetivoDso })
   };
+}
+
+/* Las columnas cuyo orden ES el dato: un tramo de vencimiento no se ordena
+   por monto sino de más nuevo a más viejo, y su color va de verde a rojo. */
+const ORDINALES = new Set(["agingTramo", "tramoFacturacion", "estadoVencimiento"]);
+
+const CORTE_BARRAS = 12;   // hasta acá, barras con su porcentaje
+const CORTE_TABLA = 40;    // de acá en más, tabla con buscador
+
+/**
+ * Qué visualización le corresponde a una apertura.
+ *
+ * No está fija en el código: sale de la forma del dato que volvió. Cinco
+ * categorías se leen de un vistazo en barras; cuarenta no se leen en ningún
+ * gráfico y lo que hace falta ahí es buscar. Y si la columna es ordinal
+ * —un tramo de vencimiento— el color pasa a significar algo.
+ */
+function bloqueDe(a, prefijo) {
+  const titulo = prefijo + a.rotulo.toLowerCase();
+  const n = a.items.length;
+
+  if (n > CORTE_TABLA) {
+    return { tipo: "tablaViva", titulo, plegable: true,
+      subtitulo: n + " valores distintos",
+      buscar: "Buscar " + a.rotulo.toLowerCase() + "…", buscarEn: ["etiqueta"],
+      orden: { clave: "valor", desc: true },
+      columnas: [{ clave: "etiqueta", titulo: a.rotulo, tipo: "texto" },
+                 { clave: "valor", titulo: "Monto", tipo: "monto" }],
+      filas: a.items };
+  }
+  if (n > CORTE_BARRAS) {
+    // más de una docena de barras es una lista: se muestran las que pesan y
+    // el resto se agrupa, para no fingir que se puede comparar cuarenta
+    const cima = a.items.slice(0, CORTE_BARRAS);
+    const resto = a.items.slice(CORTE_BARRAS);
+    const otros = resto.reduce((x, i) => x + i.valor, 0);
+    return { tipo: "ranking", titulo, formato: "moneda", plegable: true,
+      subtitulo: "Los " + CORTE_BARRAS + " de mayor monto, de " + n,
+      items: otros ? [...cima, { etiqueta: "Otros (" + resto.length + ")", valor: otros }] : cima };
+  }
+  return { tipo: "aging", titulo, items: a.items, formato: "moneda",
+           plegable: true, severidad: a.ordinal || undefined };
 }
 
 /* ══ salida 1 · las hojas A4 ═════════════════════════════════════════════ */
@@ -682,8 +712,7 @@ function tablero(x) {
         filas: conCobranza,
         total: { cliente: "Total", cobranza: k.deudaCobranza, vencida: k.deudaVencida,
                  pctVencida: vencidaPct } },
-      ...aperturasCobranza.map((a) => ({ tipo: "aging", titulo: "Cobranza por " + a.rotulo.toLowerCase(),
-        items: a.items, formato: "moneda", plegable: true }))
+      ...aperturasCobranza.map((a) => bloqueDe(a, "Cobranza por "))
     ])});
   }
 
@@ -714,8 +743,7 @@ function tablero(x) {
         expandir: clientes.some((c) => c.meses) ? "meses" : undefined,
         filas: clientes,
         total: { cliente: "Total", facturacion: k.deudaFacturacion, pctFacturacion: 100 } },
-      ...aperturasFacturacion.map((a) => ({ tipo: "aging", titulo: "Facturación por " + a.rotulo.toLowerCase(),
-        items: a.items, formato: "moneda", plegable: true }))
+      ...aperturasFacturacion.map((a) => bloqueDe(a, "Facturación por "))
     ])});
   }
 

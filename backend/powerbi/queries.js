@@ -180,6 +180,39 @@ function aplicables(filtros, medidas, alcance, columnasGrupo) {
 }
 
 /**
+ * Con qué se abre cada medida en ESTA apertura.
+ *
+ * Una medida puede ser sorda a la tabla por la que se la está abriendo. Pasa
+ * siempre que lleva un argumento de tabla —`CALCULATE(SUM(T[c]), T)`— que le
+ * saca los filtros de su propia tabla: agrupada por una columna de T devuelve
+ * el total entero en CADA fila, y la apertura muestra cuarenta y cinco veces
+ * el mismo número como si fueran cuarenta y cinco datos distintos.
+ *
+ * Cuando eso pasa se suma la columna que hay detrás de la medida, que sí
+ * responde. Y si no se sabe cuál es, se devuelve null: mejor no ofrecer la
+ * apertura que ofrecerla mintiendo.
+ */
+function sustituciones(dims, medidas, alcance, columna, expresiones) {
+  const usa = { ...(expresiones || {}) };
+  if (!alcance || !Object.keys(alcance).length) return usa;
+  const tablas = [...new Set(dims.map((x) => pelarTabla(tablaDe(x))))];
+
+  for (const k of medidas || []) {
+    if (usa[k] || !m(k) || !alcance[k]) continue;
+    const sorda = tablas.some((t) => alcance[k][t] === false);
+    if (!sorda) continue;
+    const crudo = (columna || {})[k];
+    if (crudo) usa[k] = "SUM(" + crudo + ")";
+    else usa[k] = null;                     // marca: esta medida no sirve acá
+  }
+  // si NINGUNA medida quedó utilizable, la apertura entera no tiene sentido.
+  // Las marcadas con null quedan así: `desglose` las saltea, y cada una que
+  // se saltea es una columna que habría mostrado el total repetido.
+  const utiles = (medidas || []).filter((k) => usa[k] !== null && (usa[k] || m(k)));
+  return utiles.length ? usa : null;
+}
+
+/**
  * Una apertura: la medida abierta por una o más columnas.
  *
  * Es el ladrillo de todo el detalle del tablero de deuda. Devuelve null si el
@@ -189,12 +222,13 @@ function aplicables(filtros, medidas, alcance, columnasGrupo) {
  *   desglose({ por: [c("concepto")], medidas: ["deudaFacturacion"], tope: 40 })
  */
 function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = true,
-                    alcance = null, expresiones = null }) {
+                    alcance = null, expresiones = null, columna = null }) {
   const dims = (Array.isArray(por) ? por : [por]).filter(Boolean);
-  // `expresiones` reemplaza la referencia de una medida por otro DAX: sirve
-  // para abrir por una tabla que la medida ignora, sumando su columna.
-  const cols = (medidas || []).filter((k) => (expresiones && expresiones[k]) || m(k))
-    .map((k) => `    "${k}", ${(expresiones && expresiones[k]) || m(k)}`);
+  const usa = sustituciones(dims, medidas, alcance, columna, expresiones);
+  if (usa === null) return null;             // sorda y sin columna detrás
+  // `usa` reemplaza la referencia de una medida por otro DAX cuando hace falta
+  const cols = (medidas || []).filter((k) => usa[k] !== null && (usa[k] || m(k)))
+    .map((k) => `    "${k}", ${usa[k] || m(k)}`);
   if (!dims.length || !cols.length) return null;
 
   const cuerpo = [
@@ -204,7 +238,7 @@ function desglose({ por, medidas, filtros = [], tope = 0, orden = null, desc = t
   ].join(",\n");
 
   // el orden por defecto es la primera medida que el modelo sí tiene
-  const clave = orden || (medidas || []).find((k) => (expresiones && expresiones[k]) || m(k));
+  const clave = orden || (medidas || []).find((k) => usa[k] !== null && (usa[k] || m(k)));
   const porOrden = clave ? `\n  ORDER BY [${clave}] ${desc ? "DESC" : "ASC"}` : "";
 
   const tabla = `SUMMARIZECOLUMNS(\n${cuerpo}\n  )`;
