@@ -18,13 +18,13 @@ const MEDIDAS_FILA = ["facturacion", "costos", "margen", "margenPct", "variacion
 function consultas(p) {
   const q = {};
   const fila = Q.filaMedidas(MEDIDAS_KPI);
-  if (fila) q.kpis = `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${Q.argsFiltro(p)}\n  )`;
+  if (fila) q.kpis = Q.filaConFiltros(fila, p);
 
   const cols = Q.colsMedidas(MEDIDAS_FILA);
   if (cols.length && Q.c("clienteNombre")) {
     const dims = [Q.c("clienteNombre"), Q.c("clienteKam")].filter(Boolean);
     q.clientes = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n${dims.map((x) => "    " + x).join(",\n")},\n` +
-      `${Q.argsFiltro(p)},\n${cols.join(",\n")}\n  )\n` +
+      `${Q.filtrosSC(p)}${cols.join(",\n")}\n  )\n` +
       `  ORDER BY ${Q.m("facturacion") ? "[facturacion]" : "[" + MEDIDAS_FILA.find((k) => Q.m(k)) + "]"} DESC`;
   }
   return q;

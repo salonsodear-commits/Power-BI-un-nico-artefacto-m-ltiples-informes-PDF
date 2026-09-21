@@ -18,21 +18,21 @@ const MEDIDAS_KPI = ["real", "bo", "variacion", "opex", "opexBo", "provisiones",
 function consultas(p) {
   const q = {};
   const fila = Q.filaMedidas(MEDIDAS_KPI);
-  if (fila) q.kpis = `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${Q.argsFiltro(p)}\n  )`;
+  if (fila) q.kpis = Q.filaConFiltros(fila, p);
 
   if (Q.m("opex") && Q.c("gastoCategoria")) {
     q.opex = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("gastoCategoria")},\n` +
-      `${Q.argsFiltro(p)},\n    "opex", ${Q.m("opex")}\n  )\n  ORDER BY [opex] DESC`;
+      `${Q.filtrosSC(p)}    "opex", ${Q.m("opex")}\n  )\n  ORDER BY [opex] DESC`;
   }
   if (Q.m("saldoCxC") && Q.c("agingTramo")) {
     const dims = [Q.c("vertical"), Q.c("agingTramo")].filter(Boolean);
     q.aging = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n${dims.map((x) => "    " + x).join(",\n")},\n` +
-      `${Q.argsFiltro(p)},\n    "saldo", ${Q.m("saldoCxC")}\n  )`;
+      `${Q.filtrosSC(p)}    "saldo", ${Q.m("saldoCxC")}\n  )`;
   }
   if (Q.m("dso") && Q.c("periodo")) {
     q.dso = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("periodo")},\n` +
-      [Q.fVentana(p.periodo, 12), ...Q.fDimensiones(p)].map((x) => "    " + x).join(",\n") +
-      `,\n    "dso", ${Q.m("dso")}\n  )\n  ORDER BY ${Q.c("periodo")}`;
+      Q.filtrosSC(p, { ventana: 12 }) +
+      `    "dso", ${Q.m("dso")}\n  )\n  ORDER BY ${Q.c("periodo")}`;
   }
   return q;
 }

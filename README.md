@@ -568,6 +568,30 @@ libre donde tipear uno que el modelo no conoce. El **DSO** sigue mostrando el
 último período salvo que se elijan meses, porque su tabla no tiene relación con
 el calendario y la pregunta «cuántos días en calle» no se recorta sola.
 
+### Cambiar de tablero rehace el mapeo, no lo remienda
+
+Verificar una referencia cuesta una consulta, así que el ajuste sólo comprobaba
+las que el informe declara imprescindibles: media docena. Las otras veinte
+sobrevivían. Apuntar al tablero de *Real vs BO* teniendo guardado el de Deuda
+dejaba veintiséis columnas apuntando a tablas que el modelo nuevo no tiene, y
+el informe moría con **«Cannot find table 'Aging - Actualizado'»**.
+
+Ahora:
+
+- Si el `datasetId` cambió, **es otro tablero**: el mapeo se rehace desde cero y
+  las exclusiones y filtros por defecto del anterior se sueltan.
+- Si es el mismo, se conserva lo que anda — pero igual se **poda** contra el
+  inventario, que dice gratis qué columnas existen. Así una v4 que renombró
+  cosas no deja referencias muertas escondidas en campos que nadie verifica.
+- Una exclusión o un filtro fijo que apuntaba a una columna podada se cae con
+  ella.
+
+El período también dejó de ser un supuesto. Un informe de cartera es una foto a
+la fecha y no lleva corte de mes; uno de *Real vs BO* mira un mes cerrado. Si el
+informe necesita uno y nadie lo eligió, se toma el último que tenga el modelo
+—sale del máximo que ya trajo el inventario, sin consulta extra— y el panel lo
+rotula como lo que es: **Último mes cerrado**, no «toda la cartera».
+
 ### El mapeo se ajusta al tablero que elegís
 
 Apuntar a otro modelo —o a la v4 de uno que cambió nombres— deja el mapeo viejo

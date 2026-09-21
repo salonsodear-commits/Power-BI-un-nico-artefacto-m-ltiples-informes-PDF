@@ -57,10 +57,17 @@ function valorPeriodo(clave) {
     : s;
 }
 
-/** Filtro del mes pedido. */
+/**
+ * Filtro del mes pedido, o ninguno.
+ *
+ * Devuelve null cuando no hay columna de período o no se pidió ninguno, en vez
+ * de tirar: un tablero puede no tener calendario, y el panel ya no pide un mes
+ * único —ofrece «todo» o meses puntuales—. Tirar acá hacía que apuntar a un
+ * tablero de Real vs BO respondiera «El período debe tener formato AAAA-MM».
+ */
 function fPeriodo(periodo) {
   const col = c("periodo");
-  if (!col) throw new Error("Falta mapear la columna de período del calendario");
+  if (!col || !periodo) return null;
   return `FILTER(ALL(${tablaDe(col)}), ${col} = ${valorPeriodo(claveMes(periodo))})`;
 }
 
@@ -78,10 +85,10 @@ function fMeses(meses) {
   return `FILTER(ALL(${tablaDe(col)}), ${col} IN {${vals}})`;
 }
 
-/** Filtro de la ventana de n meses que termina en `periodo`. */
+/** Filtro de la ventana de n meses que termina en `periodo`, o ninguno. */
 function fVentana(periodo, n) {
   const col = c("periodo");
-  if (!col) throw new Error("Falta mapear la columna de período del calendario");
+  if (!col || !periodo) return null;
   const vals = ventanaMeses(periodo, n).map(valorPeriodo).join(", ");
   return `FILTER(ALL(${tablaDe(col)}), ${col} IN {${vals}})`;
 }
@@ -106,10 +113,39 @@ function fDimensiones(p) {
   return partes;
 }
 
-/** Todos los filtros, ya listos para pegar como argumentos. */
-function argsFiltro(p, { ventana } = {}) {
-  const partes = [ventana ? fVentana(p.periodo, ventana) : fPeriodo(p.periodo), ...fDimensiones(p)];
-  return partes.map((x) => "    " + x).join(",\n");
+/**
+ * Todos los filtros de este pedido, como lista.
+ *
+ * El corte de período sale de los meses elegidos si los hay, del mes pedido si
+ * lo hay, y de ningún lado si no: ahí se mira el modelo entero.
+ */
+function lineasFiltro(p, { ventana } = {}) {
+  const porMeses = fMeses((p || {}).meses);
+  const periodo = porMeses ? null
+    : (ventana ? fVentana((p || {}).periodo, ventana) : fPeriodo((p || {}).periodo));
+  return [porMeses, periodo, ...fDimensiones(p)].filter(Boolean).map((x) => "    " + x);
+}
+
+/** Compatibilidad: los filtros ya unidos por coma. Puede quedar vacío. */
+function argsFiltro(p, opts) { return lineasFiltro(p, opts).join(",\n"); }
+
+/**
+ * Un `ROW(...)` de medidas, con `CALCULATETABLE` sólo si hay algo que filtrar.
+ *
+ * Sin esto, un tablero sin filtros generaba `CALCULATETABLE(ROW(...),\n\n)`
+ * —con la coma colgando— y Power BI lo rechazaba por sintaxis.
+ */
+function filaConFiltros(fila, p, opts) {
+  const fs = lineasFiltro(p, opts);
+  return fs.length
+    ? `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${fs.join(",\n")}\n  )`
+    : `\nEVALUATE\n  ROW(\n${fila}\n  )`;
+}
+
+/** Los filtros para pegar dentro de un SUMMARIZECOLUMNS, con su coma final. */
+function filtrosSC(p, opts) {
+  const fs = lineasFiltro(p, opts);
+  return fs.length ? fs.join(",\n") + ",\n" : "";
 }
 
 /**
@@ -336,7 +372,8 @@ function valoresDe(col, tope = 12) {
 
 module.exports = {
   m, c, tablaDe, lit, claveMes, ventanaMeses, valorPeriodo,
-  fPeriodo, fVentana, fDimensiones, argsFiltro, filaMedidas, colsMedidas,
+  fPeriodo, fVentana, fDimensiones, argsFiltro, lineasFiltro, filaConFiltros,
+  filtrosSC, filaMedidas, colsMedidas,
   desglose, valoresDe, fSinTramo, fMeses, fExclusiones, textoExclusion,
   aplicables, tablaDeFiltro, pelarTabla
 };

@@ -15,6 +15,7 @@ const DESCUBRIR = require("./powerbi/descubrir");
 const DETECTAR = require("./powerbi/detectar");
 const CONTEXTO = require("./powerbi/contexto");
 const EXCLUSIONES = require("./powerbi/exclusiones");
+const SEMANTICA = require("./powerbi/semantica");
 const AUTH = require("./powerbi/auth");
 const SESIONES = require("./sesiones");
 const MODELO = require("./modelo");
@@ -156,34 +157,60 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
     throw Object.assign(new Error("Workspace y modelo deben ser GUID"), { status: 400 });
   }
   const antes = MODELO.leer();
-  const informe = INFORMES[informeQueCorresponde()] || {};
-  const claves = [
-    ...((informe.requiere || {}).medidas || []).map((k) => ["medidas", k]),
-    ...((informe.requiere || {}).columnas || []).map((k) => ["columnas", k]),
-    ["columnas", "periodo"], ["columnas", "clienteNombre"], ["columnas", "agingTramo"]
-  ];
-  const refs = {};
-  for (const [g, k] of claves) if (antes[g][k]) refs[g + "." + k] = antes[g][k];
+  const otroTablero = !!antes.datasetId && antes.datasetId !== ds;
 
-  // Primero se comprueba lo que ya está: si sirve, no se toca nada.
+  /* El inventario de ESTE tablero. Es una sola consulta y es lo que permite
+     podar después: sin él no hay forma barata de saber si una referencia
+     guardada existe acá. */
+  let tablas = null;
+  try { tablas = await SEMANTICA.inventario(ws, ds); }
+  catch (e) { /* el modelo no deja; se sigue sin poda */ }
+
+  /* ── el mismo tablero: quizá el mapeo guardado ya sirve ───────────── */
   let malas = 0;
-  if (Object.keys(refs).length) {
-    const r = await DESCUBRIR.verificar(ws, ds, refs);
-    malas = Object.values(r).filter((x) => x.estado === "error").length;
-    MODELO.marcar(Object.fromEntries(Object.entries(r)
-      .filter(([, x]) => x.estado !== "sin-mapear")
-      .map(([k, x]) => [k, x.estado === "error"])));
-  }
-  if (Object.keys(refs).length && !malas) {
-    return { ajustado: false, motivo: "el mapeo guardado sirve para este tablero" };
+  if (!otroTablero) {
+    const informe = INFORMES[informeQueCorresponde()] || {};
+    const claves = [
+      ...((informe.requiere || {}).medidas || []).map((k) => ["medidas", k]),
+      ...((informe.requiere || {}).columnas || []).map((k) => ["columnas", k]),
+      ["columnas", "periodo"], ["columnas", "clienteNombre"], ["columnas", "agingTramo"]
+    ];
+    const refs = {};
+    for (const [g, k] of claves) if (antes[g][k]) refs[g + "." + k] = antes[g][k];
+    if (Object.keys(refs).length) {
+      const r = await DESCUBRIR.verificar(ws, ds, refs);
+      malas = Object.values(r).filter((x) => x.estado === "error").length;
+      MODELO.marcar(Object.fromEntries(Object.entries(r)
+        .filter(([, x]) => x.estado !== "sin-mapear")
+        .map(([k, x]) => [k, x.estado === "error"])));
+    }
+    // sirve, pero igual se poda: puede haber columnas nunca verificadas que
+    // quedaron de una versión anterior del mismo modelo
+    if (Object.keys(refs).length && !malas) {
+      const podadas = podar(MODELO.leer(), tablas);
+      if (podadas.cuantas) MODELO.guardar(podadas.modelo);
+      return { ajustado: podadas.cuantas > 0, malas: 0, podadas: podadas.cuantas,
+               motivo: podadas.cuantas
+                 ? "el mapeo sirve, salvo " + podadas.cuantas + " referencia(s) que ya no existen"
+                 : "el mapeo guardado sirve para este tablero",
+               resumen: MODELO.resumen() };
+    }
   }
 
-  // No cierra: se detecta contra el modelo y se guarda lo que aparezca.
-  const d = await DETECTAR.detectar(ws, ds, medidasDelInformeActivo());
+  /* ── detectar contra este tablero ─────────────────────────────────── */
+  const d = await DETECTAR.detectar(ws, ds, medidasParaDetectar(otroTablero));
   const prop = d.propuesta || { medidas: {}, columnas: {} };
-  const propuesto = { ...antes, workspaceId: ws, datasetId: ds,
-    medidas: { ...antes.medidas }, columnas: { ...antes.columnas },
-    periodoFormato: prop.periodoFormato || antes.periodoFormato };
+
+  /* De qué se parte. Si es OTRO tablero, de cero: heredar el mapeo anterior
+     dejaba veintiséis columnas apuntando a tablas que este modelo no tiene, y
+     el informe fallaba con «Cannot find table 'Aging - Actualizado'». Si es el
+     mismo, se conserva lo que anda y sólo se repone lo roto. */
+  const propuesto = {
+    ...antes, workspaceId: ws, datasetId: ds,
+    medidas: otroTablero ? {} : { ...antes.medidas },
+    columnas: otroTablero ? {} : { ...antes.columnas },
+    periodoFormato: prop.periodoFormato || antes.periodoFormato
+  };
 
   let puestas = 0, vaciadas = 0;
   for (const grupo of ["medidas", "columnas"]) {
@@ -191,7 +218,7 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
       const roto = (antes.rotos || []).includes(grupo + "." + k);
       if (v && propuesto[grupo][k] !== v) {
         // lo detectado gana sobre lo roto; sobre lo que anda, sólo si faltaba
-        if (roto || !propuesto[grupo][k]) { propuesto[grupo][k] = v; puestas++; }
+        if (otroTablero || roto || !propuesto[grupo][k]) { propuesto[grupo][k] = v; puestas++; }
       } else if (!v && roto && propuesto[grupo][k]) {
         // no se encontró y estaba roto: mejor vacío que una consulta que falla
         propuesto[grupo][k] = ""; vaciadas++;
@@ -202,28 +229,112 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
 
   /* Las exclusiones y los filtros por defecto son de UN tablero: «sólo el
      canal Corporaciones, sociedad IHSA, estas clases de documento» no
-     significa nada en otro modelo. Si el mapeo hubo que rehacerlo, éste no es
-     el mismo tablero, y arrastrarlas filtraba el nuevo por valores de otro
-     —en silencio, porque en DAX filtrar por un valor que no existe no es un
-     error sino cero filas. */
+     significa nada en otro modelo. Arrastrarlas filtraba el nuevo por valores
+     de otro —en silencio, porque en DAX filtrar por un valor que no existe no
+     es un error sino cero filas. */
   const heredadas = (antes.exclusiones || []).length +
                     Object.keys(antes.filtrosPorDefecto || {}).length;
-  const cambioDeTablero = antes.datasetId && antes.datasetId !== ds;
-  if (cambioDeTablero) { propuesto.exclusiones = []; propuesto.filtrosPorDefecto = {}; }
+  if (otroTablero) { propuesto.exclusiones = []; propuesto.filtrosPorDefecto = {}; }
 
-  MODELO.guardar(propuesto);
+  const podadas = podar(MODELO.normalizar(propuesto), tablas);
+  MODELO.guardar(podadas.modelo);
+
+  const notas = [];
+  if (otroTablero) notas.push("es otro tablero: el mapeo se rehízo desde cero");
+  else notas.push(malas + " referencia(s) del mapeo no existen en este tablero; se detectó de nuevo");
+  if (otroTablero && heredadas) {
+    notas.push("se soltaron " + heredadas + " exclusión/filtro del tablero anterior");
+  }
+  if (podadas.cuantas) notas.push(podadas.cuantas + " referencia(s) se vaciaron por no existir acá");
+
   return { ajustado: true, puestas, vaciadas, malas, frenado: !!d.frenado,
-           via: d.via,
+           via: d.via, otroTablero,
            // lo que el Power Query de ESTE tablero ya dejó recortado
            yaFiltrado: d.yaFiltrado || [],
-           soltadas: cambioDeTablero ? heredadas : 0,
-           motivo: malas + " referencia(s) del mapeo no existen en este tablero; se detectó de nuevo" +
-             (cambioDeTablero && heredadas
-               ? ". Se soltaron " + heredadas + " exclusión/filtro del tablero anterior: " +
-                 "no corresponden a éste"
-               : ""),
+           soltadas: otroTablero ? heredadas : 0,
+           podadas: podadas.cuantas,
+           motivo: notas.join("; "),
            resumen: MODELO.resumen() };
 }));
+
+/**
+ * Vacía las referencias que este modelo no tiene.
+ *
+ * Verificar una por una cuesta una consulta cada una, así que el ajuste sólo
+ * comprobaba las que el informe declara imprescindibles: media docena. Las
+ * otras veinte sobrevivían apuntando a tablas de otro tablero. Con el
+ * inventario en la mano la comprobación es gratis y alcanza a todas.
+ *
+ * Sólo columnas: las medidas no figuran en el inventario, y las que quedaron
+ * son las que la detección confirmó probándolas.
+ */
+function podar(modelo, tablas) {
+  if (!tablas || !Object.keys(tablas).length) return { modelo, cuantas: 0 };
+  const existe = new Set();
+  for (const t of Object.values(tablas)) for (const c of t.columnas || []) existe.add(c.ref);
+
+  const columnas = { ...modelo.columnas };
+  let cuantas = 0;
+  for (const [k, ref] of Object.entries(columnas)) {
+    if (!ref || existe.has(ref)) continue;
+    columnas[k] = ""; cuantas++;
+  }
+  if (!cuantas) return { modelo, cuantas: 0 };
+
+  // una exclusión o un filtro fijo sobre una columna que se cayó, se cae
+  const exclusiones = (modelo.exclusiones || []).filter((r) =>
+    [r.campo, r.texto, ...(r.campos || [])].filter(Boolean).every((k) => columnas[k]));
+  const filtrosPorDefecto = Object.fromEntries(
+    Object.entries(modelo.filtrosPorDefecto || {}).filter(([k]) => columnas[k]));
+
+  return { modelo: { ...modelo, columnas, exclusiones, filtrosPorDefecto }, cuantas };
+}
+
+/**
+ * El último período que tiene el modelo, en AAAA-MM.
+ *
+ * Un informe de Real vs BO mira un mes cerrado, no la serie entera; pero el
+ * panel ya no pide un mes —ofrece «todo» o meses puntuales— así que cuando el
+ * informe necesita uno y nadie lo eligió, se toma el último que haya. Sale del
+ * máximo que ya trajo el inventario: no cuesta una consulta más.
+ */
+async function ultimoPeriodo(ws, ds) {
+  const col = MODELO.leer().columnas.periodo;
+  if (!col) return null;
+  let tablas;
+  try { tablas = await SEMANTICA.inventario(ws, ds); } catch (e) { return null; }
+  for (const t of Object.values(tablas || {})) {
+    for (const c of t.columnas || []) {
+      if (c.ref === col) return aMes(c.max);
+    }
+  }
+  return null;
+}
+
+/** «2026-09», 202609 y «2026-09-01T00:00:00» son el mismo mes. */
+function aMes(v) {
+  const s = String(v == null ? "" : v).trim();
+  let m = s.match(/^(\d{4})-(\d{2})/) || s.match(/^(\d{4})(0[1-9]|1[0-2])$/);
+  if (!m) return null;
+  const mes = Number(m[2]);
+  return mes >= 1 && mes <= 12 ? m[1] + "-" + String(mes).padStart(2, "0") : null;
+}
+
+/**
+ * Qué medidas buscar primero. Con el tablero ya conocido, las del informe que
+ * corresponde. Con uno nuevo no se sabe cuál va a ser, así que se recorren los
+ * informes por turnos: así ninguno se queda sin presupuesto por culpa de otro.
+ */
+function medidasParaDetectar(otroTablero) {
+  if (!otroTablero) return medidasDelInformeActivo();
+  const listas = Object.values(INFORMES).map((i) =>
+    [...new Set([...((i.requiere || {}).medidas || []), ...((i.usa || {}).medidas || [])])]);
+  const salida = [];
+  for (let i = 0; listas.some((l) => l[i] !== undefined); i++) {
+    for (const l of listas) if (l[i] && !salida.includes(l[i])) salida.push(l[i]);
+  }
+  return salida;
+}
 
 app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
   const { ws, ds } = req.params;
@@ -236,7 +347,10 @@ app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
   const informe = INFORMES[req.query.informe] || INFORMES[informeQueCorresponde()] || {};
   const medidas = (informe.requiere || {}).medidas || [];
   const ctx = await CONTEXTO.contexto(ws, ds, medidas);
-  return { ...ctx, informe: req.query.informe || informeQueCorresponde() };
+  return { ...ctx,
+    informe: req.query.informe || informeQueCorresponde(),
+    // un informe de período mira un mes cerrado; uno de cartera, la foto entera
+    pidePeriodo: ((informe.requiere || {}).columnas || []).includes("periodo") };
 }));
 
 /**
@@ -356,7 +470,8 @@ function loQueFalta(informe) {
 
 app.post("/api/informe", async (req, res) => {
   const cuerpo = req.body || {};
-  const informe = INFORMES[cuerpo.reportType];
+  // sin tipo explícito, el que este tablero soporta: el tablero decide el informe
+  const informe = INFORMES[cuerpo.reportType || informeQueCorresponde()];
   if (!informe) {
     return res.status(400).json({
       error: "Tipo de informe desconocido",
@@ -387,9 +502,19 @@ app.post("/api/informe", async (req, res) => {
     .slice(0, 24)
     .sort();
 
+  /* Los informes de período —Real vs BO, Finanzas— necesitan un mes. Si el
+     panel no mandó ninguno, se usa el último que tenga el modelo en vez de
+     fallar con «El período debe tener formato AAAA-MM». */
+  let periodo = cuerpo.periodo;
+  const pidePeriodo = ((informe.requiere || {}).columnas || []).includes("periodo");
+  if (!periodo && !meses.length && pidePeriodo) {
+    try { periodo = await ultimoPeriodo(workspaceId, datasetId); }
+    catch (e) { /* sin período: el informe mira el modelo entero */ }
+  }
+
   const p = {
     workspaceId, datasetId,
-    periodo: cuerpo.periodo, meses,
+    periodo, meses,
     filtros,
     // «a vencer» entra salvo que digan que no
     incluirAVencer: cuerpo.incluirAVencer !== false
@@ -424,7 +549,7 @@ app.post("/api/informe", async (req, res) => {
     res.json({
       meta: {
         organizacion: guardado.organizacion || process.env.ORGANIZACION || "Informe de gestión",
-        informe: cuerpo.reportType,
+        informe: cuerpo.reportType || informeQueCorresponde(),
         titulo: informe.meta.titulo,
         bajada: informe.meta.bajada,
         fuente: informe.meta.fuente,

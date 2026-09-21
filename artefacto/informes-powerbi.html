@@ -2228,9 +2228,16 @@ function pintarPeriodo() {
   caja.innerHTML = "";
   const hay = (CONTEXTO && CONTEXTO.periodos) || [];
 
+  /* El rótulo depende de qué mira el informe. Una cartera de deuda es una
+     foto a la fecha; un Real vs BO mira un mes cerrado. Decir «toda la
+     cartera» en el segundo es mentir sobre lo que se está viendo. */
+  const porMes1 = CONTEXTO && CONTEXTO.pidePeriodo;
+  const mesActual = (DATOS && DATOS.meta && DATOS.meta.periodo) ? mesCorto(DATOS.meta.periodo) : null;
   const todo = el(`<label class="interruptor" style="padding-top:0">
     <input type="radio" name="modoPeriodo" value="todo" ${MESES.length ? "" : "checked"}>
-    <span>Toda la cartera<em>El saldo a la fecha, sin corte de mes</em></span></label>`);
+    <span>${porMes1 ? "Último mes cerrado" : "Toda la cartera"}<em>${
+      porMes1 ? (mesActual ? "Hoy: " + esc(mesActual) : "El último que tenga el modelo")
+              : "El saldo a la fecha, sin corte de mes"}</em></span></label>`);
   const porMes = el(`<label class="interruptor">
     <input type="radio" name="modoPeriodo" value="meses" ${MESES.length ? "checked" : ""}>
     <span>Meses puntuales${hay.length ? `<em>${hay.length} en el calendario</em>` : ""}</span></label>`);
@@ -3425,7 +3432,10 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   $("fWorkspace").value = p.workspace || "";
   $("fDataset").value = p.dataset || "";
   $("fTipo").value = p.tipo && REPORTES[p.tipo] ? p.tipo : "ejecutivo";
-  $("fPeriodo").value = p.periodo || "2026-07";
+  /* Vacío a propósito: si nadie eligió un mes, lo resuelve el backend con el
+     último que tenga el modelo. Un valor fijo acá hacía que un tablero nuevo
+     se mirara siempre contra un mes que quizá ni existe en él. */
+  $("fPeriodo").value = p.periodo || "";
   FILTROS_GUARDADOS = p.filtros || {};
   if (p.aVencer === false) INCLUIR_A_VENCER = false;
   if (Array.isArray(p.meses)) MESES = p.meses;

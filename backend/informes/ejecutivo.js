@@ -19,19 +19,19 @@ const MEDIDAS_KPI = ["real", "bo", "variacion", "variacionPct", "ebitda", "marge
 function consultas(p) {
   const q = {};
   const fila = Q.filaMedidas(MEDIDAS_KPI);
-  if (fila) q.kpis = `\nEVALUATE\n  CALCULATETABLE(\n    ROW(\n${fila}\n    ),\n${Q.argsFiltro(p)}\n  )`;
+  if (fila) q.kpis = Q.filaConFiltros(fila, p);
 
   const evo = Q.colsMedidas(["real", "bo"]);
   if (evo.length && Q.c("periodo")) {
     q.evolucion = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("periodo")},\n` +
-      [Q.fVentana(p.periodo, 12), ...Q.fDimensiones(p)].map((x) => "    " + x).join(",\n") +
-      `,\n${evo.join(",\n")}\n  )\n  ORDER BY ${Q.c("periodo")}`;
+      Q.filtrosSC(p, { ventana: 12 }) +
+      `${evo.join(",\n")}\n  )\n  ORDER BY ${Q.c("periodo")}`;
   }
 
   const ver = Q.colsMedidas(["real", "bo", "variacion", "variacionPct"]);
   if (ver.length && Q.c("vertical")) {
     q.verticales = `\nEVALUATE\n  SUMMARIZECOLUMNS(\n    ${Q.c("vertical")},\n` +
-      `${Q.argsFiltro(p)},\n${ver.join(",\n")}\n  )`;
+      `${Q.filtrosSC(p)}${ver.join(",\n")}\n  )`;
   }
   return q;
 }
