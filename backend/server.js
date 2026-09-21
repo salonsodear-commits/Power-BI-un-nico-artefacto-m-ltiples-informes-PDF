@@ -231,10 +231,28 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
      canal Corporaciones, sociedad IHSA, estas clases de documento» no
      significa nada en otro modelo. Arrastrarlas filtraba el nuevo por valores
      de otro —en silencio, porque en DAX filtrar por un valor que no existe no
-     es un error sino cero filas. */
+     es un error sino cero filas.
+
+     Pero tampoco se tiran: se guardan bajo el tablero al que pertenecen y se
+     reponen al volver. Irse y volver dejaba el informe de deuda sin sus cinco
+     exclusiones y con los totales cambiados, sin que nadie lo pidiera. */
   const heredadas = (antes.exclusiones || []).length +
                     Object.keys(antes.filtrosPorDefecto || {}).length;
-  if (otroTablero) { propuesto.exclusiones = []; propuesto.filtrosPorDefecto = {}; }
+  let repuestas = 0;
+  if (otroTablero) {
+    propuesto.porTablero = { ...(antes.porTablero || {}) };
+    if (heredadas) {
+      propuesto.porTablero[antes.datasetId] = {
+        exclusiones: antes.exclusiones || [],
+        filtrosPorDefecto: antes.filtrosPorDefecto || {}
+      };
+    }
+    const guardadas = propuesto.porTablero[ds];
+    propuesto.exclusiones = (guardadas || {}).exclusiones || [];
+    propuesto.filtrosPorDefecto = (guardadas || {}).filtrosPorDefecto || {};
+    repuestas = propuesto.exclusiones.length +
+                Object.keys(propuesto.filtrosPorDefecto).length;
+  }
 
   const podadas = podar(MODELO.normalizar(propuesto), tablas);
   MODELO.guardar(podadas.modelo);
@@ -243,8 +261,9 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
   if (otroTablero) notas.push("es otro tablero: el mapeo se rehízo desde cero");
   else notas.push(malas + " referencia(s) del mapeo no existen en este tablero; se detectó de nuevo");
   if (otroTablero && heredadas) {
-    notas.push("se soltaron " + heredadas + " exclusión/filtro del tablero anterior");
+    notas.push("se guardaron " + heredadas + " exclusión/filtro del tablero anterior");
   }
+  if (repuestas) notas.push("se repusieron " + repuestas + " de este tablero");
   if (podadas.cuantas) notas.push(podadas.cuantas + " referencia(s) se vaciaron por no existir acá");
 
   return { ajustado: true, puestas, vaciadas, malas, frenado: !!d.frenado,
@@ -252,6 +271,7 @@ app.post("/api/tablero/:ws/:ds/ajustar", atajo(async (req) => {
            // lo que el Power Query de ESTE tablero ya dejó recortado
            yaFiltrado: d.yaFiltrado || [],
            soltadas: otroTablero ? heredadas : 0,
+           repuestas,
            podadas: podadas.cuantas,
            motivo: notas.join("; "),
            resumen: MODELO.resumen() };

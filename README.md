@@ -592,6 +592,31 @@ informe necesita uno y nadie lo eligió, se toma el último que tenga el modelo
 —sale del máximo que ya trajo el inventario, sin consulta extra— y el panel lo
 rotula como lo que es: **Último mes cerrado**, no «toda la cartera».
 
+### El informe lo decide el backend, no el navegador
+
+El tipo de informe vivía en dos lados: un campo del artefacto y el cálculo del
+backend. Al cambiar de tablero se desincronizaban, y como las respuestas no
+llegan en orden, el 422 del informe viejo pisaba al informe nuevo ya pintado:
+el panel decía **Ejecutivo** y abajo quedaba clavado *«El informe Deuda no
+tiene nada que mostrar»*, que era de dos pedidos atrás.
+
+Desde que el tablero determina el informe —y por lo tanto ya no se elige— el
+artefacto directamente **no manda el tipo**: lo resuelve `/api/informe` y lo
+devuelve en `meta.informe`, y el resto de la pantalla lo sigue a él. Además
+cada pedido lleva un número de orden y el que llega tarde no pinta nada, ni
+siquiera su error.
+
+### Las exclusiones quedan guardadas por tablero
+
+Soltar las exclusiones al cambiar de tablero era necesario, pero tirarlas no:
+irse al de *Real vs BO* y volver al de Deuda lo dejaba sin sus cinco
+exclusiones y con los totales cambiados, sin que nadie lo hubiera pedido.
+
+Ahora se archivan bajo el `datasetId` al que pertenecen (`porTablero` en el
+mapeo, hasta doce tableros) y se reponen al volver. Se guardan crudas —no se
+pueden validar contra columnas que no son las de ese modelo— y pasan por la
+validación de siempre recién cuando se reponen.
+
 ### El mapeo se ajusta al tablero que elegís
 
 Apuntar a otro modelo —o a la v4 de uno que cambió nombres— deja el mapeo viejo

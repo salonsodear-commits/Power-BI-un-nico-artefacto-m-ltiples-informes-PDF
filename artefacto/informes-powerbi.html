@@ -2285,9 +2285,12 @@ async function traerContexto() {
   const ws = $("fWorkspace").value.trim(), ds = $("fDataset").value.trim();
   if (!ES_GUID.test(ws) || !ES_GUID.test(ds)) { CONTEXTO = null; pintarContexto(); return; }
   try {
-    const k = $("fTipo").value;
-    CONTEXTO = await API.pedir(`/api/tablero/${ws}/${ds}/contexto` +
-      (k ? "?informe=" + encodeURIComponent(k) : ""));
+    // sin `?informe=`: el que corresponda a ESTE tablero lo resuelve el backend
+    CONTEXTO = await API.pedir(`/api/tablero/${ws}/${ds}/contexto`);
+    if (CONTEXTO && CONTEXTO.informe && $("fTipo").value !== CONTEXTO.informe) {
+      $("fTipo").value = CONTEXTO.informe;
+      pintarLineaInforme();
+    }
   } catch (e) { CONTEXTO = null; }
   pintarContexto();
   pintarPeriodo();
@@ -2359,11 +2362,25 @@ function pintarContexto() {
   }
 }
 
+/* Cuántos pedidos de informe se lanzaron. Al cambiar de tablero salen varios
+   —uno por el cambio de modelo, otro por el contexto, otro por el informe que
+   pasó a corresponder— y no llegan en orden. Sin esto, la respuesta vieja
+   pisaba a la nueva: el panel decía «Ejecutivo» y abajo quedaba clavado
+   «El informe Deuda no tiene nada que mostrar», que era de dos pedidos atrás. */
+let PEDIDO = 0;
+
 async function actualizar() {
-  if (!avisarInforme()) return;
-  const tipo = $("fTipo").value;
+  // El backend elige el informe, así que lo que hay que comprobar no es si
+  // sirve EL elegido —ya no se elige— sino si este tablero soporta alguno.
+  if (!hayInformePosible()) { avisarSinInforme(); return; }
+  const mio = ++PEDIDO;
+  const vigente = () => mio === PEDIDO;
+  /* El tipo de informe NO se manda: lo decide el backend según el tablero.
+     Tenerlo también acá lo desincronizaba — el panel mostraba «Ejecutivo» y
+     el pedido seguía diciendo «deuda», así que volvía un 422 del informe
+     equivocado y quedaba clavado en pantalla. El informe no es seleccionable
+     desde que el tablero lo determina, así que este campo sólo podía mentir. */
   const cuerpo = {
-    reportType: tipo,
     workspaceId: $("fWorkspace").value.trim(),
     datasetId: $("fDataset").value.trim(),
     periodo: $("fPeriodo").value,
@@ -2374,8 +2391,11 @@ async function actualizar() {
   $("btnActualizar").disabled = true;
   estado("", "Consultando Power BI…", "El backend está ejecutando las consultas DAX del informe.");
   try {
-    aplicar(await API.pedir("/api/informe", { method: "POST", body: JSON.stringify(cuerpo) }));
+    const json = await API.pedir("/api/informe", { method: "POST", body: JSON.stringify(cuerpo) });
+    if (!vigente()) return;                    // llegó tarde: ya hay otro en curso
+    aplicar(json);
   } catch (e) {
+    if (!vigente()) return;                    // un error viejo no pisa lo nuevo
     if (e.campo) fallaDeCampo(e);
     else estado("error", e.necesitaIngreso ? "Falta entrar con tu cuenta" : "No se pudo consultar",
       `<span class="mono">${esc(e.message)}</span><br><br>` +
@@ -2389,7 +2409,7 @@ async function actualizar() {
           "el navegador bloquea las llamadas a otros servidores y hay que usar " +
           "<b>Pegar JSON</b>."));
   } finally {
-    $("btnActualizar").disabled = false;
+    if (vigente()) $("btnActualizar").disabled = false;
   }
 }
 
@@ -2450,6 +2470,11 @@ function aplicar(json) {
   if (!json || typeof json !== "object") throw new Error("El JSON no es un objeto");
   json.meta = json.meta || {};
   if (!json.meta.informe) json.meta.informe = $("fTipo").value;
+  // el backend manda cuál corresponde: el resto de la pantalla lo sigue a él
+  else if ($("fTipo").value !== json.meta.informe) {
+    $("fTipo").value = json.meta.informe;
+    pintarLineaInforme();
+  }
   if (!json.meta.actualizado) json.meta.actualizado = new Date().toISOString();
   DATOS = json;
   const hojas = render(json);
@@ -2702,7 +2727,7 @@ let DISPONIBLES = null;   // clave → { disponible, faltan[] }, según el mapeo
 async function sincronizarInformes() {
   let lista;
   try { lista = await API.pedir("/api/informes"); }
-  catch (e) { return; }                       // sin backend, queda el catálogo local
+  catch (e) { DISPONIBLES = null; return; }   // sin backend, no se finge saber cuál sirve
   if (!Array.isArray(lista) || !lista.length) return;
   DISPONIBLES = {};
   for (const r of lista) {
@@ -2744,6 +2769,8 @@ function pintarLineaInforme() {
  * corresponde y se genera. Sin pasar por un selector.
  */
 async function alElegirTablero() {
+  // lo que esté en vuelo es de otro tablero: que no pinte nada al volver
+  PEDIDO++;
   guardarPrefs();
   mostrarInforme();
   estado("", "Leyendo el tablero…", "Comprobando si el mapeo guardado sirve para este modelo.");
@@ -2768,9 +2795,28 @@ async function alElegirTablero() {
 
   await sincronizarInformes();
   await traerContexto();
-  const k = $("fTipo").value;
-  if (!k || !DISPONIBLES || !DISPONIBLES[k] || !DISPONIBLES[k].disponible) { avisarInforme(); return; }
   await actualizar();
+}
+
+/** ¿Este tablero soporta algún informe? Sin DISPONIBLES no se presume que no. */
+function hayInformePosible() {
+  if (!DISPONIBLES) return true;
+  return Object.values(DISPONIBLES).some((d) => d && d.disponible);
+}
+
+/** Ningún informe sale con este modelo: hay que decir qué falta, no callarse. */
+function avisarSinInforme() {
+  const faltas = Object.entries(DISPONIBLES || {})
+    .map(([k, d]) => `<b>${esc((REPORTES[k] || {}).nombre || k)}</b>: ${esc((d.faltan || []).join("; "))}`)
+    .filter(Boolean);
+  estado("error", "Este tablero no alcanza para ningún informe",
+    "Ninguno de los informes encuentra en este modelo las medidas que necesita." +
+    (faltas.length ? "<br><br>" + faltas.join("<br>") : "") +
+    "<br><br>Revisá el mapeo en <b>Conectar → Mapeo</b>." +
+    `<div class="acciones-estado"><button class="bd primario" id="btnIrAMapeo">` +
+    `Abrir el mapeo</button></div>`);
+  const b = document.getElementById("btnIrAMapeo");
+  if (b) b.addEventListener("click", () => irAlCampo(null, null));
 }
 
 /** Dice, antes de consultar, si el informe elegido puede salir con este mapeo. */

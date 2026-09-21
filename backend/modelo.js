@@ -178,6 +178,32 @@ function tablaDe(ref) {
   return i > 0 ? ref.slice(0, i) : "";
 }
 
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const TOPE_TABLEROS = 12;
+
+/**
+ * El archivo de exclusiones por tablero. Se guarda crudo —no se puede validar
+ * contra columnas que no son las de este modelo— pero acotado: sólo claves que
+ * son GUID, pocas reglas, y una vuelta por JSON que deja fuera funciones,
+ * prototipos y ciclos. Al reponerlas pasan por la validación de siempre.
+ */
+function guardarPorTablero(entrada) {
+  const salida = {};
+  const pares = Object.entries(entrada || {}).filter(([ds]) => GUID_RE.test(ds));
+  for (const [ds, v] of pares.slice(-TOPE_TABLEROS)) {
+    let limpio;
+    try { limpio = JSON.parse(JSON.stringify(v || {})); } catch (e) { continue; }
+    const exclusiones = Array.isArray(limpio.exclusiones) ? limpio.exclusiones.slice(0, 40) : [];
+    const filtros = {};
+    for (const [k, x] of Object.entries(limpio.filtrosPorDefecto || {}).slice(0, 20)) {
+      if (x != null) filtros[String(k).slice(0, 60)] = String(x).slice(0, 120);
+    }
+    if (!exclusiones.length && !Object.keys(filtros).length) continue;
+    salida[ds] = { exclusiones, filtrosPorDefecto: filtros };
+  }
+  return salida;
+}
+
 function normalizar(entrada) {
   const e = entrada && typeof entrada === "object" ? entrada : {};
   const salida = {
@@ -189,7 +215,14 @@ function normalizar(entrada) {
     datasetId: String(e.datasetId || "").trim(),
     rotos: [],
     filtrosPorDefecto: {},
-    exclusiones: []
+    exclusiones: [],
+    /* Lo que cada tablero recorta, guardado por tablero.
+       Las exclusiones son de UN modelo y no se pueden aplicar a otro, pero
+       tampoco se pueden tirar: irse a otro tablero y volver dejaba el de
+       deuda sin sus cinco exclusiones y con los totales cambiados, sin que
+       nadie lo hubiera pedido. Acá quedan a la espera, crudas; se validan
+       recién cuando se reponen, ya con las columnas de su tablero. */
+    porTablero: guardarPorTablero(e.porTablero)
   };
   for (const c of CAMPOS.medidas) {
     salida.medidas[c.clave] = validarRef((e.medidas || {})[c.clave], "medida");
@@ -343,4 +376,5 @@ function reiniciar() {
 const tiene = (grupo, clave) => sirve(grupo, clave);
 
 module.exports = { CAMPOS, POR_DEFECTO, leer, guardar, normalizar, tablaDe, tiene,
+                   guardarPorTablero,
                    sirve, marcar, resumen, reiniciar, ARCHIVO, SEMILLA };
