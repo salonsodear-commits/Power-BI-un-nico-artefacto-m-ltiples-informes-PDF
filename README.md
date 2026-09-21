@@ -592,6 +592,50 @@ informe necesita uno y nadie lo eligió, se toma el último que tenga el modelo
 —sale del máximo que ya trajo el inventario, sin consulta extra— y el panel lo
 rotula como lo que es: **Último mes cerrado**, no «toda la cartera».
 
+### Un tablero sin medidas escritas también sirve
+
+Las medidas son lo único que no se puede listar: ni `COLUMNSTATISTICS` ni
+ninguna función DAX las enumera. Se buscan por nombre, y un tablero cuyas
+medidas se llamen distinto no encuentra ninguna. Antes eso terminaba en *«Este
+tablero no alcanza para ningún informe»*, aunque los importes estuvieran ahí, en
+columnas.
+
+Ahora lo que no aparece **se arma**, en dos pasos:
+
+1. **Sumas de una columna.** `real`, `bo`, `opex`, `costos`, `saldoCxC`, `dso`,
+   la deuda y la provisión salen de la columna numérica que mejor calza, con la
+   tabla de hechos puntuando más y descartando lo que es un año o un mes por
+   más que sea un número.
+2. **Cuentas sobre las anteriores.** La variación es una resta y el margen
+   otra; un modelo puede no tenerlas escritas y el informe igual las necesita:
+
+   | Papel | Se arma como |
+   |---|---|
+   | `variacion` | `real − bo` |
+   | `variacionPct` | `DIVIDE(real − bo, bo) × 100` |
+   | `margen` | `real − costos` |
+   | `ebitda` | `margen − opex` |
+   | `deudaTotal` | `deudaCobranza + deudaFacturacion` |
+
+Una medida del modelo **siempre gana**: lleva reglas de negocio —qué tramos
+cuentan como vencido, qué documentos se excluyen— que una suma no puede
+adivinar. Lo armado es el piso, no el techo.
+
+Eso obligó a abrir el validador del mapeo, que hasta acá sólo aceptaba
+`[Medida]` o `SUM(Tabla[Columna])`. Ahora acepta también una cuenta entre
+ellas, pero no con una expresión suelta: la cadena se trocea en piezas de una
+lista **cerrada** —una agregación, una medida, `DIVIDE`, un paréntesis, un
+operador, un número— y si sobra un solo carácter que no calce, no pasa. No hay
+forma de colar una comilla, un nombre de función fuera de la lista, ni una
+consulta.
+
+### Cuando de verdad no alcanza, se muestra qué hay
+
+Si aun así ningún informe sale, el cartel deja de ser un callejón: pide el
+inventario y lista las tablas con sus columnas de importe. O una de ésas es la
+medida que falta —y se mapea una vez— o queda claro que el tablero no tiene lo
+que el informe necesita.
+
 ### El informe lo decide el backend, no el navegador
 
 El tipo de informe vivía en dos lados: un campo del artefacto y el cálculo del

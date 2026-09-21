@@ -285,44 +285,107 @@ function columnas(tablas) {
    escrita por quien armó el tablero lleva reglas de negocio —qué tramos
    cuentan como vencido, por ejemplo— que una suma no puede adivinar. */
 const MEDIDA_DE = {
-  deudaCobranza:    { patrones: [/^importe\s*total$/i, /^importe$/i, /^saldo/i, /^monto/i,
-                                 /^deuda/i, /^amount$/i, /^balance$/i], agregado: "SUM",
-                      enHechos: true },
+  /* Los importes, por lo que suelen llamarse en un datalake. El orden importa:
+     el primer patrón que calza puntúa más. */
+  real:             { patrones: [/^importe\s*real$/i, /^real$/i, /venta.*real/i, /^venta\s*neta/i,
+                                 /^ventas?$/i, /^facturaci[oó]n$/i, /^ingresos?$/i, /^revenue$/i,
+                                 /^actual$/i, /^sales$/i, /^net\s*sales$/i], agregado: "SUM" },
+  bo:               { patrones: [/^importe\s*presupuest/i, /^presupuest/i, /^ppto/i, /^budget$/i,
+                                 /^objetivo$/i, /^bo$/i, /^plan$/i, /^forecast$/i, /^target$/i,
+                                 /^meta$/i, /presupuest/i], agregado: "SUM" },
+  opex:             { patrones: [/^opex$/i, /gasto.*operativ/i, /^gastos?$/i, /^egresos?$/i,
+                                 /operating.*expense/i, /^sg&a$/i], agregado: "SUM" },
+  costos:           { patrones: [/^costos?$/i, /^cmv$/i, /^cogs$/i, /costo.*vent/i,
+                                 /^costo\s*directo/i], agregado: "SUM" },
+  saldoCxC:         { patrones: [/cuentas.*cobrar/i, /^cxc$/i, /receivable/i, /^saldo\s*deuda/i,
+                                 /^saldo$/i], agregado: "SUM" },
+  provisiones:      { patrones: [/^provisi/i, /^importe\s*provisi/i], agregado: "SUM" },
+  deudaCobranza:    { patrones: [/^importe\s*total$/i, /^saldo\s*deuda/i, /^deuda/i,
+                                 /^balance$/i, /^importe\s*adeudado/i], agregado: "SUM" },
   deudaFacturacion: { patrones: [/pendiente.*factur/i, /por.*factur/i, /^wip$/i,
-                                 /unbilled/i, /obra.*curso/i], agregado: "SUM", enHechos: true },
-  importeFacturado: { patrones: [/importe.*factur/i, /^facturado$/i, /invoiced/i,
-                                 /^ventas?$/i, /revenue/i], agregado: "SUM", enHechos: true },
-  dso:              { patrones: [/^dso/i, /d[ií]as.*(calle|cobro)/i, /days\s*sales/i],
-                      agregado: "MIN" }
+                                 /unbilled/i, /obra.*curso/i], agregado: "SUM" },
+  importeFacturado: { patrones: [/importe.*factur/i, /^facturado$/i, /invoiced/i], agregado: "SUM" },
+  dso:              { patrones: [/^dso/i, /d[ií]as.*(calle|cobro)/i, /days\s*sales/i], agregado: "MIN" }
 };
 
+/* Lo que no se suma: se calcula sobre otras. Un modelo puede no tener escrita
+   la variación ni el margen —son dos restas— y no por eso el informe tiene que
+   quedarse sin ellas. Se arman sólo si están sus dos ingredientes. */
+const DERIVADAS = {
+  variacion:     { de: ["real", "bo"], arma: (r, b) => `${r} - ${b}` },
+  variacionPct:  { de: ["real", "bo"], arma: (r, b) => `DIVIDE(${r} - ${b}, ${b}) * 100` },
+  margen:        { de: ["real", "costos"], arma: (r, c) => `${r} - ${c}` },
+  margenPct:     { de: ["margen", "real"], arma: (m, r) => `DIVIDE(${m}, ${r}) * 100` },
+  ebitda:        { de: ["margen", "opex"], arma: (m, o) => `${m} - ${o}` },
+  margenEbitda:  { de: ["ebitda", "real"], arma: (e, r) => `DIVIDE(${e}, ${r}) * 100` },
+  facturacion:   { de: ["real"], arma: (r) => r },
+  pendienteFacturar: { de: ["deudaFacturacion"], arma: (x) => x },
+  deudaTotal:    { de: ["deudaCobranza", "deudaFacturacion"], arma: (c, f) => `${c} + ${f}` },
+  indiceRiesgo:  { de: ["deudaVencida", "deudaTotal"], arma: (v, t) => `DIVIDE(${v}, ${t}) * 100` }
+};
+
+/* El orden en que se resuelven: una derivada puede apoyarse en otra. */
+const ORDEN_DERIVADAS = ["facturacion", "pendienteFacturar", "variacion", "variacionPct",
+  "margen", "margenPct", "ebitda", "margenEbitda", "deudaTotal", "indiceRiesgo"];
+
 /**
- * Las medidas que se pueden armar sumando una columna, para los papeles que
- * el modelo no trae resueltos. Devuelve expresiones DAX listas para usar.
+ * Las medidas que se pueden armar con lo que el modelo tiene, para los papeles
+ * que no aparecieron como medida escrita.
+ *
+ * Primero las que son una suma de una columna, y después las que son una
+ * cuenta sobre esas. Una medida del modelo siempre gana: lleva reglas de
+ * negocio —qué tramos cuentan como vencido, qué se excluye— que una suma no
+ * puede adivinar.
  */
 function medidasSinteticas(tablas, perfil, yaMapeadas, columnasElegidas) {
   const salida = {};
+  const puesto = {};                       // papel → DAX efectivo, propio o armado
+  for (const [k, nombre] of Object.entries(yaMapeadas || {})) {
+    if (nombre) puesto[k] = "[" + nombre + "]";
+  }
+
+  // ── las que salen de sumar una columna ─────────────────────────────
+  const usadas = new Set();
   for (const [clave, papel] of Object.entries(MEDIDA_DE)) {
-    if (yaMapeadas && yaMapeadas[clave]) continue;
+    if (puesto[clave]) continue;
     let mejor = null;
     for (const t of Object.values(tablas)) {
-      if (papel.enHechos && !(perfil[t.nombre] || {}).hechos) continue;
       for (const col of t.columnas || []) {
         if (col.tipo !== "numero") continue;
+        // un año o un mes no son un importe, por más que sean números
+        if (col.cardinalidad < 3 || (col.max !== null && col.max <= 12)) continue;
         const i = papel.patrones.findIndex((re) => re.test(col.nombre));
         if (i < 0) continue;
-        const puntos = 1000 - i * 40 + (col.cardinalidad > 20 ? 20 : 0);
+        let puntos = 1000 - i * 40;
+        if ((perfil[t.nombre] || {}).hechos) puntos += 60;
+        if (col.cardinalidad > 20) puntos += 20;
+        if (usadas.has(col.ref)) puntos -= 200;   // no repetir la misma columna
         if (!mejor || puntos > mejor.puntos) mejor = { puntos, ref: col.ref };
       }
     }
-    if (mejor) salida[clave] = papel.agregado + "(" + mejor.ref + ")";
+    if (!mejor) continue;
+    salida[clave] = papel.agregado + "(" + mejor.ref + ")";
+    puesto[clave] = salida[clave];
+    usadas.add(mejor.ref);
   }
+
   // la cantidad de clientes se cuenta sobre la columna que ya se eligió
-  if (!(yaMapeadas || {}).clientesActivos && (columnasElegidas || {}).clienteNombre) {
+  if (!puesto.clientesActivos && (columnasElegidas || {}).clienteNombre) {
     salida.clientesActivos = "DISTINCTCOUNT(" + columnasElegidas.clienteNombre + ")";
+    puesto.clientesActivos = salida.clientesActivos;
+  }
+
+  // ── las que son una cuenta sobre las anteriores ────────────────────
+  for (const clave of ORDEN_DERIVADAS) {
+    if (puesto[clave]) continue;
+    const d = DERIVADAS[clave];
+    const partes = d.de.map((k) => puesto[k]);
+    if (partes.some((x) => !x)) continue;
+    salida[clave] = d.arma(...partes);
+    puesto[clave] = salida[clave];
   }
   return salida;
 }
 
 module.exports = { columnas, perfilar, formatoDeMes, medidasSinteticas,
-                   PAPELES, ORDEN, MEDIDA_DE };
+                   PAPELES, ORDEN, MEDIDA_DE, DERIVADAS };

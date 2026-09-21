@@ -2804,15 +2804,44 @@ function hayInformePosible() {
   return Object.values(DISPONIBLES).some((d) => d && d.disponible);
 }
 
-/** Ningún informe sale con este modelo: hay que decir qué falta, no callarse. */
-function avisarSinInforme() {
+/**
+ * Ningún informe sale con este modelo.
+ *
+ * Decir sólo «falta tal medida» es un callejón sin salida: no se sabe si el
+ * tablero se leyó, ni con qué se podría armar algo. Así que además se muestra
+ * lo que SÍ se encontró —las tablas y sus columnas de importe— que es por
+ * donde se sale: o se mapea una a mano, o queda claro que el tablero no tiene
+ * lo que el informe necesita.
+ */
+async function avisarSinInforme() {
   const faltas = Object.entries(DISPONIBLES || {})
     .map(([k, d]) => `<b>${esc((REPORTES[k] || {}).nombre || k)}</b>: ${esc((d.faltan || []).join("; "))}`)
     .filter(Boolean);
   estado("error", "Este tablero no alcanza para ningún informe",
     "Ninguno de los informes encuentra en este modelo las medidas que necesita." +
     (faltas.length ? "<br><br>" + faltas.join("<br>") : "") +
-    "<br><br>Revisá el mapeo en <b>Conectar → Mapeo</b>." +
+    "<br><br><span class=\"mono\">Leyendo qué tiene el tablero…</span>");
+
+  let inv = null;
+  const ws = $("fWorkspace").value.trim(), ds = $("fDataset").value.trim();
+  try { inv = await API.pedir(`/api/tablero/${ws}/${ds}/inventario`); } catch (e) { /* sin inventario */ }
+
+  const leido = inv && inv.tablas && inv.tablas.length
+    ? "<br><br><b>Lo que sí hay en este tablero</b><br>" +
+      inv.tablas.slice(0, 6).map((t) =>
+        `<span class="mono">${esc(t.nombre)}</span> — ${t.columnas} columnas` +
+        (t.importes.length
+          ? "<br>&nbsp;&nbsp;importes: " + t.importes.slice(0, 6)
+              .map((c) => `<span class="mono">${esc(c.nombre)}</span>`).join(", ")
+          : "")).join("<br>") +
+      "<br><br>Si alguna de ésas es la medida que falta, mapeala una vez en " +
+      "<b>Conectar → Mapeo</b> y el informe sale."
+    : "<br><br>No se pudo leer el inventario del modelo: puede que tu permiso " +
+      "alcance para consultar pero no para listar columnas.";
+
+  estado("error", "Este tablero no alcanza para ningún informe",
+    "Ninguno de los informes encuentra en este modelo las medidas que necesita." +
+    (faltas.length ? "<br><br>" + faltas.join("<br>") : "") + leido +
     `<div class="acciones-estado"><button class="bd primario" id="btnIrAMapeo">` +
     `Abrir el mapeo</button></div>`);
   const b = document.getElementById("btnIrAMapeo");

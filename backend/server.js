@@ -356,6 +356,35 @@ function medidasParaDetectar(otroTablero) {
   return salida;
 }
 
+/**
+ * Qué hay en este tablero, en crudo.
+ *
+ * Cuando ningún informe sale, el cartel «no alcanza para ningún informe» es un
+ * callejón sin salida: no dice qué se leyó ni con qué se podría armar algo.
+ * Esto devuelve el inventario —una sola consulta, ya cacheada— para que la
+ * pantalla muestre las tablas y sus columnas numéricas, que son las candidatas
+ * a ser un importe.
+ */
+app.get("/api/tablero/:ws/:ds/inventario", atajo(async (req) => {
+  const { ws, ds } = req.params;
+  if (!GUID.test(ws) || !GUID.test(ds)) {
+    throw Object.assign(new Error("Workspace y modelo deben ser GUID"), { status: 400 });
+  }
+  const tablas = await SEMANTICA.inventario(ws, ds);
+  return {
+    tablas: Object.values(tablas).map((t) => ({
+      nombre: t.nombre,
+      columnas: t.columnas.length,
+      // las que podrían ser un importe: numéricas y con muchos valores
+      importes: t.columnas.filter((c) => c.tipo === "numero" && c.cardinalidad >= 3)
+        .sort((a, b) => b.cardinalidad - a.cardinalidad)
+        .slice(0, 12).map((c) => ({ nombre: c.nombre, ref: c.ref, valores: c.cardinalidad })),
+      dimensiones: t.columnas.filter((c) => c.tipo === "texto" && c.cardinalidad >= 2 && c.cardinalidad <= 200)
+        .slice(0, 12).map((c) => c.nombre)
+    })).sort((a, b) => b.importes.length - a.importes.length)
+  };
+}));
+
 app.get("/api/tablero/:ws/:ds/contexto", atajo(async (req) => {
   const { ws, ds } = req.params;
   if (!GUID.test(ws) || !GUID.test(ds)) {

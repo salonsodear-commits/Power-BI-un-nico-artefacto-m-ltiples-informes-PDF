@@ -154,18 +154,52 @@ const REF_COLUMNA = new RegExp("^" + COL + "$");
 const FUNCIONES = "SUM|MIN|MAX|AVERAGE|COUNT|DISTINCTCOUNT|COUNTROWS";
 const REF_AGREGADA = new RegExp("^(?:" + FUNCIONES + ")\\(\\s*" + COL + "\\s*\\)$", "i");
 
+/**
+ * Una cuenta entre medidas y agregaciones: `SUM(V[Real]) - SUM(V[Ppto])`.
+ *
+ * Hace falta porque un modelo puede no tener escrita ni la variación ni el
+ * margen —son dos restas— y el informe igual tiene que poder armarlas. Pero
+ * esto entra en una consulta, así que no se valida con una expresión suelta:
+ * se trocea la cadena en piezas de una lista CERRADA —una agregación sobre una
+ * columna, una medida, DIVIDE, un paréntesis, un operador, un número— y si
+ * sobra un solo carácter que no calce, no pasa. No hay forma de colar una
+ * comilla, un nombre de función que no esté en la lista, ni una consulta.
+ */
+const TOPE_COMPUESTA = 600;
+const PIEZA = new RegExp("^(?:\\s+|(?:" + FUNCIONES + ")\\(\\s*" + COL + "\\s*\\)" +
+  "|\\[[^\\[\\]\"']{1,100}\\]|DIVIDE\\(|[()+\\-*/,]|\\d+(?:\\.\\d+)?)", "i");
+
+function esCuentaValida(s) {
+  if (s.length > TOPE_COMPUESTA) return false;
+  let resto = s, hondo = 0, piezas = 0, tieneDato = false;
+  while (resto.length) {
+    if (++piezas > 400) return false;
+    const m = PIEZA.exec(resto);
+    if (!m) return false;
+    const t = m[0];
+    if (/[\[\]]/.test(t)) tieneDato = true;          // una medida o una columna
+    for (const ch of t) {
+      if (ch === "(") hondo++;
+      else if (ch === ")" && --hondo < 0) return false;
+    }
+    resto = resto.slice(t.length);
+  }
+  return hondo === 0 && tieneDato;
+}
+
 function validarRef(valor, tipo) {
   const s = String(valor || "").trim();
   if (!s) return "";
   const ok = tipo === "medida"
-    ? (REF_MEDIDA.test(s) || REF_AGREGADA.test(s))
+    ? (REF_MEDIDA.test(s) || REF_AGREGADA.test(s) || esCuentaValida(s))
     : REF_COLUMNA.test(s);
   if (!ok) {
     throw new Error(
       tipo === "medida"
-        ? `"${s}" no es válida. Se espera [Nombre de la medida], o una agregación ` +
-          `sobre una columna: SUM(Tabla[Columna]), MIN(...), MAX(...), AVERAGE(...), ` +
-          `COUNT(...), DISTINCTCOUNT(...).`
+        ? `"${s}" no es válida. Se espera [Nombre de la medida], una agregación ` +
+          `sobre una columna —SUM(Tabla[Columna]), MIN, MAX, AVERAGE, COUNT, ` +
+          `DISTINCTCOUNT— o una cuenta entre ellas, como ` +
+          `SUM(V[Real]) - SUM(V[Ppto]).`
         : `"${s}" no es una columna válida. Se espera Tabla[Columna] o 'Mi Tabla'[Columna].`
     );
   }
