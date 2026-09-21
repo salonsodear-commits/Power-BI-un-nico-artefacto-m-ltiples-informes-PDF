@@ -943,6 +943,21 @@ docker build -t tablero-a-informe .
 docker run -p 3000:3000 -e TENANT_ID=… -e CLIENT_ID=… tablero-a-informe
 ```
 
+Para Azure, que es donde los datos no salen de Microsoft y la cuenta de Entra
+ya existe, está `desplegar/azure.sh`:
+
+```bash
+az login
+TENANT_ID=… CLIENT_ID=… ./desplegar/azure.sh
+```
+
+Deja una Container App con una dirección `https` estable. **Esa dirección es
+lo que se reparte al equipo** — no un archivo: abierta en el navegador sirve el
+artefacto desde el mismo origen, así que no hay CORS, no hay que configurar
+nada, y la única credencial que se pide es la de Microsoft.
+
+No hace falta Docker en la máquina: `az acr build` compila la imagen en Azure.
+
 Lo que hay que saber antes de elegir dónde:
 
 - **No hace falta `CLIENT_SECRET`.** El modo delegado usa el código de
@@ -952,7 +967,9 @@ Lo que hay que saber antes de elegir dónde:
   le deja ver.
 - **El contenedor es efímero.** El mapeo y las sesiones se escriben en disco: al
   reiniciar, el mapeo se vuelve a detectar solo —es una consulta— y cada uno
-  entra de nuevo. Para que sobrevivan, montar un volumen en `/app/backend`.
+  entra de nuevo. Para que sobrevivan, montar un volumen y apuntarle
+  `DATOS_DIR`; sin esa variable se escriben al lado del código, que es lo
+  cómodo en una máquina propia.
 - **Una sola instancia.** Las sesiones viven en el proceso; con dos réplicas,
   media sesión caería en la que no la tiene.
 

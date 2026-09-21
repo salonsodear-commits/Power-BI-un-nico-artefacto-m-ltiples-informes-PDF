@@ -12,7 +12,17 @@
 const fs = require("fs");
 const path = require("path");
 
-const ARCHIVO = path.join(__dirname, "modelo.json");
+/* Dónde vive lo que el backend escribe: el mapeo en uso y las sesiones.
+   Dentro de un contenedor el disco es efímero, así que en un host de verdad se
+   apunta DATOS_DIR a un volumen montado y sobreviven a cada reinicio. Por
+   defecto, al lado del código, que es lo cómodo en una máquina propia. */
+const DATOS = process.env.DATOS_DIR
+  ? path.resolve(process.env.DATOS_DIR)
+  : __dirname;
+try { if (DATOS !== __dirname) fs.mkdirSync(DATOS, { recursive: true }); }
+catch (e) { console.warn("[modelo] no se pudo crear " + DATOS + ": " + e.message); }
+
+const ARCHIVO = path.join(DATOS, "modelo.json");
 // La semilla sí va al repositorio; el archivo en uso no, para que guardar el
 // mapeo nunca choque con un git pull.
 const SEMILLA = path.join(__dirname, "modelo.ejemplo.json");

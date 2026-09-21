@@ -16,7 +16,10 @@ const crypto = require("crypto");
 const { AsyncLocalStorage } = require("async_hooks");
 
 const almacen = new AsyncLocalStorage();
-const ARCHIVO = path.join(__dirname, ".sesiones.json");
+// mismo criterio que el mapeo: con DATOS_DIR, las sesiones sobreviven a un
+// reinicio del contenedor y nadie tiene que volver a entrar
+const DATOS = process.env.DATOS_DIR ? path.resolve(process.env.DATOS_DIR) : __dirname;
+const ARCHIVO = path.join(DATOS, ".sesiones.json");
 const COOKIE = "informes_sid";
 const CABECERA = "x-sesion";
 const VIDA_DIAS = 30;
