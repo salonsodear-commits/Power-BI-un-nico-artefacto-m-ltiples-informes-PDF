@@ -926,6 +926,27 @@ devuelve la misma página para cualquier ruta —claude.ai, un sitio estático, 
 proxy— hacía que `/api/auth` trajera HTML, `JSON.parse` fallara en silencio y
 la pantalla siguiera como si el backend hubiera contestado que no hay sesión.
 
+### Con un Codespace, el puerto tiene que ser público
+
+Un puerto reenviado de Codespaces —y lo mismo Gitpod, ngrok y compañía— nace
+**privado**: sólo entra quien lleve la sesión del proveedor. El navegador la
+manda cuando abrís esa dirección en una pestaña, pero **no** cuando una página
+la consulta desde otro origen, y menos desde un archivo suelto, que no puede
+mandar credenciales.
+
+Resultado: el artefacto se topaba con el login de GitHub en vez del backend y
+sólo podía decir «no contesta», que manda a revisar el servidor equivocado.
+Ahora reconoce esas direcciones y dice qué hacer: *Ports → botón derecho sobre
+el 3000 → Port Visibility → Public*, y cómo comprobarlo —abrir la dirección en
+otra pestaña y ver si pide entrar a GitHub—.
+
+Público es la **dirección**, no los datos: sin entrar con la cuenta de
+Microsoft el backend no devuelve nada, y eso está probado.
+
+Si no querés abrir el puerto, la alternativa es la de siempre: abrir el
+artefacto **servido desde el backend**. Ahí es el mismo origen, la cookie
+viaja, y no hace falta nada más.
+
 ### El archivo suelto también se conecta
 
 El artefacto descargado y abierto con doble clic **sí entra con Microsoft y

@@ -2152,6 +2152,40 @@ async function arrancarPasos() {
  * mudo: sale a pedir rutas relativas que en `file://` son archivos que no
  * existen. Power BI no se toca desde acá: el backend es el que habla con él.
  */
+/* Los entornos de desarrollo en la nube publican el puerto detrás de una
+   dirección que exige la sesión del proveedor. */
+const ES_NUBE = /\.(app\.github\.dev|githubpreview\.dev|gitpod\.io|repl\.co|ngrok[\w.-]*|loca\.lt|trycloudflare\.com)$/i;
+
+/**
+ * Por qué una dirección no contesta.
+ *
+ * Con un Codespace la respuesta casi siempre es la misma y no se adivina
+ * mirando el error: el puerto nace **privado**, y una página que no manda la
+ * cookie de GitHub —ninguna lo hace desde un archivo suelto— se topa con el
+ * login de GitHub en vez del backend. El fetch falla y lo único que se ve es
+ * «no contesta», que manda a revisar el servidor equivocado.
+ */
+function porQueNoContesta(dir) {
+  let host = "";
+  try { host = new URL(dir).hostname; } catch (e) { /* ya se valida aparte */ }
+  const base = "No contesta <span class=\"mono\">" + esc(dir) + "</span>.";
+  if (!ES_NUBE.test(host)) {
+    return base + " Revisá que el backend esté levantado y que la dirección sea " +
+      "alcanzable desde esta máquina.";
+  }
+  return base + " Esa dirección es de un entorno en la nube, y esos puertos " +
+    "nacen <b>privados</b>: sólo entra quien tenga la sesión del proveedor, y " +
+    "esta página no la manda.<br><br>" +
+    "<b>Hacé público el puerto 3000.</b> En el Codespace, pestaña " +
+    "<span class=\"mono\">Ports</span> → botón derecho sobre el 3000 → " +
+    "<span class=\"mono\">Port Visibility</span> → <span class=\"mono\">Public</span>. " +
+    "Después volvé a intentar acá.<br><br>" +
+    "Para comprobarlo: abrí esa dirección en otra pestaña. Si te pide entrar a " +
+    "GitHub, sigue privada; si ves el artefacto, ya está pública." +
+    "<br><br>Público es la <i>dirección</i>, no los datos: sin entrar con tu " +
+    "cuenta de Microsoft el backend no devuelve nada.";
+}
+
 function pedirBackend(porQue) {
   const caja = $("pasoSesion");
   const guardadoBk = $("fBackend").value.trim();
@@ -2237,11 +2271,8 @@ function pintarPasos(error) {
        la casilla está vacía, es que nadie dijo todavía a qué servidor
        hablarle; si tiene algo, es que esa dirección no contesta. */
     pedirBackend(error.backendInvalido || error.noEsBackend ? esc(error.message)
-      : $("fBackend").value.trim()
-        ? "No contesta <span class=\"mono\">" + esc($("fBackend").value.trim()) +
-          "</span>. Revisá que el backend esté levantado y que la dirección sea " +
-          "alcanzable desde esta máquina."
-        : SIN_BACKEND);
+      : $("fBackend").value.trim() ? porQueNoContesta($("fBackend").value.trim())
+      : SIN_BACKEND);
     return;
   }
   const a = SESION || {};
