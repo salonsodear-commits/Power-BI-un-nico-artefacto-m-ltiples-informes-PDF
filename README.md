@@ -926,6 +926,36 @@ devuelve la misma página para cualquier ruta —claude.ai, un sitio estático, 
 proxy— hacía que `/api/auth` trajera HTML, `JSON.parse` fallara en silencio y
 la pantalla siguiera como si el backend hubiera contestado que no hay sesión.
 
+### Para el equipo, el backend no puede vivir en un Codespace
+
+Un Codespace es un entorno de desarrollo atado a **una** cuenta de GitHub. Desde
+otra computadora, lo primero que pide es entrar a GitHub — y ésa es justamente
+la credencial que no hay que compartir. Abrir el puerto al mundo lo evita, pero
+muchas organizaciones lo prohíben por política, y el Codespace se apaga solo
+tras un rato de inactividad: la dirección deja de existir sin aviso.
+
+Para que la única credencial sea la de Microsoft, el backend tiene que correr
+en algún lugar estable. El `Dockerfile` de la raíz lo empaqueta para cualquiera
+de ellos:
+
+```
+docker build -t tablero-a-informe .
+docker run -p 3000:3000 -e TENANT_ID=… -e CLIENT_ID=… tablero-a-informe
+```
+
+Lo que hay que saber antes de elegir dónde:
+
+- **No hace falta `CLIENT_SECRET`.** El modo delegado usa el código de
+  dispositivo, que es un cliente público sin secreto. Menos cosas que proteger.
+- **La app de Entra es de un solo inquilino**, así que aunque la dirección sea
+  pública sólo entran cuentas de la organización, y cada una ve lo que Power BI
+  le deja ver.
+- **El contenedor es efímero.** El mapeo y las sesiones se escriben en disco: al
+  reiniciar, el mapeo se vuelve a detectar solo —es una consulta— y cada uno
+  entra de nuevo. Para que sobrevivan, montar un volumen en `/app/backend`.
+- **Una sola instancia.** Las sesiones viven en el proceso; con dos réplicas,
+  media sesión caería en la que no la tiene.
+
 ### Con un Codespace, el puerto tiene que ser público
 
 Un puerto reenviado de Codespaces —y lo mismo Gitpod, ngrok y compañía— nace

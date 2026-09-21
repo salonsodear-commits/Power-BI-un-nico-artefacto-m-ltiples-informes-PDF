@@ -1,0 +1,10 @@
+node_modules
+**/node_modules
+.git
+.github
+.devcontainer
+*.md
+backend/.env
+backend/.env.*
+backend/.sesiones.json
+backend/modelo.json
