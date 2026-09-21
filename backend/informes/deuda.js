@@ -236,7 +236,7 @@ async function construir(p) {
      ésa— y el pendiente de facturar volvía vacío. */
   const sem = await SEMANTICA.leer(p.workspaceId, p.datasetId, medidasDelInforme());
   const avisos = [];
-  if (sem.aviso) avisos.push(sem.aviso);
+  if (sem.aviso) avisos.push({ texto: sem.aviso });
 
   const d = await consultarVarias(p.workspaceId, p.datasetId,
     consultas(p, tramosAVencer, sem.alcance, sem.columna, sem.tablas));
@@ -275,8 +275,8 @@ async function construir(p) {
   /* Si la medida está mapeada pero la serie no vino, hay que decirlo: una
      solapa que desaparece sin explicación es el peor de los avisos. */
   if (Q.m("dso") && !serieDso.length && dsoValor === undefined) {
-    avisos.push("El modelo tiene la medida de días en calle (" + Q.m("dso") +
-      ") pero no devolvió ningún período; la solapa no se arma.");
+    avisos.push({ texto: "El modelo tiene la medida de días en calle (" + Q.m("dso") +
+      ") pero no devolvió ningún período; la solapa no se arma." });
   }
 
   /* ── rankings simples ────────────────────────────────────────────── */
@@ -405,6 +405,18 @@ async function construir(p) {
       (obsPorCliente[pelar(quien)] = obsPorCliente[pelar(quien)] || []).push(texto);
     }
   }
+  /* Si la hoja está mapeada pero no aporta ninguna observación, hay que
+     decirlo. Puede ser que la hoja vino vacía, o que los nombres no cruzan con
+     los de la cartera —se escriben a mano— y en los dos casos la columna
+     desaparece de la solapa sin una palabra. */
+  if (Q.c("obsCliente") && Q.c("obsTexto")) {
+    const filas = (d.observaciones || []).length;
+    if (!filas) {
+      avisos.push({ texto: "La hoja de observaciones (" + Q.c("obsCliente") +
+        ") no devolvió ninguna fila: la columna Observación no se arma." });
+    }
+  }
+
   const observacionDe = (cliente) => {
     const xs = obsPorCliente[pelar(cliente)];
     if (!xs || !xs.length) return undefined;
@@ -452,6 +464,12 @@ async function construir(p) {
     .sort((a, b) => (a.sinCliente ? 1 : 0) - (b.sinCliente ? 1 : 0) ||
                     (b.total || 0) - (a.total || 0));
 
+  if (Object.keys(obsPorCliente).length && !clientes.some((c) => c.observacion)) {
+    avisos.push({ texto: "Hay " + Object.keys(obsPorCliente).length + " observación(es) en la " +
+      "hoja, pero ningún nombre cruza con los clientes de la cartera. Se unen por nombre, " +
+      "y la hoja se escribe a mano: revisá cómo está escrito el cliente ahí." });
+  }
+
   const conCobranza   = clientes.filter((c) => typeof c.cobranza === "number" && c.cobranza !== 0);
   const conFacturacion= clientes.filter((c) => typeof c.facturacion === "number" && c.facturacion !== 0);
 
@@ -495,6 +513,7 @@ async function construir(p) {
   ];
 
   return {
+    avisos,
     secciones: hojas({ tarjetas, tramos, tramosFact, negocio, canal, clientes, colKam,
                        serieDso, colDso, k, vencidaPct, aperturasCobranza, aperturasFacturacion }),
     tablero: tablero({ tarjetas, tramos, tramosFact, negocio, canal, clientes,

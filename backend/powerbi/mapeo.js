@@ -23,6 +23,15 @@
  * con una sola opción.
  */
 
+/* Cómo se llama una hoja de observaciones. Vale para la tabla y para su
+   columna de texto: en las dos, el nombre dice más que la forma. */
+const ES_OBSERVACIONES = /observ|nota|coment|detalle|remark|comment/i;
+
+/** El largo del texto más largo que se vio en esa columna. */
+const largoDe = (c) => Math.max(
+  c.max === null || c.max === undefined ? 0 : String(c.max).length,
+  c.min === null || c.min === undefined ? 0 : String(c.min).length);
+
 /* ── los papeles ──────────────────────────────────────────────────────────
    `patrones` va de más específico a menos: el primero que calza puntúa más.
    `tipo` y los topes de cardinalidad son filtros duros: sirven para que un
@@ -92,7 +101,8 @@ const PAPELES = {
                   cardMin: 3, enTablaDe: "dso" },
   obsCliente:   { patrones: [/^column1$/i, /^cliente$/i, /^nombre$/i],
                   tipo: "texto", enTablaDe: "observaciones" },
-  obsTexto:     { patrones: [/^column15$/i, /observaci/i, /^comentario/i, /^nota/i, /^detalle$/i],
+  obsTexto:     { patrones: [/^column15$/i, /observaci/i, /^comentario/i, /^nota/i, /^detalle$/i,
+                             /texto/i, /^column\d+$/i],
                   tipo: "texto", enTablaDe: "observaciones", largo: true }
 };
 
@@ -136,12 +146,10 @@ function perfilar(tablas) {
       calendario: fechas.length >= 1 && cols.length >= 3 &&
         (fechas.length + conMes.length + partes.length) / cols.length >= 0.5,
       serie: cols.length <= 6 && conMes.length > 0 && numericas.length <= 3,
-      /* Una hoja de observaciones traída de SharePoint: dos o tres columnas
-         de texto, una de ellas con frases enteras. Se reconoce por la forma,
-         o porque la columna se llama como lo que es. */
-      observaciones: cols.length <= 6 && textos.length >= 2 &&
-        textos.some((c) => (c.max === null ? 0 : String(c.max).length) > 40 ||
-                           /observ|nota|coment|detalle/i.test(c.nombre))
+      /* Una hoja de observaciones traída de SharePoint: pocas columnas de
+         texto, una de ellas con frases enteras. */
+      observaciones: cols.length <= 8 && textos.length >= 2 &&
+        textos.some((c) => largoDe(c) > 40 || ES_OBSERVACIONES.test(c.nombre))
     };
   }
   return perfil;
@@ -159,6 +167,14 @@ function tablaDeSerie(tablas, perfil) {
 
 /** La tabla de observaciones: dos columnas de texto, una de ellas larga. */
 function tablaDeObservaciones(tablas, perfil) {
+  /* El nombre manda. La hoja del tablero se llama «Observaciones Pendiente
+     Facturar»: eso es más fuerte que cualquier heurística de forma. Fiarse
+     sólo de la forma —cuántas columnas, qué largo tiene el texto más largo—
+     hacía que en un modelo real no se encontrara y las observaciones
+     desaparecieran de la solapa sin que nadie supiera por qué. */
+  const porNombre = Object.values(tablas).find((t) => ES_OBSERVACIONES.test(t.nombre) &&
+    (t.columnas || []).filter((c) => c.tipo === "texto").length >= 2);
+  if (porNombre) return porNombre.nombre;
   const c = Object.values(perfil).filter((p) => p.observaciones);
   return c.length ? c[0].nombre : null;
 }
@@ -176,7 +192,12 @@ function puntuar(col, tabla, papel, ctx) {
     if (!(lo >= papel.rango[0] && hi <= papel.rango[1])) return 0;
   }
   if (papel.mes && !formatoDeMes(col.min)) return 0;
-  if (papel.largo && (col.max === null || String(col.max).length < 25)) return 0;
+  /* Una columna de observaciones tiene frases. Pero el largo se mide sobre el
+     mínimo y el máximo que trajo el inventario, y ninguno de los dos tiene por
+     qué ser el texto más largo de la tabla: si el nombre ya dice lo que es,
+     alcanza. */
+  if (papel.largo && largoDe(col) < 25 && !ES_OBSERVACIONES.test(col.nombre) &&
+      !/^column\d+$/i.test(col.nombre)) return 0;
   if (papel.enTablaDe && ctx.tablasEspeciales[papel.enTablaDe] !== tabla) return 0;
   if (papel.distintoDe && ctx.elegidas[papel.distintoDe] === col.ref) return 0;
 

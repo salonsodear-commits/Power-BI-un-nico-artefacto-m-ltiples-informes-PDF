@@ -804,6 +804,22 @@ La fecha de gestión viene dentro del texto, al final y a veces entre
 paréntesis: se extrae y se muestra como marca aparte, que es lo que hace útil
 la columna. Un texto largo se recorta a dos renglones con **Ver completo**.
 
+### La hoja de observaciones se busca por su nombre
+
+Se reconocía por la forma: pocas columnas, todas de texto, una con frases
+largas. El largo se mide sobre el mínimo y el máximo que trae
+`COLUMNSTATISTICS` —que son los alfabéticos, no el texto más largo— así que en
+un modelo real la hoja no se encontraba y **la columna Observación
+desaparecía de la solapa sin una palabra**.
+
+Ahora manda el nombre: una tabla que se llame *Observaciones…* con dos
+columnas de texto es la hoja, y punto. La forma queda de respaldo.
+
+Y si la hoja está pero no aporta nada, el informe lo dice: distingue entre
+«no devolvió ninguna fila» y «hay observaciones pero ningún nombre cruza con
+los clientes» — que pasa porque se unen por nombre y la hoja se escribe a
+mano.
+
 ### El color del aging es el dato
 
 Los tramos de vencimiento no usan la paleta categórica sino una rampa de

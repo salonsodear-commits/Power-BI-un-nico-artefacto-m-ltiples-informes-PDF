@@ -590,6 +590,8 @@ app.post("/api/informe", async (req, res) => {
     const salida = await informe.construir(p);
     const secciones = Array.isArray(salida) ? salida : (salida.secciones || []);
     const tablero = Array.isArray(salida) ? null : (salida.tablero || null);
+    // el informe también avisa: una hoja que no cruzó, una medida que no vino
+    if (!Array.isArray(salida) && Array.isArray(salida.avisos)) avisos = avisos.concat(salida.avisos);
     if (!secciones.length) {
       const faltan = loQueFalta(informe).map((f) => f.texto);
       return res.status(422).json({
