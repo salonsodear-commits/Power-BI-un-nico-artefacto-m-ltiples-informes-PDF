@@ -857,6 +857,38 @@ estado de vencimiento, moneda, concepto, tipo, estado de facturación, tramo de
 antigüedad de facturación y razón social. **Detectar automáticamente** las
 busca solas.
 
+## Compartir el informe
+
+**Descargar HTML** guarda un archivo que se abre con doble clic y trae el
+tablero entero adentro: las solapas, el buscador, el orden, las aperturas con
+«+», el modo impreso y Exportar PDF. Sin backend, sin cuenta, sin instalar
+nada. Los datos van incrustados en un bloque `application/json` al principio
+del documento — antes del script, porque si no, cuando el script corre todavía
+no existen.
+
+No viaja nada sensible: el token vive en el backend y nunca llega al navegador.
+Lo que se incrusta es el informe ya calculado, lo mismo que cualquiera ve en
+pantalla. La copia se abre en modo lectura, con la fecha del dato a la vista y
+los segmentadores congelados, porque no puede volver a consultar.
+
+### Por qué la copia no puede conectarse a Power BI
+
+No es una decisión de diseño: **la API de Power BI no habilita orígenes de
+navegador**. No manda `Access-Control-Allow-Origin`, así que el navegador
+bloquea cualquier `fetch` a `api.powerbi.com` desde una página, tenga el token
+que tenga. Y un archivo abierto con doble clic vive en `file://`, que ni
+siquiera puede ser una URL de redirección válida para iniciar sesión.
+
+Por eso el backend no es un accesorio: es lo único que puede hablar con Power
+BI. Para que el equipo entre con su propia cuenta —y vea lo que Power BI le
+deja ver, con su RLS— lo que se comparte es la **dirección del backend**, no un
+archivo.
+
+| Qué querés | Qué compartís |
+|---|---|
+| que vean este informe, ya | el HTML descargado |
+| que traigan datos ellos mismos | la dirección donde corre el backend |
+
 ## El contrato de datos
 
 Todo pasa por acá. El backend devuelve esto y el artefacto lo dibuja; nada más.

@@ -673,6 +673,11 @@ pre.cod b{color:var(--acento);font-weight:600}
 }
 </style>
 
+<!-- Acá van los datos cuando el archivo se descarga para compartir. Tiene que
+     estar ANTES del script: si no, cuando el script corre todavía no existen
+     y la copia arranca como si no tuviera nada. -->
+<!--datos-compartidos-->
+
 <div class="app" id="app">
   <button class="velo" id="velo" aria-label="Cerrar el panel"></button>
   <button class="abre-consola" id="abreConsola" aria-expanded="false" aria-controls="consola">☰ Panel</button>
@@ -691,7 +696,7 @@ pre.cod b{color:var(--acento);font-weight:600}
       <!-- ① Conectarse, ② elegir área de trabajo, ③ elegir tablero.
            Nada más. Lo técnico —backend, GUIDs— vive en «Avanzado», que casi
            nadie necesita abrir: los IDs salen de elegir el tablero. -->
-      <section class="grupo">
+      <section class="grupo" id="grupoEmpezar">
         <span class="rotulo">Empezar</span>
         <div id="pasoSesion"></div>
         <div class="campo" id="pasoWs" hidden>
@@ -900,6 +905,8 @@ const nf = (d) => new Intl.NumberFormat("es-AR",
 const n0 = nf(0), n1 = nf(1), n2 = nf(2);
 
 let ESCALA = 1e6; // divisor por defecto de los montos
+// una copia compartida no tiene backend: no pide ni promete datos nuevos
+let COMPARTIDO = false;
 
 function fmt(v, formato) {
   if (v === null || v === undefined || v === "" || (typeof v === "number" && !isFinite(v)))
@@ -2577,23 +2584,135 @@ function exportarPdf() {
   }
 }
 
+/**
+ * Un HTML autónomo para compartir.
+ *
+ * Antes esto sacaba todos los scripts y dejaba una foto muerta: servía para
+ * imprimir y nada más. Ahora el archivo se lleva el tablero entero —solapas,
+ * buscador, orden, las aperturas con «+»— con los datos incrustados. Se abre
+ * con doble clic, sin backend y sin instalar nada.
+ *
+ * Lo que NO puede llevarse es la conexión a Power BI, y no es una limitación
+ * de acá: la API de Power BI no habilita orígenes de navegador (CORS), así que
+ * ninguna página puede consultarla por su cuenta, tenga el token que tenga.
+ * Por eso la copia es una foto de estos datos, con su fecha a la vista, y el
+ * panel de conexión no viaja: prometería algo que no puede cumplir.
+ *
+ * Tampoco viaja nada sensible. El token vive en el backend y nunca llega al
+ * navegador; lo que se incrusta es el informe ya calculado, lo mismo que
+ * cualquiera vería en pantalla.
+ */
 async function descargarHtml() {
-  const doc = "<!doctype html>\n<html lang=\"es\">\n" + document.documentElement.innerHTML
-    .replace(/<script[\s\S]*?<\/script>/gi, "")  // el HTML descargado es el informe, no la herramienta
-    + "\n</html>";
+  if (!DATOS) {
+    estado("error", "Todavía no hay datos",
+      "Generá el informe y después descargalo: el archivo se lleva los datos adentro.");
+    return;
+  }
+  const doc = await armarCopia();
   const nombre = "informe-" + ($("fTipo").value || "powerbi") + "-" +
-    ($("fPeriodo").value || "periodo") + ".html";
+    ((DATOS.meta || {}).periodo || fechaArchivo()) + ".html";
   try {
     const d = await window.claude?.use?.("downloads");
-    if (!d) throw new Error("sin descargas");
-    await d.save({ filename: nombre, data: doc });
-    estado("ok", "Archivo guardado",
-      `<span class="mono">${esc(nombre)}</span><br>Abrilo en el navegador y usá Imprimir → Guardar como PDF.`);
+    if (d) { await d.save({ filename: nombre, data: doc }); }
+    else { bajarArchivo(nombre, doc); }
+    estado("ok", "Archivo listo para compartir",
+      `<span class="mono">${esc(nombre)}</span><br>` +
+      "Se abre con doble clic, con el tablero completo y estos datos adentro. " +
+      "No pide cuenta ni backend: es una foto del " +
+      esc(fechaLarga((DATOS.meta || {}).actualizado)));
   } catch (e) {
     if (e && e.code === "declined") return;
-    estado("error", "No se pudo guardar",
-      "Descargá el archivo desde el repositorio, o usá <b>Exportar PDF</b> directamente.");
+    estado("error", "No se pudo guardar", esc(e.message || "Probá de nuevo."));
   }
+}
+
+const fechaArchivo = () => new Date().toISOString().slice(0, 10);
+
+/** Guardar sin depender del anfitrión: un enlace y un blob. */
+function bajarArchivo(nombre, texto) {
+  const url = URL.createObjectURL(new Blob([texto], { type: "text/html;charset=utf-8" }));
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+const MARCA_DATOS = "datosIncrustados";
+
+/**
+ * El HTML de la copia: esta misma página con los datos pegados adentro.
+ *
+ * Se prefiere el archivo original al DOM serializado: el DOM ya tiene el
+ * informe dibujado y los diálogos abiertos, y eso se hornearía en la copia.
+ * Si no se puede leer —pasa al re-exportar desde una copia abierta con
+ * doble clic— se serializa lo que hay, que también funciona.
+ */
+async function armarCopia() {
+  let doc = null;
+  try {
+    const r = await fetch(location.href, { cache: "no-store" });
+    if (r.ok) { const t = await r.text(); if (/<html[\s>]/i.test(t)) doc = t; }
+  } catch (e) { /* file:// no deja leerse */ }
+  if (!doc) {
+    doc = "<!doctype html>\n<html lang=\"es\">\n" +
+      document.documentElement.innerHTML + "\n</html>";
+  }
+  /* Las etiquetas se arman por pedazos a propósito. Escribir «<scr'+'ipt» de
+     corrido dentro de este mismo script hace que el parser de HTML corte el
+     bloque ahí: la página entera queda con «Unexpected end of input». */
+  const ABRE = "<" + "script type=\"application/json\" id=\"" + MARCA_DATOS + "\">";
+  const CIERRA = "<" + "/script>";
+  // fuera los datos de una copia anterior, para no apilarlos
+  doc = doc.replace(new RegExp(ABRE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") +
+    "[\\s\\S]*?" + CIERRA.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), "");
+  // `<` escapado: si no, un cierre dentro de un texto terminaría el bloque
+  const carga = JSON.stringify(DATOS).replace(/</g, "\\u003c");
+  const bloque = ABRE + carga + CIERRA;
+  /* En el marcador, que está arriba y antes del script. Buscar una etiqueta
+     —`<body>`, el cierre del cuerpo— no sirve: el patrón termina encontrándose
+     a sí mismo en ESTE código, y la copia sale con los datos incrustados en
+     medio del script. El marcador se arma por pedazos justamente para que no
+     aparezca literal acá y no pueda coincidir consigo mismo. */
+  const MARCA = "<" + "!--datos-compartidos--" + ">";
+  const corte = doc.indexOf(MARCA);
+  if (corte < 0) return doc + bloque;
+  const fin = corte + MARCA.length;
+  return doc.slice(0, fin) + "\n" + bloque + doc.slice(fin);
+}
+
+/**
+ * ¿Esta página es una copia compartida? Entonces los datos ya vienen adentro
+ * y no hay backend al que pedirle nada: se dibuja el informe y se esconde
+ * todo lo que hable de conectarse.
+ */
+function arrancarCompartido() {
+  const bloque = document.getElementById(MARCA_DATOS);
+  if (!bloque) return false;
+  let datos;
+  try { datos = JSON.parse(bloque.textContent); } catch (e) { return false; }
+  COMPARTIDO = true;
+  for (const id of ["grupoEmpezar", "grupoDatos"]) {
+    const n = document.getElementById(id); if (n) n.hidden = true;
+  }
+  /* Oculto, no removido: adentro viven los campos que el resto del código
+     sigue leyendo —el tipo de informe, el período, los GUID—. Sacarlos del
+     DOM hacía que cambiar a modo Informe reventara con «Cannot read
+     properties of null». */
+  document.querySelectorAll("details.avanzado").forEach((n) => { n.hidden = true; });
+  const b = document.getElementById("btnHtml"); if (b) b.hidden = true;
+  try { aplicar(datos); } catch (e) { return false; }
+  const m = datos.meta || {};
+  $("grupoInforme").hidden = false;
+  $("grupoSalida").hidden = false;
+  // los segmentadores de una copia no pueden volver a consultar: se congelan
+  for (const n of document.querySelectorAll("#filtrosTablero select, #opcionesInforme input, #periodo input, #periodo button")) {
+    n.disabled = true;
+  }
+  const nota = el(`<div class="paso"><b>Copia compartida</b>
+    <span>Datos del ${esc(fechaLarga(m.actualizado))}<br>Se puede mirar, buscar,
+    ordenar e imprimir. Para traer datos nuevos hace falta el backend.</span></div>`);
+  $("grupoInforme").insertBefore(nota, $("grupoInforme").firstChild);
+  return true;
 }
 
 /* ── diálogos ─────────────────────────────────────────────────────── */
@@ -3653,6 +3772,7 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
   render(null);
   pintarLineaInforme();
   pintarPeriodo();
+  if (arrancarCompartido()) return;      // copia con los datos adentro
   iniciarPasos();
   // el backend manda: qué informes hay, y en qué punto del camino estamos
   sincronizarInformes();
