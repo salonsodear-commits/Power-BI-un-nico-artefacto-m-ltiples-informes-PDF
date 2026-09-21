@@ -453,6 +453,8 @@ table.datos tr.suma td{font-weight:700;color:var(--tinta);background:var(--papel
 table.datos td .marca-est{font-family:var(--mono);font-size:9px;margin-right:3px}
 table.datos td.bien{color:var(--ok)} table.datos td.mal{color:var(--mal)}
 table.viva td.bien{color:var(--ok)} table.viva td.mal{color:var(--mal)}
+.paso .guardado{display:block;margin-top:6px;font-size:11px;
+  color:var(--consola-tinta-2);line-height:1.5}
 .paso input[type=url]{width:100%;margin:7px 0 6px;padding:7px 9px;border-radius:6px;
   border:1px solid var(--consola-linea,#2C4149);background:#0F1B20;color:var(--consola-tinta);
   font-family:var(--mono);font-size:11.5px}
@@ -2069,11 +2071,17 @@ function render(datos) {
 const $ = (id) => document.getElementById(id);
 const CLAVE = "tablero-a-informe/v1";
 
+/* Una dirección de Power BI no es un backend. Parece obvio, pero es lo que
+   uno tiene a mano y termina pegado ahí; y una vez guardado en el navegador
+   vuelve en cada visita, envenena todas las llamadas y el cartel de error
+   habla de un servidor caído que nunca existió. */
+const ES_URL_PBI = /(^|\/\/)([\w-]+\.)*powerbi\.com/i;
+
 function guardarPrefs() {
   // una base evidentemente rota no se persiste: arrastraría el problema
   // a la próxima visita, cuando ya nadie recuerda de dónde salió
   const bk = $("fBackend").value.trim();
-  if (bk && /\s/.test(bk)) $("fBackend").value = "";
+  if (bk && (/\s/.test(bk) || ES_URL_PBI.test(bk))) $("fBackend").value = "";
   try {
     localStorage.setItem(CLAVE, JSON.stringify({
       backend: $("fBackend").value, workspace: $("fWorkspace").value,
@@ -2146,7 +2154,8 @@ async function arrancarPasos() {
  */
 function pedirBackend(porQue) {
   const caja = $("pasoSesion");
-  const actual = $("fBackend").value.trim();
+  const guardadoBk = $("fBackend").value.trim();
+  const actual = ES_URL_PBI.test(guardadoBk) ? "" : guardadoBk;
   caja.innerHTML = `<div class="paso"><b>¿Dónde corre el backend?</b>
     <span>${porQue || "Esta página es la pantalla; los datos los trae un backend " +
       "que habla con Power BI. Pegá su dirección y entrás con tu cuenta como siempre."}
@@ -2156,7 +2165,12 @@ function pedirBackend(porQue) {
     <input id="bkLocal" type="url" inputmode="url" spellcheck="false"
       value="${esc(actual)}"
       placeholder="http://localhost:3000" aria-label="Dirección del backend">
-    <button class="b primario" id="btnBkLocal">Conectar</button></div>`;
+    <button class="b primario" id="btnBkLocal">Conectar</button>
+    ${$("fWorkspace").value.trim() ? `<span class="guardado">Ya tengo:
+      área <span class="mono">${esc($("fWorkspace").value.trim().slice(0, 8))}…</span>${
+      $("fDataset").value.trim() ? ` · modelo <span class="mono">${
+        esc($("fDataset").value.trim().slice(0, 8))}…</span>` : ""}</span>` : ""}
+    </div>`;
   const ir = () => {
     const v = $("bkLocal").value.trim();
     if (!v) return;
@@ -2171,6 +2185,8 @@ function pedirBackend(porQue) {
       if (ids.workspaceId) { $("fWorkspace").value = ids.workspaceId; guardado.push("el área de trabajo"); }
       if (ids.datasetId) { $("fDataset").value = ids.datasetId; guardado.push("el modelo"); }
       else if (ids.reportId) { PBI_REPORTE = ids.reportId; guardado.push("el informe"); }
+      // si una versión anterior dejó una URL de Power BI de backend, se va
+      if (ES_URL_PBI.test($("fBackend").value)) $("fBackend").value = "";
       guardarPrefs();
       pedirBackend("Eso es la dirección del <b>tablero</b> en Power BI, no la del backend." +
         (guardado.length
@@ -3846,7 +3862,8 @@ document.addEventListener("pointerleave", () => tip.classList.remove("visible"))
     sel.appendChild(el(`<option value="${k}">${esc(r.nombre)}</option>`)));
 
   const p = leerPrefs();
-  $("fBackend").value = p.backend || "";
+  // lo guardado de una visita anterior puede ser una URL de Power BI: se tira
+  $("fBackend").value = ES_URL_PBI.test(p.backend || "") ? "" : (p.backend || "");
   $("fWorkspace").value = p.workspace || "";
   $("fDataset").value = p.dataset || "";
   $("fTipo").value = p.tipo && REPORTES[p.tipo] ? p.tipo : "ejecutivo";

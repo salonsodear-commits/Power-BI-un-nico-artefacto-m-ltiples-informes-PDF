@@ -887,6 +887,14 @@ Lo que se incrusta es el informe ya calculado, lo mismo que cualquiera ve en
 pantalla. La copia se abre en modo lectura, con la fecha del dato a la vista y
 los segmentadores congelados, porque no puede volver a consultar.
 
+### Una URL de Power BI nunca es un backend
+
+Y sobre todo: **nunca se guarda como tal**. Una vez que quedó en las
+preferencias del navegador vuelve en cada visita, envenena todas las llamadas,
+y el cartel de error habla de un servidor caído que nunca existió. Se descarta
+al guardarla, al leerla de una visita anterior, y al reconocerla en la casilla
+— así una preferencia sucia de una versión vieja se limpia sola al abrir.
+
 ### Pegar la URL del tablero donde se pide el backend
 
 Es lo más natural del mundo: la dirección que uno tiene a mano es la del
