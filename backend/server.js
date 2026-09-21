@@ -60,9 +60,14 @@ app.use(express.static(path.join(__dirname, "..", "artefacto"), {
 const atajo = (fn) => async (req, res) => {
   try { res.json(await fn(req)); }
   catch (e) {
-    console.error("[powerbi]", e.message);
+    console.error("[powerbi]", req.method, req.path, "—", e.message);
+    /* Nunca un error sin texto. `JSON.stringify({error: undefined})` da `{}`,
+       y el artefacto entonces sólo puede mostrar «HTTP 404»: un número sin
+       una sola pista de qué pasó ni de dónde salió. */
+    const texto = String((e && e.message) || "").trim() ||
+      "El backend falló en " + req.method + " " + req.path + " sin decir por qué.";
     res.status(e.status && e.status >= 400 && e.status < 500 ? e.status : 502)
-       .json({ error: e.message, necesitaIngreso: !!e.necesitaIngreso });
+       .json({ error: texto, ruta: req.path, necesitaIngreso: !!e.necesitaIngreso });
   }
 };
 

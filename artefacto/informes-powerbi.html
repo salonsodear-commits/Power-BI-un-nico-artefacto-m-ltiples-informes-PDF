@@ -453,6 +453,13 @@ table.datos tr.suma td{font-weight:700;color:var(--tinta);background:var(--papel
 table.datos td .marca-est{font-family:var(--mono);font-size:9px;margin-right:3px}
 table.datos td.bien{color:var(--ok)} table.datos td.mal{color:var(--mal)}
 table.viva td.bien{color:var(--ok)} table.viva td.mal{color:var(--mal)}
+.fallo-paso{margin:7px 0 0;padding:9px 10px;border-radius:7px;
+  background:var(--consola-mal,#2B1512);border:1px solid #6B322B}
+.fallo-paso b{display:block;color:#F0B8AF;font-size:12px;margin-bottom:4px}
+.fallo-paso span{display:block;font-size:11.5px;line-height:1.45;
+  color:var(--consola-tinta-2);margin-bottom:5px;white-space:normal}
+.fallo-paso .mono{font-family:var(--mono);font-size:10.5px;color:#EE8B80}
+.fallo-acciones{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 
 /* gráficos */
 .grafico{width:100%}
@@ -695,6 +702,9 @@ pre.cod b{color:var(--acento);font-weight:600}
           <label for="selDs">Tablero</label>
           <select id="selDs"><option value="">Elegí…</option></select>
         </div>
+        <!-- Un fallo al listar tableros va acá, con qué hacer. Nunca dentro
+             del desplegable: ahí parecía un tablero llamado «HTTP 404». -->
+        <div id="falloDs" class="fallo-paso" hidden></div>
         <p class="nota" id="notaPaso"></p>
       </section>
 
@@ -2171,14 +2181,86 @@ async function cargarTableros(ws) {
   const sel = $("selDs");
   $("pasoDs").hidden = false;
   sel.innerHTML = `<option value="">Buscando tableros…</option>`;
+  $("falloDs").hidden = true;
   let ms;
   try { ms = (await API.pedir(`/api/powerbi/workspaces/${encodeURIComponent(ws)}/modelos`)).modelos || []; }
-  catch (e) { sel.innerHTML = `<option value="">${esc(e.message)}</option>`; return; }
-  if (!ms.length) { sel.innerHTML = `<option value="">Sin tableros visibles</option>`; return; }
+  catch (e) { falloAlListar(e, ws); return; }
+  if (!ms.length) {
+    sel.innerHTML = `<option value="">Sin tableros visibles</option>`;
+    $("notaPaso").textContent = "Tu cuenta ve esta área de trabajo pero ningún " +
+      "tablero dentro. Suele ser permiso: pedí acceso de lectura al modelo.";
+    return;
+  }
   sel.innerHTML = `<option value="">Elegí…</option>` + ms.map((d) =>
     `<option value="${esc(d.id)}">${esc(d.nombre)}</option>`).join("");
   const previo = $("fDataset").value.trim();
   if (ms.some((d) => d.id === previo)) { sel.value = previo; alElegirTablero(); }
+}
+
+/**
+ * No se pudieron listar los tableros.
+ *
+ * El mensaje va debajo del desplegable, no adentro: metido como `<option>` se
+ * leía como un tablero llamado «HTTP 404», que es lo peor de los dos mundos
+ * —no se entiende, y encima parece elegible—.
+ *
+ * Y no deja sin salida: si el ID del tablero ya está cargado de antes, se
+ * ofrece usarlo, que es lo que la persona quería hacer igual.
+ */
+async function falloAlListar(e, ws) {
+  const sel = $("selDs");
+  sel.innerHTML = `<option value="">No se pudieron listar</option>`;
+  const caja = $("falloDs");
+  const ds = $("fDataset").value.trim();
+
+  // «HTTP 404» pelado no viene de una ruta del backend: las suyas contestan
+  // con texto. Es Express sin esa ruta, o el proxy del Codespace.
+  const sinRuta = /^HTTP 404$/.test(e.message || "");
+  const dePowerBi = /Power BI respondió/.test(e.message || "");
+
+  /* Un «HTTP 404» pelado no dice quién contestó. Se averigua: el backend
+     responde a una ruta inexistente con un JSON que lista sus rutas. Si eso
+     llega, el backend está vivo y al día, y el 404 vino de más adelante —el
+     proxy del Codespace—. Si no llega, no hay backend de este lado. */
+  let porQue = "";
+  if (sinRuta) {
+    let rutas = null;
+    try {
+      const r = await fetch(API.url("/api/__ping_de_rutas__"), { credentials: "include" });
+      const j = await r.json();
+      rutas = Array.isArray(j.rutas) ? j.rutas : null;
+    } catch (x) { /* no contestó JSON: no es este backend */ }
+
+    porQue = !rutas
+      ? "El 404 no viene del backend: contestó algo que ni siquiera es JSON. " +
+        "Si estás en Codespaces, revisá que el puerto 3000 esté reenviado y " +
+        "que <span class=\"mono\">npm run dev</span> siga corriendo."
+      : rutas.some((x) => /workspaces\/:ws\/modelos/.test(x))
+        ? "El backend tiene la ruta, así que el 404 lo puso algo en el medio " +
+          "—el proxy del Codespace, casi siempre—. Recargá la página; si sigue, " +
+          "volvé a levantar <span class=\"mono\">npm run dev</span>."
+        : "El backend que está corriendo NO tiene esta ruta: quedó de una " +
+          "versión anterior. Pará y volvé a levantar " +
+          "<span class=\"mono\">npm run dev</span> para que tome el código nuevo.";
+  }
+  if (!porQue && dePowerBi) porQue = 
+    "Power BI no encuentra esa área de trabajo con tu cuenta. Puede ser " +
+    "que el área sea «Mi área de trabajo», que no tiene GUID y la API no " +
+    "alcanza, o que te falte permiso de lectura.";
+
+  caja.hidden = false;
+  caja.innerHTML = `<b>No se pudieron listar los tableros</b>
+    <span class="mono">${esc(e.message)}</span>
+    ${porQue ? `<span>${porQue}</span>` : ""}
+    <div class="fallo-acciones">
+      <button type="button" class="b" id="btnReintentarDs">Reintentar</button>
+      ${ES_GUID.test(ds)
+        ? `<button type="button" class="b" id="btnUsarDs">Usar el tablero cargado</button>` : ""}
+    </div>`;
+  const r = document.getElementById("btnReintentarDs");
+  if (r) r.addEventListener("click", () => cargarTableros(ws));
+  const u = document.getElementById("btnUsarDs");
+  if (u) u.addEventListener("click", () => { caja.hidden = true; alElegirTablero(); });
 }
 
 function iniciarPasos() {

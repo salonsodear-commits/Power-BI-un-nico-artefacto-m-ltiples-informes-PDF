@@ -309,6 +309,29 @@ de cero con otro tablero está el botón **Empezar de cero** en *Conectar →
 Mapeo del modelo* (o `POST /api/modelo/reiniciar`), que borra
 `backend/modelo.json` y vuelve a sembrarlo.
 
+### Un fallo al listar tableros no se disfraza de tablero
+
+Si la lista de tableros fallaba, el mensaje de error se metía como `<option>`
+del desplegable. En pantalla se leía **«Tablero: HTTP 404»**: un tablero
+llamado así, aparentemente elegible, sin una sola pista de qué pasó.
+
+Ahora el fallo va debajo del desplegable, con el texto crudo, **por qué** pasó
+y qué hacer. Y el porqué no se adivina: un «HTTP 404» pelado no dice quién
+contestó, así que el artefacto le pregunta al backend por una ruta inexistente
+—que responde con un JSON listando sus rutas— y distingue tres casos:
+
+| Lo que vuelve | Qué significa |
+|---|---|
+| nada que sea JSON | el 404 no es del backend: el puerto no está reenviado, o no está levantado |
+| un JSON **con** la ruta | el backend está al día; el 404 lo puso algo en el medio (el proxy del Codespace) |
+| un JSON **sin** la ruta | el servidor quedó de una versión anterior: hay que volver a levantarlo |
+
+Además no deja sin salida: si el ID del tablero ya está cargado, ofrece
+**usarlo igual**, que es lo que la persona quería hacer de todos modos.
+
+Del lado del backend, ningún error sale sin texto. `JSON.stringify({error:
+undefined})` da `{}`, y ahí el artefacto sólo puede mostrar un número.
+
 ### Un campo que no existe se señala solo
 
 Escribir una referencia que el modelo no tiene es el error más fácil de
