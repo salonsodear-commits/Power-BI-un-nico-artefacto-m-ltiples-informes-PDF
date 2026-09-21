@@ -910,6 +910,8 @@ const n0 = nf(0), n1 = nf(1), n2 = nf(2);
 let ESCALA = 1e6; // divisor por defecto de los montos
 // una copia compartida no tiene backend: no pide ni promete datos nuevos
 let COMPARTIDO = false;
+// el informe que vino en una URL de Power BI, hasta que haya backend que lo resuelva
+let PBI_REPORTE = null;
 
 function fmt(v, formato) {
   if (v === null || v === undefined || v === "" || (typeof v === "number" && !isFinite(v)))
@@ -2131,7 +2133,7 @@ async function arrancarPasos() {
   try { SESION = await API.pedir("/api/auth"); }
   catch (e) { SESION = null; pintarPasos(e); return; }
   pintarPasos();
-  if (SESION.conectado) await cargarAreas();
+  if (SESION.conectado) { await resolverReportePendiente(); await cargarAreas(); }
 }
 
 /**
@@ -2147,14 +2149,40 @@ function pedirBackend(porQue) {
   const actual = $("fBackend").value.trim();
   caja.innerHTML = `<div class="paso"><b>¿Dónde corre el backend?</b>
     <span>${porQue || "Esta página es la pantalla; los datos los trae un backend " +
-      "que habla con Power BI. Pegá su dirección y entrás con tu cuenta como siempre."}</span>
+      "que habla con Power BI. Pegá su dirección y entrás con tu cuenta como siempre."}
+    <br><br>No es la dirección del tablero en Power BI: es la del servidor donde
+    corre <span class="mono">npm run dev</span> — algo como
+    <span class="mono">http://localhost:3000</span>.</span>
     <input id="bkLocal" type="url" inputmode="url" spellcheck="false"
       value="${esc(actual)}"
-      placeholder="https://mi-backend.ejemplo.com" aria-label="Dirección del backend">
+      placeholder="http://localhost:3000" aria-label="Dirección del backend">
     <button class="b primario" id="btnBkLocal">Conectar</button></div>`;
   const ir = () => {
     const v = $("bkLocal").value.trim();
     if (!v) return;
+
+    /* Pegar acá la URL del tablero es lo más natural del mundo: es la
+       dirección que uno tiene a mano y la que quiere ver. No se rebota —los
+       IDs que trae sirven, y son justo los que después hay que elegir— se
+       guardan y se explica qué falta. */
+    const ids = idsDeUrl(v);
+    if (/powerbi\.com/i.test(v) || ids.workspaceId || ids.datasetId || ids.reportId) {
+      const guardado = [];
+      if (ids.workspaceId) { $("fWorkspace").value = ids.workspaceId; guardado.push("el área de trabajo"); }
+      if (ids.datasetId) { $("fDataset").value = ids.datasetId; guardado.push("el modelo"); }
+      else if (ids.reportId) { PBI_REPORTE = ids.reportId; guardado.push("el informe"); }
+      guardarPrefs();
+      pedirBackend("Eso es la dirección del <b>tablero</b> en Power BI, no la del backend." +
+        (guardado.length
+          ? " Me la guardo igual: ya tengo " + guardado.join(" y ") +
+            ", así que en cuanto me digas dónde está el servidor, el tablero ya queda elegido."
+          : "") +
+        (ids.miArea
+          ? "<br><br>Ojo: es <b>Mi área de trabajo</b>, que no tiene ID y la API no alcanza."
+          : ""));
+      return;
+    }
+
     $("fBackend").value = v;
     $("fBackend").classList.remove("malo");
     guardarPrefs();
@@ -2164,6 +2192,25 @@ function pedirBackend(porQue) {
   };
   $("btnBkLocal").addEventListener("click", ir);
   $("bkLocal").addEventListener("keydown", (e) => { if (e.key === "Enter") ir(); });
+}
+
+/**
+ * El informe que llegó en una URL de Power BI, convertido en modelo.
+ *
+ * La URL del tablero trae el reporte, no el modelo semántico, y la API es la
+ * única que sabe cuál lo alimenta. Se resuelve en cuanto hay sesión, así lo
+ * que la persona pegó no se pierde.
+ */
+async function resolverReportePendiente() {
+  if (!PBI_REPORTE) return;
+  const ws = $("fWorkspace").value.trim();
+  if (!ES_GUID.test(ws)) { PBI_REPORTE = null; return; }
+  try {
+    const rep = await API.pedir(`/api/powerbi/workspaces/${encodeURIComponent(ws)}` +
+      `/reportes/${encodeURIComponent(PBI_REPORTE)}`);
+    if (rep && rep.datasetId) { $("fDataset").value = rep.datasetId; guardarPrefs(); }
+  } catch (e) { /* se elige a mano en la lista */ }
+  PBI_REPORTE = null;
 }
 
 function pintarPasos(error) {
@@ -2250,6 +2297,10 @@ async function cargarTableros(ws) {
     `<option value="${esc(d.id)}">${esc(d.nombre)}</option>`).join("");
   const previo = $("fDataset").value.trim();
   if (ms.some((d) => d.id === previo)) { sel.value = previo; alElegirTablero(); }
+  else if (previo) {
+    $("notaPaso").textContent = "El tablero que venía en la dirección no está en " +
+      "esta área de trabajo: elegí uno de la lista.";
+  }
 }
 
 /**
@@ -3258,7 +3309,12 @@ async function entrarSesion() {
         if (a.conectado || a.error || !a.ingreso) {
           clearInterval(sondeoSesion); sondeoSesion = null;
           anotarSesion(a);
-          if (a.conectado) { cargarAreas(); if ($("dlgConectar").open) cargarMapeo(); }
+          if (a.conectado) {
+            // recién con sesión se puede preguntar qué modelo alimenta el
+            // informe que vino en la URL que pegó la persona
+            resolverReportePendiente().then(cargarAreas);
+            if ($("dlgConectar").open) cargarMapeo();
+          }
         }
       } catch (e) { clearInterval(sondeoSesion); sondeoSesion = null; }
     }, 2500);

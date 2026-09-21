@@ -887,6 +887,21 @@ Lo que se incrusta es el informe ya calculado, lo mismo que cualquiera ve en
 pantalla. La copia se abre en modo lectura, con la fecha del dato a la vista y
 los segmentadores congelados, porque no puede volver a consultar.
 
+### Pegar la URL del tablero donde se pide el backend
+
+Es lo más natural del mundo: la dirección que uno tiene a mano es la del
+tablero, y es la que quiere ver. Antes eso rebotaba con «no contesta
+`https://app.powerbi.com/groups/…`», que suena a que el servidor está caído.
+
+Ahora se reconoce y se aprovecha: se explica la diferencia —el backend es
+donde corre `npm run dev`, no el tablero— y **los IDs de esa URL se guardan**.
+En cuanto se da la dirección del servidor y se entra con la cuenta, el área de
+trabajo y el tablero ya están elegidos. La URL del tablero pasó de ser un
+error a ser un atajo.
+
+La URL trae el informe, no el modelo semántico; cuál lo alimenta lo sabe sólo
+la API, así que se resuelve apenas hay sesión.
+
 ### Cuando no se llega al backend, se pide la dirección
 
 El artefacto sólo sabe dónde vive su backend si lo sirve él. En cualquier otro
