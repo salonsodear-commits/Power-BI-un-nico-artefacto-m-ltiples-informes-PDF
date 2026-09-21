@@ -947,9 +947,15 @@ Para Azure, que es donde los datos no salen de Microsoft y la cuenta de Entra
 ya existe, está `desplegar/azure.sh`:
 
 ```bash
-az login
+az login --use-device-code
 TENANT_ID=… CLIENT_ID=… ./desplegar/azure.sh
 ```
+
+Se puede correr las veces que haga falta: lo que ya existe se reusa, y si la
+aplicación ya está, la actualiza. Antes de crear nada instala la extensión
+`containerapp` y registra `Microsoft.App` y `Microsoft.OperationalInsights`,
+que son los dos pasos que hacen fallar el primer intento con un error que no
+dice qué hacer.
 
 Deja una Container App con una dirección `https` estable. **Esa dirección es
 lo que se reparte al equipo** — no un archivo: abierta en el navegador sirve el
