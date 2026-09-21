@@ -287,12 +287,14 @@ function columnas(tablas) {
 const MEDIDA_DE = {
   /* Los importes, por lo que suelen llamarse en un datalake. El orden importa:
      el primer patrón que calza puntúa más. */
-  real:             { patrones: [/^importe\s*real$/i, /^real$/i, /venta.*real/i, /^venta\s*neta/i,
-                                 /^ventas?$/i, /^facturaci[oó]n$/i, /^ingresos?$/i, /^revenue$/i,
-                                 /^actual$/i, /^sales$/i, /^net\s*sales$/i], agregado: "SUM" },
-  bo:               { patrones: [/^importe\s*presupuest/i, /^presupuest/i, /^ppto/i, /^budget$/i,
-                                 /^objetivo$/i, /^bo$/i, /^plan$/i, /^forecast$/i, /^target$/i,
-                                 /^meta$/i, /presupuest/i], agregado: "SUM" },
+  real:             { patrones: [/^importe\s*real$/i, /^monto\s*real$/i, /^real$/i, /venta.*real/i,
+                                 /^venta\s*neta/i, /^ventas?$/i, /^facturaci[oó]n$/i, /^ingresos?$/i,
+                                 /^revenue$/i, /^actual$/i, /^sales$/i, /real/i, /ejecutado/i,
+                                 /devengado/i], agregado: "SUM" },
+  bo:               { patrones: [/^importe\s*presupuest/i, /^monto\s*presupuest/i, /^presupuest/i,
+                                 /^ppto/i, /^budget$/i, /^objetivo$/i, /^bo$/i, /^plan$/i,
+                                 /^forecast$/i, /^target$/i, /^meta$/i, /presupuest/i, /budget/i,
+                                 /\bppto\b/i, /\bpa\b/i], agregado: "SUM" },
   opex:             { patrones: [/^opex$/i, /gasto.*operativ/i, /^gastos?$/i, /^egresos?$/i,
                                  /operating.*expense/i, /^sg&a$/i], agregado: "SUM" },
   costos:           { patrones: [/^costos?$/i, /^cmv$/i, /^cogs$/i, /costo.*vent/i,
@@ -328,6 +330,31 @@ const DERIVADAS = {
 const ORDEN_DERIVADAS = ["facturacion", "pendienteFacturar", "variacion", "variacionPct",
   "margen", "margenPct", "ebitda", "margenEbitda", "deudaTotal", "indiceRiesgo"];
 
+/* Lo que NUNCA es un importe, por más que sea numérico. Un esquema en estrella
+   está lleno de claves —CecoID, ProveedorID, CuentaID— y de partes de fecha
+   —AñoMesOrden, NroMes— que suman y promedian sin querer decir nada. Mapear
+   `real` a CecoID no da error: da un número, que es peor. */
+const ES_CLAVE = /(^|[_\s])(id|ids|key|llave|c[oó]d|codigo|c[oó]digo|nro|num|numero|n[°º])$|id$|_key$|_pk$|_fk$/i;
+const ES_PARTE_FECHA = /^(a[ñn]o|year|mes|month|nro|dia|day|trimestre|quarter|semana|week|periodo|per[ií]odo|fecha|date)/i;
+const ES_ORDEN = /orden$|_ord$|^orden/i;
+
+/** ¿Esta columna puede ser un importe? */
+function puedeSerImporte(col) {
+  if (col.tipo !== "numero") return false;
+  if (col.cardinalidad < 3) return false;
+  if (ES_CLAVE.test(col.nombre)) return false;
+  if (ES_ORDEN.test(col.nombre)) return false;
+  if (ES_PARTE_FECHA.test(col.nombre)) return false;
+  // un mes es 1..12 y un año 1990..2100: ninguno es plata
+  if (col.max !== null && col.max <= 12) return false;
+  if (col.min !== null && col.max !== null &&
+      col.min >= 1900 && col.max <= 2200 && col.cardinalidad <= 60) return false;
+  return true;
+}
+
+/* Las palabras que delatan un importe, en cualquier idioma de datalake. */
+const SUENA_A_PLATA = /monto|importe|amount|valor|total|saldo|neto|bruto|costo|gasto|venta|precio/i;
+
 /**
  * Las medidas que se pueden armar con lo que el modelo tiene, para los papeles
  * que no aparecieron como medida escrita.
@@ -337,36 +364,57 @@ const ORDEN_DERIVADAS = ["facturacion", "pendienteFacturar", "variacion", "varia
  * negocio —qué tramos cuentan como vencido, qué se excluye— que una suma no
  * puede adivinar.
  */
-function medidasSinteticas(tablas, perfil, yaMapeadas, columnasElegidas) {
+function medidasSinteticas(tablas, perfil, yaMapeadas, columnasElegidas, necesarias) {
   const salida = {};
   const puesto = {};                       // papel → DAX efectivo, propio o armado
   for (const [k, nombre] of Object.entries(yaMapeadas || {})) {
     if (nombre) puesto[k] = "[" + nombre + "]";
   }
 
-  // ── las que salen de sumar una columna ─────────────────────────────
+  /* ── las que salen de sumar una columna ──────────────────────────────
+     Dos pasadas, y el orden importa. El significado puede estar en la columna
+     o en la TABLA: en un esquema en estrella el monto se llama `MontoPA` y lo
+     que dice qué es está en `FACT_Presupuesto`. Pero son evidencias de peso
+     distinto. Si se mezclan, `provisiones` se queda con
+     `Provision[IMPORTE FACTURADO]` —sólo porque la tabla se llama Provision—
+     antes de que `importeFacturado`, que le calza por nombre propio, llegue a
+     pedirla. Así que primero todas las que calzan por columna, y recién
+     después las que quedaron, por tabla. */
   const usadas = new Set();
-  for (const [clave, papel] of Object.entries(MEDIDA_DE)) {
-    if (puesto[clave]) continue;
+  const buscar = (papel, porTabla) => {
     let mejor = null;
     for (const t of Object.values(tablas)) {
       for (const col of t.columnas || []) {
-        if (col.tipo !== "numero") continue;
-        // un año o un mes no son un importe, por más que sean números
-        if (col.cardinalidad < 3 || (col.max !== null && col.max <= 12)) continue;
-        const i = papel.patrones.findIndex((re) => re.test(col.nombre));
+        if (!puedeSerImporte(col) || usadas.has(col.ref)) continue;
+        const i = papel.patrones.findIndex((re) =>
+          re.test(porTabla ? t.nombre : col.nombre));
         if (i < 0) continue;
-        let puntos = 1000 - i * 40;
+        let puntos = (porTabla ? 700 : 1000) - i * 30;
+        if (SUENA_A_PLATA.test(col.nombre)) puntos += 80;
         if ((perfil[t.nombre] || {}).hechos) puntos += 60;
         if (col.cardinalidad > 20) puntos += 20;
-        if (usadas.has(col.ref)) puntos -= 200;   // no repetir la misma columna
         if (!mejor || puntos > mejor.puntos) mejor = { puntos, ref: col.ref };
       }
     }
-    if (!mejor) continue;
-    salida[clave] = papel.agregado + "(" + mejor.ref + ")";
-    puesto[clave] = salida[clave];
-    usadas.add(mejor.ref);
+    return mejor;
+  };
+
+  /* La segunda pasada mira el nombre de la tabla, que es una pista mucho más
+     floja: sirve para `FACT_Presupuesto[MontoPA]`, pero también haría que
+     `provisiones` se quedara con cualquier importe de una tabla llamada
+     Provision. Así que sólo se estira para lo que algún informe necesita de
+     verdad; el resto se queda sin mapear, que es lo honesto. */
+  const pedidas = new Set(necesarias || Object.keys(MEDIDA_DE));
+  for (const porTabla of [false, true]) {
+    for (const [clave, papel] of Object.entries(MEDIDA_DE)) {
+      if (puesto[clave]) continue;
+      if (porTabla && !pedidas.has(clave)) continue;
+      const mejor = buscar(papel, porTabla);
+      if (!mejor) continue;
+      salida[clave] = papel.agregado + "(" + mejor.ref + ")";
+      puesto[clave] = salida[clave];
+      usadas.add(mejor.ref);
+    }
   }
 
   // la cantidad de clientes se cuenta sobre la columna que ya se eligió
@@ -387,5 +435,28 @@ function medidasSinteticas(tablas, perfil, yaMapeadas, columnasElegidas) {
   return salida;
 }
 
-module.exports = { columnas, perfilar, formatoDeMes, medidasSinteticas,
+/**
+ * La mejor columna de período DENTRO de una tabla dada.
+ *
+ * Hace falta cuando hay varios calendarios y el motor dice cuál es el que de
+ * verdad filtra: ahí no se vuelve a elegir tabla, se elige columna dentro de
+ * la que ya se sabe buena.
+ */
+function periodoEn(tabla) {
+  const papel = PAPELES.periodo;
+  let mejor = null;
+  for (const col of (tabla || {}).columnas || []) {
+    if (!formatoDeMes(col.min)) continue;
+    const i = papel.patrones.findIndex((re) => re.test(col.nombre));
+    if (i < 0) continue;
+    const puntos = 1000 - i * 40;
+    if (!mejor || puntos > mejor.puntos) mejor = { puntos, col };
+  }
+  if (mejor) return mejor.col;
+  // sin nombre reconocible, cualquiera cuyo VALOR sea un mes
+  for (const col of (tabla || {}).columnas || []) if (formatoDeMes(col.min)) return col;
+  return null;
+}
+
+module.exports = { columnas, perfilar, formatoDeMes, medidasSinteticas, periodoEn,
                    PAPELES, ORDEN, MEDIDA_DE, DERIVADAS };

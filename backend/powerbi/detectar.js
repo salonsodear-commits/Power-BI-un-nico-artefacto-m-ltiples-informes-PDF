@@ -132,6 +132,52 @@ async function buscarMedidas(ws, ds, gasto, prioridad) {
 }
 
 /**
+ * Con varios calendarios, cuál es el que de verdad filtra.
+ *
+ * Un modelo traído de un datalake suele tener `DIM_Calendario`, `Calendario_A`
+ * y `Calendario_B`: copias, y sólo una con la relación activa. Elegir la
+ * equivocada no da error —da un filtro que no filtra, y entonces todos los
+ * meses muestran el mismo total, que es el peor de los resultados posibles.
+ *
+ * No se adivina por el nombre: se le pregunta al motor cuál mueve la medida.
+ * Cuesta una consulta por calendario y sólo se paga cuando hay más de uno.
+ */
+async function elegirCalendario(ws, ds, tablas, deColumnas, medidas, propuesta) {
+  const calendarios = Object.values(deColumnas.perfil || {})
+    .filter((p) => p.calendario).map((p) => p.nombre);
+  if (calendarios.length < 2) return null;
+
+  const ref = ["real", "deudaCobranza", "bo", "importeFacturado", "facturacion"]
+    .map((k) => medidas[k]).find(Boolean) || Object.values(medidas).find(Boolean);
+  if (!ref) return null;
+
+  let mapa;
+  try {
+    const soloCalendarios = Object.fromEntries(calendarios.map((n) => [n, tablas[n]]));
+    const r = await SEMANTICA.alcance(ws, ds, { m: ref }, soloCalendarios);
+    mapa = (r.mapa || {}).m || {};
+  } catch (e) { return null; }
+
+  const buenos = calendarios.filter((n) => mapa[n]);
+  const actual = propuesta.columnas.periodo;
+  const suTabla = actual ? MAPEO_TABLA(actual) : null;
+  if (!buenos.length || (suTabla && buenos.includes(suTabla))) {
+    return { calendarios, sirven: buenos, cambiado: false };
+  }
+  const col = MAPEO.periodoEn(tablas[buenos[0]]);
+  if (!col) return { calendarios, sirven: buenos, cambiado: false };
+  propuesta.columnas.periodo = col.ref;
+  propuesta.periodoFormato = MAPEO.formatoDeMes(col.min) || propuesta.periodoFormato;
+  return { calendarios, sirven: buenos, cambiado: true, elegido: col.ref, antes: actual };
+}
+
+/** La tabla de una referencia `Tabla[Columna]`, sin comillas. */
+function MAPEO_TABLA(ref) {
+  const m = /^\s*(?:'((?:[^']|'')+)'|([^\[]+))\[/.exec(String(ref || ""));
+  return m ? (m[1] || m[2]).replace(/''/g, "'").trim() : null;
+}
+
+/**
  * El camino bueno: con el inventario en la mano no se adivina nada.
  */
 async function porInventario(ws, ds, tablas, prioridad) {
@@ -144,15 +190,19 @@ async function porInventario(ws, ds, tablas, prioridad) {
     medidas[papel] = encontradas[papel] ? "[" + encontradas[papel] + "]" : "";
   }
   // lo que no apareció, se arma sumando la columna que corresponda
-  const armadas = MAPEO.medidasSinteticas(tablas, deColumnas.perfil, encontradas, deColumnas.columnas);
+  const armadas = MAPEO.medidasSinteticas(tablas, deColumnas.perfil, encontradas,
+                                          deColumnas.columnas, prioridad);
   for (const [k, expr] of Object.entries(armadas)) if (!medidas[k]) medidas[k] = expr;
 
   const propuesta = { medidas, columnas: {}, periodoFormato: deColumnas.periodoFormato };
   for (const clave of Object.keys(COLUMNA_DE)) propuesta.columnas[clave] = "";
   for (const [k, v] of Object.entries(deColumnas.columnas)) propuesta.columnas[k] = v;
 
+  const arreglo = await elegirCalendario(ws, ds, tablas, deColumnas, medidas, propuesta);
+
   return {
     via: "inventario",
+    calendario: arreglo,
     propuesta,
     consultas: gasto.n + 1,
     frenado: gasto.frenado,

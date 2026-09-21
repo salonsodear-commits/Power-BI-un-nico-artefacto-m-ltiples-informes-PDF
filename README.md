@@ -600,6 +600,18 @@ medidas se llamen distinto no encuentra ninguna. Antes eso terminaba en *«Este
 tablero no alcanza para ningún informe»*, aunque los importes estuvieran ahí, en
 columnas.
 
+El significado, además, no siempre está en la columna. En un esquema en
+estrella el monto se llama `MontoPA` y lo que dice qué es está en la tabla:
+`FACT_Presupuesto`. Así que los patrones se prueban contra las dos, en este
+orden —la columna pesa más, porque es más específica— y la pasada por nombre de
+tabla, que es una pista floja, se estira sólo para lo que algún informe
+necesita de verdad.
+
+Y no todo lo numérico es plata. Un esquema en estrella está lleno de claves
+—`CecoID`, `ProveedorID`, `CuentaID`— y de partes de fecha —`AñoMesOrden`,
+`NroMes`— que suman y promedian sin querer decir nada. Mapear `real` a `CecoID`
+no da error: da un número, que es peor. Se descartan por forma, no por lista.
+
 Ahora lo que no aparece **se arma**, en dos pasos:
 
 1. **Sumas de una columna.** `real`, `bo`, `opex`, `costos`, `saldoCxC`, `dso`,
@@ -628,6 +640,17 @@ lista **cerrada** —una agregación, una medida, `DIVIDE`, un paréntesis, un
 operador, un número— y si sobra un solo carácter que no calce, no pasa. No hay
 forma de colar una comilla, un nombre de función fuera de la lista, ni una
 consulta.
+
+### Con varios calendarios, se elige el que de verdad filtra
+
+Un modelo traído de un datalake suele tener `DIM_Calendario`, `Calendario_A` y
+`Calendario_B`: copias, y sólo una con la relación activa. Elegir la equivocada
+no da error — da un filtro que no filtra, y entonces todos los meses muestran
+el mismo total, que es el peor resultado posible porque parece bien.
+
+No se adivina por el nombre: cuando hay más de un calendario se le pregunta al
+motor cuál mueve la medida, y si el elegido por nombre no es ése, se cambia.
+Cuesta una consulta por calendario y sólo se paga cuando hay ambigüedad.
 
 ### Cuando de verdad no alcanza, se muestra qué hay
 
