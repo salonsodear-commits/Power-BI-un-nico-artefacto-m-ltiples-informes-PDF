@@ -2122,8 +2122,12 @@ function filtrosActuales() {
 let SESION = null, SONDEO_PASO = null;
 
 async function arrancarPasos() {
-  // abierto con doble clic y sin saber a qué servidor hablarle: primero eso
-  if (location.protocol === "file:" && !$("fBackend").value.trim()) { pedirBackend(); return; }
+  /* Si el artefacto no está servido por su backend, no hay forma de adivinar
+     dónde vive: hay que preguntarlo. Pasa con un archivo abierto con doble
+     clic, pero también con el visor de claude.ai o cualquier host estático, y
+     antes esos casos caían en un cartel que sólo decía que no se podía. */
+  if (!$("fBackend").value.trim() && location.protocol !== "http:" &&
+      location.protocol !== "https:") { pedirBackend(); return; }
   try { SESION = await API.pedir("/api/auth"); }
   catch (e) { SESION = null; pintarPasos(e); return; }
   pintarPasos();
@@ -2138,12 +2142,14 @@ async function arrancarPasos() {
  * mudo: sale a pedir rutas relativas que en `file://` son archivos que no
  * existen. Power BI no se toca desde acá: el backend es el que habla con él.
  */
-function pedirBackend() {
+function pedirBackend(porQue) {
   const caja = $("pasoSesion");
+  const actual = $("fBackend").value.trim();
   caja.innerHTML = `<div class="paso"><b>¿Dónde corre el backend?</b>
-    <span>Este archivo es la pantalla; los datos los trae un backend que habla
-    con Power BI. Pegá su dirección y entrás con tu cuenta como siempre.</span>
+    <span>${porQue || "Esta página es la pantalla; los datos los trae un backend " +
+      "que habla con Power BI. Pegá su dirección y entrás con tu cuenta como siempre."}</span>
     <input id="bkLocal" type="url" inputmode="url" spellcheck="false"
+      value="${esc(actual)}"
       placeholder="https://mi-backend.ejemplo.com" aria-label="Dirección del backend">
     <button class="b primario" id="btnBkLocal">Conectar</button></div>`;
   const ir = () => {
@@ -2152,6 +2158,8 @@ function pedirBackend() {
     $("fBackend").value = v;
     $("fBackend").classList.remove("malo");
     guardarPrefs();
+    caja.innerHTML = `<div class="paso"><b>Probando…</b>
+      <span class="mono">${esc(v)}</span></div>`;
     arrancarPasos();
   };
   $("btnBkLocal").addEventListener("click", ir);
@@ -2161,9 +2169,16 @@ function pedirBackend() {
 function pintarPasos(error) {
   const caja = $("pasoSesion");
   if (error) {
-    caja.innerHTML = `<div class="paso"><b>No se puede hablar con el backend</b>
-      <span>${esc(error.backendInvalido ? error.message : SIN_BACKEND)}</span></div>`;
     $("notaPaso").textContent = "";
+    /* No alcanza con decir que no se pudo: hay que dar dónde escribirlo. Si
+       la casilla está vacía, es que nadie dijo todavía a qué servidor
+       hablarle; si tiene algo, es que esa dirección no contesta. */
+    pedirBackend(error.backendInvalido || error.noEsBackend ? esc(error.message)
+      : $("fBackend").value.trim()
+        ? "No contesta <span class=\"mono\">" + esc($("fBackend").value.trim()) +
+          "</span>. Revisá que el backend esté levantado y que la dirección sea " +
+          "alcanzable desde esta máquina."
+        : SIN_BACKEND);
     return;
   }
   const a = SESION || {};
@@ -2879,6 +2894,18 @@ const API = {
       // el backend sabe qué casilla del mapeo produjo el error: no perderla
       if (j && j.campo) err.campo = j.campo;
       if (j && j.faltan) err.faltan = j.faltan;
+      throw err;
+    }
+    /* Una respuesta que no es JSON no es una respuesta: es otro servidor
+       contestando. Pasa cuando el artefacto está servido desde un host que
+       devuelve la misma página para cualquier ruta —claude.ai, un sitio
+       estático, un proxy— y antes se tomaba por buena: `JSON.parse` fallaba
+       en silencio, quedaba `null`, y la pantalla seguía como si el backend
+       hubiera contestado que no hay sesión. */
+    if (j === null && texto.trim()) {
+      const err = new Error("La dirección del backend contestó algo que no es JSON. " +
+        "Lo más probable es que ahí no haya un backend: es el sitio que sirve esta página.");
+      err.noEsBackend = true;
       throw err;
     }
     return j;

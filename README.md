@@ -887,6 +887,22 @@ Lo que se incrusta es el informe ya calculado, lo mismo que cualquiera ve en
 pantalla. La copia se abre en modo lectura, con la fecha del dato a la vista y
 los segmentadores congelados, porque no puede volver a consultar.
 
+### Cuando no se llega al backend, se pide la dirección
+
+El artefacto sólo sabe dónde vive su backend si lo sirve él. En cualquier otro
+lado —un archivo abierto con doble clic, el visor de claude.ai, un host
+estático— hay que preguntarlo, y antes eso terminaba en un cartel que sólo
+decía que no se podía.
+
+Ahora aparece la casilla, con el motivo concreto: *no contesta esa dirección*,
+*lo que contestó no es un backend*, *la dirección no es válida*. Conserva lo
+escrito para corregirlo sin volver a tipear todo.
+
+Y una respuesta que **no es JSON deja de tomarse por buena**. Un host que
+devuelve la misma página para cualquier ruta —claude.ai, un sitio estático, un
+proxy— hacía que `/api/auth` trajera HTML, `JSON.parse` fallara en silencio y
+la pantalla siguiera como si el backend hubiera contestado que no hay sesión.
+
 ### El archivo suelto también se conecta
 
 El artefacto descargado y abierto con doble clic **sí entra con Microsoft y
