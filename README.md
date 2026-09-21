@@ -887,6 +887,29 @@ Lo que se incrusta es el informe ya calculado, lo mismo que cualquiera ve en
 pantalla. La copia se abre en modo lectura, con la fecha del dato a la vista y
 los segmentadores congelados, porque no puede volver a consultar.
 
+### El archivo suelto también se conecta
+
+El artefacto descargado y abierto con doble clic **sí entra con Microsoft y
+trae datos**, siempre que haya un backend al que hablarle. Al abrirlo pide su
+dirección, y de ahí en adelante todo es igual: entrar con la cuenta, elegir
+área de trabajo, elegir tablero.
+
+Lo que lo impedía era la cookie. Un archivo en `file://` tiene origen `null` y
+el navegador no manda cookies, así que cada llamada parecía de alguien nuevo.
+Ahora la sesión viaja en la cabecera `X-Sesion`:
+
+- el backend la entrega en cada respuesta y **sólo acepta identificadores que
+  él mismo entregó** — si aceptara cualquiera, alguien podría fijar uno,
+  esperar a que la persona entre con su cuenta y usar ese mismo para leer su
+  token;
+- el artefacto la guarda y la devuelve, sin credenciales;
+- y como sin ese identificador el backend no hace nada útil, puede abrirse a
+  cualquier origen sin regalar nada. Una página ajena no puede leerlo ni
+  adivinarlo.
+
+El modo con cookie sigue igual para el artefacto servido desde el backend, y
+para otro dominio listado en `ORIGENES_PERMITIDOS`.
+
 ### Por qué la copia no puede conectarse a Power BI
 
 No es una decisión de diseño: **la API de Power BI no habilita orígenes de
@@ -900,10 +923,15 @@ BI. Para que el equipo entre con su propia cuenta —y vea lo que Power BI le
 deja ver, con su RLS— lo que se comparte es la **dirección del backend**, no un
 archivo.
 
-| Qué querés | Qué compartís |
-|---|---|
-| que vean este informe, ya | el HTML descargado |
-| que traigan datos ellos mismos | la dirección donde corre el backend |
+| Qué querés | Qué compartís | Qué hace falta |
+|---|---|---|
+| que vean este informe, ya | el HTML **con los datos** (Descargar HTML) | nada |
+| que traigan datos ellos mismos | el HTML **del artefacto** | un backend que alcancen |
+| lo mismo, sin repartir archivos | la dirección del backend | un backend que alcancen |
+
+Las tres formas sirven; la diferencia es si hay un servidor corriendo al que
+el equipo llegue. Eso no lo cambia el formato: **Power BI sólo se consulta
+desde un servidor**, nunca desde la página.
 
 ## El contrato de datos
 

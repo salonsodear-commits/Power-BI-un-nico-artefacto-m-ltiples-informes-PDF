@@ -18,7 +18,25 @@ const { AsyncLocalStorage } = require("async_hooks");
 const almacen = new AsyncLocalStorage();
 const ARCHIVO = path.join(__dirname, ".sesiones.json");
 const COOKIE = "informes_sid";
+const CABECERA = "x-sesion";
 const VIDA_DIAS = 30;
+const FORMA_SID = /^[A-Za-z0-9_-]{22,64}$/;
+
+/* Los identificadores que este servidor entregó y todavía no tienen sesión.
+   Sirve para lo mismo que la cookie —reconocer al que vuelve— pero para un
+   artefacto abierto con doble clic, que no tiene origen y por lo tanto no
+   puede llevar cookies. Y sobre todo: sólo se acepta un identificador que
+   haya salido de acá. Si se aceptara cualquiera, alguien podría fijar uno,
+   esperar a que la persona entre con su cuenta, y usar ese mismo para leer
+   su token. */
+const emitidos = new Map();
+const VIDA_EMITIDO = 60 * 60 * 1000;
+
+function recordarEmitido(sid) {
+  const corte = Date.now() - VIDA_EMITIDO;
+  for (const [k, t] of emitidos) if (t < corte) emitidos.delete(k);
+  emitidos.set(sid, Date.now());
+}
 
 /** sid → { access_token, refresh_token, vence, usuario, visto } */
 let sesiones = cargar();
@@ -63,7 +81,11 @@ const leerCookie = (req) => {
  * `secure` sólo cuando la conexión ya es https, para no romper localhost.
  */
 function middleware(req, res, next) {
-  let sid = leerCookie(req);
+  const pedido = String(req.headers[CABECERA] || "").trim();
+  // sólo vale un identificador que este servidor haya entregado
+  const porCabecera = FORMA_SID.test(pedido) && (sesiones[pedido] || emitidos.has(pedido))
+    ? pedido : null;
+  let sid = porCabecera || leerCookie(req);
   if (!sid) {
     sid = crypto.randomBytes(24).toString("base64url");
     const https = req.secure || req.headers["x-forwarded-proto"] === "https";
@@ -71,6 +93,11 @@ function middleware(req, res, next) {
       `${COOKIE}=${sid}; Path=/; Max-Age=${VIDA_DIAS * 86400}; HttpOnly; SameSite=Lax` +
       (https ? "; Secure" : ""));
   }
+  recordarEmitido(sid);
+  /* El mismo identificador, también como cabecera. Un artefacto servido desde
+     acá usa la cookie y lo ignora; uno abierto con doble clic lo guarda y lo
+     manda de vuelta, que es su única forma de que lo reconozcan. */
+  res.setHeader("X-Sesion", sid);
   almacen.run({ sid }, next);
 }
 

@@ -453,6 +453,9 @@ table.datos tr.suma td{font-weight:700;color:var(--tinta);background:var(--papel
 table.datos td .marca-est{font-family:var(--mono);font-size:9px;margin-right:3px}
 table.datos td.bien{color:var(--ok)} table.datos td.mal{color:var(--mal)}
 table.viva td.bien{color:var(--ok)} table.viva td.mal{color:var(--mal)}
+.paso input[type=url]{width:100%;margin:7px 0 6px;padding:7px 9px;border-radius:6px;
+  border:1px solid var(--consola-linea,#2C4149);background:#0F1B20;color:var(--consola-tinta);
+  font-family:var(--mono);font-size:11.5px}
 .fallo-paso{margin:7px 0 0;padding:9px 10px;border-radius:7px;
   background:var(--consola-mal,#2B1512);border:1px solid #6B322B}
 .fallo-paso b{display:block;color:#F0B8AF;font-size:12px;margin-bottom:4px}
@@ -2119,10 +2122,40 @@ function filtrosActuales() {
 let SESION = null, SONDEO_PASO = null;
 
 async function arrancarPasos() {
+  // abierto con doble clic y sin saber a qué servidor hablarle: primero eso
+  if (location.protocol === "file:" && !$("fBackend").value.trim()) { pedirBackend(); return; }
   try { SESION = await API.pedir("/api/auth"); }
   catch (e) { SESION = null; pintarPasos(e); return; }
   pintarPasos();
   if (SESION.conectado) await cargarAreas();
+}
+
+/**
+ * El primer paso de un archivo suelto: a qué servidor hablarle.
+ *
+ * Un artefacto servido desde el backend no necesita preguntarlo —es el mismo
+ * origen— pero uno descargado y abierto con doble clic sí, y sin esto se queda
+ * mudo: sale a pedir rutas relativas que en `file://` son archivos que no
+ * existen. Power BI no se toca desde acá: el backend es el que habla con él.
+ */
+function pedirBackend() {
+  const caja = $("pasoSesion");
+  caja.innerHTML = `<div class="paso"><b>¿Dónde corre el backend?</b>
+    <span>Este archivo es la pantalla; los datos los trae un backend que habla
+    con Power BI. Pegá su dirección y entrás con tu cuenta como siempre.</span>
+    <input id="bkLocal" type="url" inputmode="url" spellcheck="false"
+      placeholder="https://mi-backend.ejemplo.com" aria-label="Dirección del backend">
+    <button class="b primario" id="btnBkLocal">Conectar</button></div>`;
+  const ir = () => {
+    const v = $("bkLocal").value.trim();
+    if (!v) return;
+    $("fBackend").value = v;
+    $("fBackend").classList.remove("malo");
+    guardarPrefs();
+    arrancarPasos();
+  };
+  $("btnBkLocal").addEventListener("click", ir);
+  $("bkLocal").addEventListener("keydown", (e) => { if (e.key === "Enter") ir(); });
 }
 
 function pintarPasos(error) {
@@ -2804,13 +2837,39 @@ const API = {
     return u.origin + u.pathname.replace(/\/+$/, "");
   },
   url(ruta) { return this.base() + ruta; },
+
+  /**
+   * ¿Este artefacto puede usar cookies con su backend?
+   *
+   * Servido DESDE el backend, sí: misma cookie, mismo origen. Descargado y
+   * abierto con doble clic, no: su origen es `null` y el navegador no manda
+   * cookies. Ahí la sesión viaja en la cabecera `X-Sesion`, que el backend
+   * entrega y el artefacto devuelve. Es lo que permite repartir el archivo y
+   * que cada uno entre igual con su cuenta.
+   */
+  suelto() {
+    if (location.protocol === "file:") return true;
+    const b = this.base();
+    if (!b) return false;
+    try { return new URL(b).origin !== location.origin; } catch (e) { return true; }
+  },
+  sesion() { try { return localStorage.getItem("informes_sid") || ""; } catch (e) { return ""; } },
+  guardarSesion(v) { try { if (v) localStorage.setItem("informes_sid", v); } catch (e) { /* sin storage */ } },
+
   async pedir(ruta, opciones) {
-    // `credentials` manda la cookie de sesión también cuando el backend
-    // está en otro origen: sin eso, cada llamada parecería de alguien nuevo.
+    const suelto = this.suelto();
+    const cabeceras = { "Content-Type": "application/json", "Accept": "application/json" };
+    // el identificador que el backend entregó: sin cookie, es lo único que
+    // dice "soy el mismo que entró con su cuenta hace un rato"
+    if (suelto && this.sesion()) cabeceras["X-Sesion"] = this.sesion();
     const r = await fetch(this.url(ruta), Object.assign({
-      credentials: "include",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" }
-    }, opciones || {}));
+      // con cookie cuando se puede; sin ella, nada de credenciales: así el
+      // backend puede abrirse a cualquier origen sin regalar la sesión
+      credentials: suelto ? "omit" : "include",
+      headers: cabeceras
+    }, opciones || {}, opciones && opciones.headers
+      ? { headers: Object.assign({}, cabeceras, opciones.headers) } : {}));
+    if (suelto) this.guardarSesion(r.headers.get("X-Sesion"));
     const texto = await r.text();
     let j = null;
     try { j = texto ? JSON.parse(texto) : null; } catch (e) { /* no era JSON */ }

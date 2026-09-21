@@ -28,19 +28,33 @@ app.use(express.json({ limit: "32kb" }));
 // compartirían el token y el RLS del modelo dejaría de aplicarse.
 app.use(SESIONES.middleware);
 
-// Si servís el artefacto desde acá no hace falta CORS. Si lo abrís desde otro
-// origen, listá ese origen en ORIGENES_PERMITIDOS: nunca "*" para un backend
-// que habla con datos corporativos.
+/*
+ * Dos formas de llegar acá desde otro origen, y la diferencia es la cookie.
+ *
+ *   · CON cookie. Es el modo de siempre: el artefacto servido desde otro
+ *     dominio. Exige que ese origen esté listado en ORIGENES_PERMITIDOS,
+ *     porque una cookie viaja sola y cualquier página podría usarla.
+ *
+ *   · SIN cookie. El artefacto descargado y abierto con doble clic: su origen
+ *     es `null` y las cookies no viajan. La sesión va en la cabecera
+ *     `X-Sesion`, que una página ajena no puede leer ni adivinar, así que se
+ *     puede abrir a cualquier origen: sin ese identificador el backend no
+ *     hace nada útil. Es lo que permite compartir el archivo y que igual se
+ *     entre con la cuenta de cada uno.
+ */
 const PERMITIDOS = (process.env.ORIGENES_PERMITIDOS || "")
   .split(",").map((s) => s.trim()).filter(Boolean);
 app.use((req, res, next) => {
   const origen = req.headers.origin;
-  if (origen && PERMITIDOS.includes(origen)) {
-    res.setHeader("Access-Control-Allow-Origin", origen);
+  if (origen) {
+    const conCookie = PERMITIDOS.includes(origen);
+    res.setHeader("Access-Control-Allow-Origin", conCookie ? origen : "*");
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, X-Sesion");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS");
-    res.setHeader("Access-Control-Allow-Credentials", "true");
+    // que el artefacto pueda leer el identificador que se le entregó
+    res.setHeader("Access-Control-Expose-Headers", "X-Sesion");
+    if (conCookie) res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   if (req.method === "OPTIONS") return res.sendStatus(204);
   next();
